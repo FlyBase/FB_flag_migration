@@ -7,4 +7,7 @@ scripts and data to handle FlyBase flag data into alliance
 
 2. before run, make sure to get new okta token and replace $okta_token. line #194
 
+3. ticket_scrum-3147-retrieve_deleted_topic.pl
+   use to retrieve deleted flag from local files at Harvard.
+
 
