@@ -1,4 +1,5 @@
 use strict;
+use warnings;
 #use XML::DOM;
 use DBI;
 use Digest::MD5  qw(md5 md5_hex md5_base64);
@@ -64,8 +65,6 @@ my $FBog_like='^FBog[0-9]+$';
 my $XR_like='%-XR';
 my $XP_like='%-XP';
 my $symbol_like='%@%@%';
-     my $genus='Drosophila';
-     my $species='melanogaster';
      my $cvterm_gene='gene';
      my $cv_so='SO';
 
@@ -295,11 +294,13 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 		#print "\n$sql_entity";
 		my $FBrf_with_prefix="FB:".$uniquename_p;
 		my $topic=$flag_ATP{$flag_type};
-		my $entity='alliance';
-		my ($entity_type, $entity, $entity_type_ATP);
 		my $flag_entity=0;
-		my ($FBid, $entity_type);
 =header		
+
+		# this section was for working on adding entities (genes, alleles etc.) which is no longer being done by this script
+		my $entity='alliance';
+		my ($entity_type, $entity_type_ATP);
+		my ($FBid);
                 my $entity_q = $dbh->prepare  ($sql_entity);
                 $entity_q->execute or die" CAN'T GET entity info FROM CHADO:\n$sql_entity\n";
 		while (($FBid, $entity_type) = $entity_q->fetchrow_array()) {
