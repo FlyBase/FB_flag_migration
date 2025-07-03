@@ -61,7 +61,6 @@ my $FBpp_like='^FBpp[0-9]+$';
 my $FBrf_like='^FBrf[0-9]+$';
 my $FBal_like='^FBal[0-9]+$';
 my $FBog_like='^FBog[0-9]+$';
-my $FBrf_like='^FBrf[0-9]+$';
 my $XR_like='%-XR';
 my $XP_like='%-XP';
 my $symbol_like='%@%@%';
@@ -158,6 +157,12 @@ unless ($ENV_STATE eq "dev") {
     	my ($junk, $FB, $curie)=split(/\s+/);
     	$FB_curie{$FB}=$curie;
 	}
+} else {
+
+	print STDERR "FBrf to test:";
+	$FBrf_like = <STDIN>;
+	chomp $FBrf_like;
+
 }
 my %FBrf_pubid;
 #my $sql_FBrf=sprintf("select distinct p.uniquename, p.pub_id from pub p, pubprop pp, cvterm c  where p.pub_id=pp.pub_id and c.cvterm_id=pp.type_id and p.is_obsolete='false' and c.name in ('cam_flag', 'harv_flag', 'dis_flag', 'onto_flag') and  p.uniquename~'%s' and p.uniquename in ('FBrf0240817','FBrf0236883','FBrf0134733','FBrf0167748','FBrf0213082','FBrf0246285','FBrf0244403','FBrf0209874')  group by p.uniquename, p.pub_id  ",$FBrf_like); #,'harv_flag'  and p.uniquename not in ('FBrf0072646', 'FBrf0081144','FBrf0209074','FBrf0126732','FBrf0210738','FBrf0134733','FBrf0201683','FBrf0108289')    and p.uniquename in ('FBrf0240817','FBrf0236883','FBrf0134733','FBrf0167748','FBrf0213082','FBrf0246285','FBrf0244403','FBrf0209874')  'FBrf0256192', 'FBrf0167748',
