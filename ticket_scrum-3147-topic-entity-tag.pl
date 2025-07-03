@@ -34,8 +34,8 @@ otherwise for any other ‘Created by’ value , you should use: test: 223 stage
 
 
 if (@ARGV != 5) {
-    print "\n USAGE: $0 pg_server db_name pg_username pg_password test|stage|\n\n";
-    print "\teg: $0 flysql24 production_chado zhou pwd test|stage|production\n\n";
+    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production\n\n";
+    warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production\n\n";
     exit;
 }
 
@@ -45,10 +45,10 @@ my $user = shift(@ARGV);
 my $pwd = shift(@ARGV);
 my $ENV_STATE = shift(@ARGV);
 
-my @STATE = ("test", "stage", "production");
+my @STATE = ("dev", "test", "stage", "production");
 if (! grep( /^$ENV_STATE$/, @STATE ) ) {
-    print "\n USAGE: $0 pg_server db_name pg_username pg_password test|stage|\n\n";
-    print "\teg: $0 flysql24 production_chado zhou pwd test|stage|production\n\n";
+    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production\n\n";
+    warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production\n\n";
     exit;
 }
 
@@ -320,7 +320,13 @@ foreach my $uniquename_p (keys %FBrf_pubid){
                     $topic_entity_tag_source_id =$topic_entity_tag_source_hash{"curators"}{$ENV_STATE};
                 }
 		my $data='{"date_created": "'.$time_from_curator.'","created_by": "'.$curator.'", "topic": "'.$topic.'", "species": "'.$species.'","topic_entity_tag_source_id": '.$topic_entity_tag_source_id.', "negated": '.$negated.', "reference_curie": "'.$FB_curie{$FBrf_with_prefix}.'"}';
-		#print "\n$data";
+
+		if ($ENV_STATE eq "dev") {
+
+			print "\n$data";
+
+
+		}
 		my $cmd;
 		if ($ENV_STATE eq "test"){
 		    $cmd="curl -X 'POST' 'https://dev4005-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$data'";
