@@ -31,12 +31,23 @@ otherwise for any other ‘Created by’ value , you should use: test: 223 stage
   "data_provider": "FB",
   "secondary_data_provider_abbreviation": "FB"
 }
+
+To generate the input file use:-
+You may need to change the --host value if you want to use prod etc.
+You will be prompted for a password, obviously not given here.
+You will also need VPN access to the database for this to work.
+
+psql --host literature-dev.cmnnhlso7wdi.us-east-1.rds.amazonaws.com \
+     -U postgres -d literature\
+     -c "select cr.curie, r.curie from reference r, cross_reference cr where r.reference_id=cr.reference_id and curie_prefix='FB'" \
+     -A -F ' ' -t > FBrf_to_AGRKB.txt
+
 =cut
 
 
-if (@ARGV != 5) {
-    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production\n\n";
-    warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production\n\n";
+if (@ARGV != 6) {
+    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production filename\n\n";
+    warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production FBrf_to_AGRKB.txt\n\n";
     exit;
 }
 
@@ -45,11 +56,13 @@ my $db = shift(@ARGV);
 my $user = shift(@ARGV);
 my $pwd = shift(@ARGV);
 my $ENV_STATE = shift(@ARGV);
+my $INPUT_FILE = shift(@ARGV);
+
 
 my @STATE = ("dev", "test", "stage", "production");
 if (! grep( /^$ENV_STATE$/, @STATE ) ) {
-    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production\n\n";
-    warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production\n\n";
+    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production filename\n\n";
+    warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production FBrf_to_AGRKB.txt\n\n";
     exit;
 }
 
@@ -138,12 +151,23 @@ my %FBgn_type; #key:FBgn, value: transcript type
 #read the mapping of FBrf vs alliance curie, which generate from: select cr.curie, r.curie from reference r, cross_reference cr where r.reference_id=cr.reference_id and curie_prefix='FB' ;
 my %FB_curie;
 
+# Sanity check if state isnot test, make sure the user wants to
+# save the data to the database
+unless ($ENV_STATE ne "test") {
+	print STDERR "You are about to write data to $server $db";
+	print STDERR "Type y to continue else anything else to stop"
+	$continue = <STDIN>;
+	chomp $continue;
+	if ($continue ne 'y' or $continue ne 'Y') {
+	    die "Processing ahs been cancelled."
+    }
+}
 unless ($ENV_STATE eq "dev") {
 
-	open (IN, 'ticket_scrum-3147-FB_curie20250612.txt') or die 'unable to open file ticket_scrum-3147-FB_curie.txt';
+	open (IN, $INPUT_FILE) or die "unable to open file $INPUT_FILE";
 	while (<IN>){
    	 chomp;
-    	my ($junk, $FB, $curie)=split(/\s+/);
+    	my ($FB, $curie)=split(/\s+/);
     	$FB_curie{$FB}=$curie;
 	}
 } else {
