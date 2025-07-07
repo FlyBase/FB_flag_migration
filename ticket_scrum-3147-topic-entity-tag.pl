@@ -51,18 +51,6 @@ if (@ARGV != 6) {
     exit;
 }
 
-# Sanity check if state isnot test, make sure the user wants to
-# save the data to the database
-unless ($ENV_STATE ne "test") {
-	print STDERR "You are about to write data to $server $db";
-	print STDERR "Type y to continue else anything else to stop"
-	$continue = <STDIN>;
-	chomp $continue;
-	if ($continue ne 'y' or $continue ne 'Y') {
-	    die "Processing ahs been cancelled."
-    }
-}
-
 my $server = shift(@ARGV);
 my $db = shift(@ARGV);
 my $user = shift(@ARGV);
@@ -71,11 +59,24 @@ my $ENV_STATE = shift(@ARGV);
 my $INPUT_FILE = shift(@ARGV);
 
 
+
 my @STATE = ("dev", "test", "stage", "production");
 if (! grep( /^$ENV_STATE$/, @STATE ) ) {
     warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production filename\n\n";
     warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production FBrf_to_AGRKB.txt\n\n";
     exit;
+}
+
+# Sanity check if state isnot test, make sure the user wants to
+# save the data to the database
+unless ($ENV_STATE ne "test") {
+	print STDERR "You are about to write data to $server $db";
+	print STDERR "Type y to continue else anything else to stop";
+	my $continue = <STDIN>;
+	chomp $continue;
+	if ($continue ne 'y' or $continue ne 'Y') {
+	    die "Processing ahs been cancelled.";
+    }
 }
 
 my $dsource = sprintf("dbi:Pg:dbname=%s;host=%s;port=5432",$db,$server);
