@@ -56,21 +56,6 @@ if (! grep( /^$ENV_STATE$/, @STATE ) ) {
 my $dsource = sprintf("dbi:Pg:dbname=%s;host=%s;port=5432",$db,$server);
 my $dbh = DBI->connect($dsource,$user,$pwd) or die "cannot connect to $dsource\n";
 
-=head
-
-# intended for adding entities (genes, alleles etc.) which is no longer being done by this script
-my $FBgn_like='^FBgn[0-9]+$';
-my $FBtr_like='^FBtr[0-9]+$';
-my $FBpp_like='^FBpp[0-9]+$';
-my $FBal_like='^FBal[0-9]+$';
-my $FBog_like='^FBog[0-9]+$';
-my $XR_like='%-XR';
-my $XP_like='%-XP';
-my $symbol_like='%@%@%';
-my $cvterm_gene='gene';
-my $cv_so='SO';
-=cut
-
 my $FBrf_like='^FBrf[0-9]+$';
 
 #updated 20250612, see https://flybase.atlassian.net/browse/FTA-47
@@ -217,7 +202,6 @@ foreach my $uniquename_p (keys %FBrf_pubid){
   #print "\n$sql\n\n";
   my $flag = $dbh->prepare  ($sql);
   $flag->execute or die" CAN'T GET flag FROM CHADO:\n$sql\n";
-  my ($symbol_g, $uniquename, $fpid, $value, $fbrf);
 
   my ($flag_source,$flag_type, $pub_id, $transaction_type, $transaction_timestamp, $transaction_timestamp_curated, $transaction_timestamp_audit, $pubprop_id);
   while (($flag_source,$flag_type, $pub_id, $transaction_type, $transaction_timestamp ) = $flag->fetchrow_array()) {
@@ -296,29 +280,7 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 
 		my $FBrf_with_prefix="FB:".$uniquename_p;
 		my $topic=$flag_ATP{$flag_type};
-=header		
 
-		# this section was for working on adding entities (genes, alleles etc.) which is no longer being done by this script
-		#here to check if link to any entity (allele, gene etc) with same ac.transaction_timestamp
-		my $sql_entity=sprintf("select distinct f.uniquename, c.name  from feature f, cvterm c,  feature_pub fp, pubprop pp, audit_chado ac  where ac.audited_table='feature_pub' and ac.audit_transaction='I' and fp.feature_pub_id=ac.record_pkey and f.feature_id=fp.feature_id and fp.pub_id=pp.pub_id and pp.pubprop_id=%s and c.cvterm_id=f.type_id ", $pubprop_id);
-		#print "\n$sql_entity";
-		my $flag_entity=0;
-
-		my $entity='alliance';
-		my ($entity_type, $entity_type_ATP);
-		my ($FBid);
-                my $entity_q = $dbh->prepare  ($sql_entity);
-                $entity_q->execute or die" CAN'T GET entity info FROM CHADO:\n$sql_entity\n";
-		while (($FBid, $entity_type) = $entity_q->fetchrow_array()) {
-                    $entity="FB:".$FBid;
-		    $entity_type_ATP=$flag_ATP{$entity_type};
-		    if (!(defined $entity_type_ATP)){
-			$entity_type_ATP='ATP_for_'.$entity_type;
-		    }
-		    print "\n$entity\t$entity_type_ATP\t$entity_source\t$uniquename_p\t$flag_type\t$curator\t$time_from_curator\t$time_curated";
-		    $flag_entity=0;
-		}
-=cut
 		print "\n$uniquename_p\t$flag_source\t$flag_type\t$curator\t$file\t$time_from_curator\t$time_curated";
 		if (!(exists $flag_ATP{$flag_type})){
 		    warn "\nno ATP for this flag_type:$flag_type from $flag_source";
@@ -357,10 +319,7 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 		elsif ($ENV_STATE eq "production"){
 		    $cmd="curl -X 'POST' 'https://literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$data'";
 		}
-# intended for adding entities (genes, alleles etc.) which is no longer being done by this script
-#		if ($flag_entity==0){#no entity
-#		  #  print "\nN/A\tN/A\tN/A\t$uniquename_p\t$flag_type\t$curator\t$time_from_curator\t$time_curated";
-#		}
+
 		print "\n$uniquename_p $flag_type\n$data\n";
 		#print "\n\n$cmd\n";
 		#system($cmd);
