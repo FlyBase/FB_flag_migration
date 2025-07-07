@@ -46,6 +46,7 @@ psql --host literature-dev.cmnnhlso7wdi.us-east-1.rds.amazonaws.com \
 
 
 if (@ARGV != 7) {
+    warn "Wrong number of argument, shouldbe 7!\n";
     warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production filename okta_token\n\n";
     warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production FBrf_to_AGRKB.txt ABCD1234\n\n";
     exit;
@@ -69,13 +70,16 @@ if (! grep( /^$ENV_STATE$/, @STATE ) ) {
 
 # Sanity check if state isnot test, make sure the user wants to
 # save the data to the database
-unless ($ENV_STATE ne "test") {
-	print STDERR "You are about to write data to $server $db";
-	print STDERR "Type y to continue else anything else to stop";
+if ($ENV_STATE ne "test") {
+	print STDERR "You are about to write data to $server $db\n";
+	print STDERR "Type y to continue else anything else to stop\n";
 	my $continue = <STDIN>;
 	chomp $continue;
-	if ($continue ne 'y' or $continue ne 'Y') {
-	    die "Processing ahs been cancelled.";
+	if (($continue eq 'y') || ($continue eq 'Y')) {
+	    print STDERR "Processing will continue.";
+    }
+    else{
+	    die "Processing has been cancelled.";
     }
 }
 
