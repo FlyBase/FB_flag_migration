@@ -51,6 +51,18 @@ if (@ARGV != 6) {
     exit;
 }
 
+# Sanity check if state isnot test, make sure the user wants to
+# save the data to the database
+unless ($ENV_STATE ne "test") {
+	print STDERR "You are about to write data to $server $db";
+	print STDERR "Type y to continue else anything else to stop"
+	$continue = <STDIN>;
+	chomp $continue;
+	if ($continue ne 'y' or $continue ne 'Y') {
+	    die "Processing ahs been cancelled."
+    }
+}
+
 my $server = shift(@ARGV);
 my $db = shift(@ARGV);
 my $user = shift(@ARGV);
@@ -151,17 +163,6 @@ my %FBgn_type; #key:FBgn, value: transcript type
 #read the mapping of FBrf vs alliance curie, which generate from: select cr.curie, r.curie from reference r, cross_reference cr where r.reference_id=cr.reference_id and curie_prefix='FB' ;
 my %FB_curie;
 
-# Sanity check if state isnot test, make sure the user wants to
-# save the data to the database
-unless ($ENV_STATE ne "test") {
-	print STDERR "You are about to write data to $server $db";
-	print STDERR "Type y to continue else anything else to stop"
-	$continue = <STDIN>;
-	chomp $continue;
-	if ($continue ne 'y' or $continue ne 'Y') {
-	    die "Processing ahs been cancelled."
-    }
-}
 unless ($ENV_STATE eq "dev") {
 
 	open (IN, $INPUT_FILE) or die "unable to open file $INPUT_FILE";
