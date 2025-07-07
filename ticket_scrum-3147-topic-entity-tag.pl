@@ -1,4 +1,5 @@
 use strict;
+use warnings;
 #use XML::DOM;
 use DBI;
 use Digest::MD5  qw(md5 md5_hex md5_base64);
@@ -34,8 +35,8 @@ otherwise for any other ‘Created by’ value , you should use: test: 223 stage
 
 
 if (@ARGV != 5) {
-    print "\n USAGE: $0 pg_server db_name pg_username pg_password test|stage|\n\n";
-    print "\teg: $0 flysql24 production_chado zhou pwd test|stage|production\n\n";
+    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production\n\n";
+    warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production\n\n";
     exit;
 }
 
@@ -45,30 +46,17 @@ my $user = shift(@ARGV);
 my $pwd = shift(@ARGV);
 my $ENV_STATE = shift(@ARGV);
 
-my @STATE = ("test", "stage", "production");
+my @STATE = ("dev", "test", "stage", "production");
 if (! grep( /^$ENV_STATE$/, @STATE ) ) {
-    print "\n USAGE: $0 pg_server db_name pg_username pg_password test|stage|\n\n";
-    print "\teg: $0 flysql24 production_chado zhou pwd test|stage|production\n\n";
+    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production\n\n";
+    warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production\n\n";
     exit;
 }
 
 my $dsource = sprintf("dbi:Pg:dbname=%s;host=%s;port=5432",$db,$server);
 my $dbh = DBI->connect($dsource,$user,$pwd) or die "cannot connect to $dsource\n";
 
-my $FBgn_like='^FBgn[0-9]+$';
-my $FBtr_like='^FBtr[0-9]+$';
-my $FBpp_like='^FBpp[0-9]+$';
 my $FBrf_like='^FBrf[0-9]+$';
-my $FBal_like='^FBal[0-9]+$';
-my $FBog_like='^FBog[0-9]+$';
-my $FBrf_like='^FBrf[0-9]+$';
-my $XR_like='%-XR';
-my $XP_like='%-XP';
-my $symbol_like='%@%@%';
-     my $genus='Drosophila';
-     my $species='melanogaster';
-     my $cvterm_gene='gene';
-     my $cv_so='SO';
 
 #updated 20250612, see https://flybase.atlassian.net/browse/FTA-47
 my %flag_ATP=(
@@ -149,11 +137,21 @@ my %FBgn_type; #key:FBgn, value: transcript type
 
 #read the mapping of FBrf vs alliance curie, which generate from: select cr.curie, r.curie from reference r, cross_reference cr where r.reference_id=cr.reference_id and curie_prefix='FB' ;
 my %FB_curie;
-open (IN, 'ticket_scrum-3147-FB_curie20250612.txt') or die 'unable to open file ticket_scrum-3147-FB_curie.txt';
-while (<IN>){
-    chomp;
-    my ($junk, $FB, $curie)=split(/\s+/);
-    $FB_curie{$FB}=$curie;
+
+unless ($ENV_STATE eq "dev") {
+
+	open (IN, 'ticket_scrum-3147-FB_curie20250612.txt') or die 'unable to open file ticket_scrum-3147-FB_curie.txt';
+	while (<IN>){
+   	 chomp;
+    	my ($junk, $FB, $curie)=split(/\s+/);
+    	$FB_curie{$FB}=$curie;
+	}
+} else {
+
+	print STDERR "FBrf to test:";
+	$FBrf_like = <STDIN>;
+	chomp $FBrf_like;
+
 }
 my %FBrf_pubid;
 #my $sql_FBrf=sprintf("select distinct p.uniquename, p.pub_id from pub p, pubprop pp, cvterm c  where p.pub_id=pp.pub_id and c.cvterm_id=pp.type_id and p.is_obsolete='false' and c.name in ('cam_flag', 'harv_flag', 'dis_flag', 'onto_flag') and  p.uniquename~'%s' and p.uniquename in ('FBrf0240817','FBrf0236883','FBrf0134733','FBrf0167748','FBrf0213082','FBrf0246285','FBrf0244403','FBrf0209874')  group by p.uniquename, p.pub_id  ",$FBrf_like); #,'harv_flag'  and p.uniquename not in ('FBrf0072646', 'FBrf0081144','FBrf0209074','FBrf0126732','FBrf0210738','FBrf0134733','FBrf0201683','FBrf0108289')    and p.uniquename in ('FBrf0240817','FBrf0236883','FBrf0134733','FBrf0167748','FBrf0213082','FBrf0246285','FBrf0244403','FBrf0209874')  'FBrf0256192', 'FBrf0167748',
@@ -204,7 +202,6 @@ foreach my $uniquename_p (keys %FBrf_pubid){
   #print "\n$sql\n\n";
   my $flag = $dbh->prepare  ($sql);
   $flag->execute or die" CAN'T GET flag FROM CHADO:\n$sql\n";
-  my ($symbol_g, $uniquename, $fpid, $value, $fbrf);
 
   my ($flag_source,$flag_type, $pub_id, $transaction_type, $transaction_timestamp, $transaction_timestamp_curated, $transaction_timestamp_audit, $pubprop_id);
   while (($flag_source,$flag_type, $pub_id, $transaction_type, $transaction_timestamp ) = $flag->fetchrow_array()) {
@@ -281,28 +278,9 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 		  next;
 	       }
 
-		#here to check if link to any entity (allele, gene etc) with same ac.transaction_timestamp
-		my $sql_entity=sprintf("select distinct f.uniquename, c.name  from feature f, cvterm c,  feature_pub fp, pubprop pp, audit_chado ac  where ac.audited_table='feature_pub' and ac.audit_transaction='I' and fp.feature_pub_id=ac.record_pkey and f.feature_id=fp.feature_id and fp.pub_id=pp.pub_id and pp.pubprop_id=%s and c.cvterm_id=f.type_id ", $pubprop_id);
-		#print "\n$sql_entity";
 		my $FBrf_with_prefix="FB:".$uniquename_p;
 		my $topic=$flag_ATP{$flag_type};
-		my $entity='alliance';
-		my ($entity_type, $entity, $entity_type_ATP);
-		my $flag_entity=0;
-		my ($FBid, $entity_type);
-=header		
-                my $entity_q = $dbh->prepare  ($sql_entity);
-                $entity_q->execute or die" CAN'T GET entity info FROM CHADO:\n$sql_entity\n";
-		while (($FBid, $entity_type) = $entity_q->fetchrow_array()) {
-                    $entity="FB:".$FBid;
-		    $entity_type_ATP=$flag_ATP{$entity_type};
-		    if (!(defined $entity_type_ATP)){
-			$entity_type_ATP='ATP_for_'.$entity_type;
-		    }
-		    print "\n$entity\t$entity_type_ATP\t$entity_source\t$uniquename_p\t$flag_type\t$curator\t$time_from_curator\t$time_curated";
-		    $flag_entity=0;
-		}
-=cut
+
 		print "\n$uniquename_p\t$flag_source\t$flag_type\t$curator\t$file\t$time_from_curator\t$time_curated";
 		if (!(exists $flag_ATP{$flag_type})){
 		    warn "\nno ATP for this flag_type:$flag_type from $flag_source";
@@ -319,8 +297,18 @@ foreach my $uniquename_p (keys %FBrf_pubid){
                 else {
                     $topic_entity_tag_source_id =$topic_entity_tag_source_hash{"curators"}{$ENV_STATE};
                 }
-		my $data='{"date_created": "'.$time_from_curator.'","created_by": "'.$curator.'", "topic": "'.$topic.'", "species": "'.$species.'","topic_entity_tag_source_id": '.$topic_entity_tag_source_id.', "negated": '.$negated.', "reference_curie": "'.$FB_curie{$FBrf_with_prefix}.'"}';
-		#print "\n$data";
+
+		my $data = '';
+		unless ($ENV_STATE eq "dev") {
+			$data='{"date_created": "'.$time_from_curator.'","created_by": "'.$curator.'", "topic": "'.$topic.'", "species": "'.$species.'","topic_entity_tag_source_id": '.$topic_entity_tag_source_id.', "negated": '.$negated.', "reference_curie": "'.$FB_curie{$FBrf_with_prefix}.'"}';
+
+		} else {
+
+			$data='{"date_created": "'.$time_from_curator.'","created_by": "'.$curator.'", "topic": "'.$topic.'", "species": "'.$species.'","topic_entity_tag_source_id": '.$topic_entity_tag_source_id.', "negated": '.$negated.', "reference_curie": "'. $FBrf_with_prefix .'"}';
+			print "\n$data";
+
+
+		}
 		my $cmd;
 		if ($ENV_STATE eq "test"){
 		    $cmd="curl -X 'POST' 'https://dev4005-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$data'";
@@ -331,9 +319,7 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 		elsif ($ENV_STATE eq "production"){
 		    $cmd="curl -X 'POST' 'https://literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$data'";
 		}
-		if ($flag_entity==0){#no entity
-		  #  print "\nN/A\tN/A\tN/A\t$uniquename_p\t$flag_type\t$curator\t$time_from_curator\t$time_curated";
-		}
+
 		print "\n$uniquename_p $flag_type\n$data\n";
 		#print "\n\n$cmd\n";
 		#system($cmd);
