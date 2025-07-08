@@ -465,15 +465,15 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 							}
 
 							my $data = '';
-							unless ($ENV_STATE eq "dev") {
-								$data='{"date_created": "'.$time_from_curator.'","created_by": "'.$curator.'", "topic": "'.$topic.'", "species": "'.$species.'","topic_entity_tag_source_id": '.$topic_entity_tag_source_id.', "negated": '.$negated.', "reference_curie": "'.$FB_curie{$FBrf_with_prefix}.'"}';
+							my $reference_curie = ($ENV_STATE eq "dev") ? $FBrf_with_prefix : $FB_curie{$FBrf_with_prefix};
 
-							} else {
+							$data='{"date_created": "'.$time_from_curator.'","created_by": "'.$curator.'", "topic": "'.$topic.'", "species": "'.$species.'","topic_entity_tag_source_id": '.$topic_entity_tag_source_id.', "negated": '.$negated.', "reference_curie": "'.$reference_curie.'"}';
 
-								$data='{"date_created": "'.$time_from_curator.'","created_by": "'.$curator.'", "topic": "'.$topic.'", "species": "'.$species.'","topic_entity_tag_source_id": '.$topic_entity_tag_source_id.', "negated": '.$negated.', "reference_curie": "'. $FBrf_with_prefix .'"}';
+							if ($ENV_STATE eq "dev") {
 								print "\n$data";
 
 							}
+
 							my $cmd;
 							if ($ENV_STATE eq "test"){
 								$cmd="curl -X 'POST' 'https://dev4005-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$data'";
