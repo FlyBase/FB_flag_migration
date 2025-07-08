@@ -411,7 +411,7 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 				#get all possible 'curated_by', then based on the flag_source, and timestamp to decided who curate it.
 				my $sql_curated=sprintf("select distinct  pp.value, ac.transaction_timestamp, pp.pubprop_id  from   pubprop pp, cvterm c, audit_chado ac  where ac.audited_table='pubprop' and ac.audit_transaction='I' and pp.pubprop_id=ac.record_pkey and pp.pub_id=%s and c.cvterm_id=pp.type_id and c.name in ('curated_by')", $pub_id);
 				#print "\n$sql_curated\n";
-				my $flag=0;
+				my $curator_identified_switch=0;
 				my $flag_curated = $dbh->prepare  ($sql_curated);
 				$flag_curated->execute or die" CAN'T GET curator info FROM CHADO:\n$sql_curated\n";
 				while (($transaction_timestamp_curated,  $transaction_timestamp_audit, $pubprop_id) = $flag_curated->fetchrow_array()) {
@@ -506,21 +506,21 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 							#print "\n\n$cmd\n";
 							#system($cmd);
 		
-							$flag=1;
+							$curator_identified_switch=1;
 							last;
 						}
 					} else {
 						print "ERROR: wrong curated_by date format for $uniquename_p transaction_timestamp_curated\n";
 					}
 				}
-				if ($flag==0){
+				if ($curator_identified_switch==0){
 					print "ERROR: unable to find who curated for $flag_source $raw_flag_type $uniquename_p\n";
 				}
 
 
 			} else {
 
-				print "ERROR: no ATP mapping for this flag_type:$raw_flag_type from $flag_source\n";
+				print "ERROR: no mapping in the the flag_mapping hash for this flag_type:$raw_flag_type from $flag_source\n";
 
 			}
 		}
