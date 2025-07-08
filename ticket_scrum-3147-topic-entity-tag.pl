@@ -89,6 +89,12 @@ my $dbh = DBI->connect($dsource,$user,$pwd) or die "cannot connect to $dsource\n
 my $FBrf_like='^FBrf[0-9]+$';
 
 # not complete yet
+
+# ATP_topic is compulsory for every flag
+# other keys are optional
+# species only present if it differs from default Dmel (NCBITaxon:7227) for that flag
+# novel_data_qualifier only present if it applies to that flag
+# negated only present if it applies to that flag
 my $flag_mapping = {
 
 
@@ -260,6 +266,19 @@ my $flag_mapping = {
 	},
 };
 
+
+# sanity check for $flag_mapping hash - to check that every flag has an ATP_topic mapping
+
+foreach my $type (keys %{$flag_mapping}) {
+
+	foreach my $flag (keys %{$flag_mapping->{$type}}) {
+
+		unless (exists $flag_mapping->{$type}->{$flag}->{ATP_topic}) {
+
+			die "ERROR in flag_mapping hash: ATP_topic missing for $type, $flag: add the correct ATP term and then try again\n";
+		}
+	}
+}
 
 # triage flags that we do not want to submit to the Alliance
 my $flags_to_ignore = {
