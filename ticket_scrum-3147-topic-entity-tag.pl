@@ -310,7 +310,7 @@ my %FBrf_pubid;
 #my $sql_FBrf=sprintf("select distinct p.uniquename, p.pub_id from pub p, pubprop pp, cvterm c  where p.pub_id=pp.pub_id and c.cvterm_id=pp.type_id and p.is_obsolete='false' and c.name in ('cam_flag', 'harv_flag', 'dis_flag', 'onto_flag') and  p.uniquename~'%s' and p.uniquename in ('FBrf0240817','FBrf0236883','FBrf0134733','FBrf0167748','FBrf0213082','FBrf0246285','FBrf0244403','FBrf0209874')  group by p.uniquename, p.pub_id  ",$FBrf_like); #,'harv_flag'  and p.uniquename not in ('FBrf0072646', 'FBrf0081144','FBrf0209074','FBrf0126732','FBrf0210738','FBrf0134733','FBrf0201683','FBrf0108289')    and p.uniquename in ('FBrf0240817','FBrf0236883','FBrf0134733','FBrf0167748','FBrf0213082','FBrf0246285','FBrf0244403','FBrf0209874')  'FBrf0256192', 'FBrf0167748',
 my $sql_FBrf=sprintf("select distinct p.uniquename, p.pub_id from pub p, pubprop pp, cvterm c  where p.pub_id=pp.pub_id and c.cvterm_id=pp.type_id and p.is_obsolete='false' and c.name in ('cam_flag', 'harv_flag', 'dis_flag', 'onto_flag') and  p.uniquename~'%s' group by p.uniquename, p.pub_id  ",$FBrf_like);
 
-#print "\n$sql_FBrf";
+#print "$sql_FBrf\n";
 my $FBrf= $dbh->prepare  ($sql_FBrf);
 $FBrf->execute or die" CAN'T GET FBrf FROM CHADO:\n$sql_FBrf)\n";
 my ($uniquename_FBrf, $pubid);
@@ -346,11 +346,11 @@ my $entity_source='alliance';
 
 # my $okta_token='';
 
-print "\nEntity\tEntity_type_ATP\tEntity_source\tFBrf\tFlag_type\tCurator\tTime_from_curator\tTime_from_audit_chado";
+print "#FBrf\tFlag_type\tFlag\tCurator\tCuration record\tTime_from_curated_by\tTime_from_audit_chado\n";
 foreach my $uniquename_p (keys %FBrf_pubid){
     
 	my $pubid=$FBrf_pubid{$uniquename_p};
-	#print "\nuniquename_p:$uniquename_p:pubid:$pubid:";
+	#print "uniquename_p:$uniquename_p:pubid:$pubid:\n";
 	my $sql=sprintf("select  c.name, pp.value, pp.pub_id, ac.audit_transaction, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.pub_id=%s and c.cvterm_id=pp.type_id  and c.name in ('cam_flag', 'harv_flag', 'dis_flag', 'onto_flag')  and ac.audited_table='pubprop' and ac.audit_transaction='I'  and pp.pubprop_id=ac.record_pkey",$pubid );
 
 	#print "\n$sql\n\n";
@@ -396,14 +396,14 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 				my $flag_curated = $dbh->prepare  ($sql_curated);
 				$flag_curated->execute or die" CAN'T GET curator info FROM CHADO:\n$sql_curated\n";
 				while (($transaction_timestamp_curated,  $transaction_timestamp_audit, $pubprop_id) = $flag_curated->fetchrow_array()) {
-					#print "\ncurated_by_time: $transaction_timestamp_audit";
+					#print "curated_by_time: $transaction_timestamp_audit\n";
 					my @case=( $transaction_timestamp_curated =~ /(Curator:.*;)(Proforma: .*;)(timelastmodified: .*)/ ); #Curator: Author Submission;Proforma: as773.user;timelastmodified: Thu Mar 17 08:24:07 2011
 					if ($#case >-1){
 =header  this use the timestamp attached to the pubprop.value , eg. Curator: P. Leyland;Proforma: pl174708.bibl;timelastmodified: Thu Dec  6 07:15:20 2018
-						#print "\n$case[2]";
+						#print "$case[2]\n";
 						my @temp=split(/timelastmodified\:\s+/, $case[2]);
 						my $time = $temp[1];	    
-						#print "\n$uniquename_p $raw_flag_type $transaction_timestamp_curated time:$time:";
+						#print "$uniquename_p $raw_flag_type $transaction_timestamp_curated time:$time:\n";
 						#expect date format:Thu Jan 17 07:47:53 2008
 						#wrong date format cause error: FBrf0072646 nocur Curator: B. Matthews;Proforma: 72646.bev.chem.200617;timelastmodified: Thu 29 Oct 2020 09:13:21 AM EDT
 
@@ -414,11 +414,11 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 						if ($#case_time>-1){
 							$time_curated= Time::Piece->strptime($time, '%a %b %d %H:%M:%S %Y')->ymd("-");#Thu Mar 17 08:24:07 2011
 						} elsif ($#case_time1>-1) {#Thu 29 Oct 2020 09:13:21 AM EDT
-							print "\nwrong format:$uniquename_p $raw_flag_type $transaction_timestamp_curated time:$time:";
+							print "wrong format:$uniquename_p $raw_flag_type $transaction_timestamp_curated time:$time:\n";
 							Time::Piece->strptime($time, '%a %d %b %Y %H:%M:%S %Y %c %e')->ymd("-");
 							next;
 						} else {
-							print "\nweird format:$uniquename_p $raw_flag_type $transaction_timestamp_curated time:$time:";
+							print "weird format:$uniquename_p $raw_flag_type $transaction_timestamp_curated time:$time:\n";
 							next;
 						}
 
@@ -426,12 +426,12 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 						#here we use the audit_chado timestamp as 'curated' time to figure out who curate the flag
 						my ($time_curated, $junk)=split(/\s+/, $transaction_timestamp_audit);
 
-						#print "\ntime_flag:$time_flag\ttime_curated:$time_curated";
+						#print "time_flag:$time_flag\ttime_curated:$time_curated\n";
 						if ($time_curated eq $time_flag){
 							#get the right curator
 							my @temp2=($case[0]=~/(.*):\s(.*)(;)/); #Curator: P. Leyland;
 							my $curator=$temp2[1];
-							#print "\n$curator $time_curated\n";
+							#print "$curator $time_curated\n";
 
 							#here to parse filename which insert this flag from pubprop.value
 							my ($junk0, $file)=split(/Proforma\:\s+/, $case[1]);
@@ -450,13 +450,13 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 								$time_from_curator= Time::Piece->strptime($time_before, '%a %b %d %H:%M:%S %Y')->ymd("-");
 								$time_from_curator.=" ".$temp[4];
 							} else {
-								print "\nweird curated_by time format:$uniquename_p $raw_flag_type $transaction_timestamp_curated time:$time:";
+								print "ERROR: weird curated_by time format:$uniquename_p $raw_flag_type $transaction_timestamp_curated time:$time:\n";
 								next;
 							}
 
 							my $FBrf_with_prefix="FB:".$uniquename_p;
 
-							print "\n$uniquename_p\t$flag_source\t$raw_flag_type\t$curator\t$file\t$time_from_curator\t$time_curated";
+							print "DATA: $uniquename_p\t$flag_source\t$raw_flag_type\t$curator\t$file\t$time_from_curator\t$time_curated\n";
 							#choose different topic_entity_tag_source_id based on ENV_STATE and 'created_by' value
 							if ($curator eq "Author Submission" || $curator eq "User Submission"){
 								$topic_entity_tag_source_id =$topic_entity_tag_source_hash{"users"}{$ENV_STATE};
@@ -470,7 +470,7 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 							$data='{"date_created": "'.$time_from_curator.'","created_by": "'.$curator.'", "topic": "'.$topic.'", "species": "'.$species.'","topic_entity_tag_source_id": '.$topic_entity_tag_source_id.', "negated": '.$negated.', "reference_curie": "'.$reference_curie.'"}';
 
 							if ($ENV_STATE eq "dev") {
-								print "\n$data";
+								print "JSON: $data\n";
 
 							}
 
@@ -491,17 +491,17 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 							last;
 						}
 					} else {
-						print "\nwrong curated_by date format for $uniquename_p transaction_timestamp_curated\n";
+						print "ERROR: wrong curated_by date format for $uniquename_p transaction_timestamp_curated\n";
 					}
 				}
 				if ($flag==0){
-					print "\nunable to find who curated for $flag_source $raw_flag_type $uniquename_p";
+					print "ERROR: unable to find who curated for $flag_source $raw_flag_type $uniquename_p\n";
 				}
 
 
 			} else {
 
-				warn "no ATP mapping for this flag_type:$raw_flag_type from $flag_source";
+				print "ERROR: no ATP mapping for this flag_type:$raw_flag_type from $flag_source\n";
 
 			}
 		}
