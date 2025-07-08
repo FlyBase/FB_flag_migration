@@ -70,8 +70,8 @@ if (! grep( /^$ENV_STATE$/, @STATE ) ) {
 
 # Sanity check if state is not test, make sure the user wants to
 # save the data to the database
-if ($ENV_STATE ne "test") {
-	print STDERR "You are about to write data to $server $db\n";
+if ($ENV_STATE eq "stage" || $ENV_STATE eq "production") {
+	print STDERR "You are about to write data to $ENV_STATE Alliance literature server\n";
 	print STDERR "Type y to continue else anything else to stop\n";
 	my $continue = <STDIN>;
 	chomp $continue;
@@ -319,10 +319,12 @@ while (( $uniquename_FBrf, $pubid) = $FBrf->fetchrow_array()) {
 }
 
 my %topic_entity_tag_source_hash;
+$topic_entity_tag_source_hash{"users"}{"dev"}=222;
 $topic_entity_tag_source_hash{"users"}{"test"}=222;
 $topic_entity_tag_source_hash{"users"}{"stage"}=222;
 $topic_entity_tag_source_hash{"users"}{"production"}=171;
 
+$topic_entity_tag_source_hash{"curators"}{"dev"}=223;
 $topic_entity_tag_source_hash{"curators"}{"test"}=223;
 $topic_entity_tag_source_hash{"curators"}{"stage"}=223;
 $topic_entity_tag_source_hash{"curators"}{"production"}=172;
@@ -378,7 +380,8 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 
 				# set parameters based on mapping hash (set a default if key does not exist)
 				my $species = exists $flag_mapping->{$flag_source}->{$flag_type}->{species} ? $flag_mapping->{$flag_source}->{$flag_type}->{species} : 'NCBITaxon:7227';
-				my $negated = exists $flag_mapping->{$flag_source}->{$flag_type}->{novel_data_qualifier} ? $flag_mapping->{$flag_source}->{$flag_type}->{novel_data_qualifier} : '';
+				my $negated = exists $flag_mapping->{$flag_source}->{$flag_type}->{negated} ? 1 : 0;
+				my $novel_data_qualifier = exists $flag_mapping->{$flag_source}->{$flag_type}->{novel_data_qualifier} ? $flag_mapping->{$flag_source}->{$flag_type}->{novel_data_qualifier} : '';
 
 				my $topic = $flag_mapping->{$flag_source}->{$flag_type}->{ATP_topic};
 
@@ -480,7 +483,7 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 								$cmd="curl -X 'POST' 'https://literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$data'";
 							}
 
-							print "\n$uniquename_p $raw_flag_type\n$data\n";
+							#print "\n$uniquename_p $raw_flag_type\n$data\n";
 							#print "\n\n$cmd\n";
 							#system($cmd);
 		
