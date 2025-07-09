@@ -123,19 +123,21 @@ my $flag_mapping = {
 
 		'gene_group' => {
 			'ATP_topic' => 'ATP:0000065',
-			'species' => '??need to check??', # only have this if not the default of Dmel, value is NCBITaxon:xxxx
 		},
 
 		'pathway' => {
 			'ATP_topic' => 'ATP:0000113',
-			'species' => '??need to check??', # only have this if not the default of Dmel, value is NCBITaxon:xxxx
+		},
+
+		'pert_exp' => {
+			'ATP_topic' => 'ATP:0000042',
 		},
 
 		'pheno' => {
 
 			'ATP_topic' => 'ATP:0000079',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'novel_data_qualifier' => 'ATP:0000321??', # ATP:0000321 is 'new data' - not sure whether should have for pheno flag to distinguish between papers that have been curated for phenotype, but did not merit a pheno flag and whether to use more general 'new data' rather than 'new to field'??
+			'novel_data_qualifier' => 'ATP:0000321', # ATP:0000321 is 'new data'
 		},
 
 		'pheno_anat' => {
@@ -182,6 +184,13 @@ my $flag_mapping = {
 
 			'ATP_topic' => 'ATP:0000152',# disease model ATP term
 			'species' => 'NCBITaxon:7214', # Drosophilidae
+		},
+
+		'diseaseHP' => {
+
+			'ATP_topic' => 'ATP:0000152',# disease model ATP term
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'novel_data_qualifier' => 'ATP:0000229', # new to field
 		},
 
 		'noDOcur' => {
@@ -290,6 +299,9 @@ my $flags_to_ignore = {
 		'orthologs' => '1',
 		'new_gene' => '1',
 		'y' => '1',
+		'GO_cur' => '1',
+		'GOcur' => '1',
+		'noGOcur' => '1',
 	},
 
 	'harv_flag' => {
@@ -300,6 +312,9 @@ my $flags_to_ignore = {
 		'RNAi' => '1',
 		'micr_arr' => '1',
 		'gene_model_nonmel' => '1',
+		'no_flag' => '1', # need to double-check with harvcur
+		'diseaseF' => '1', # need to double-check with harvcur
+
 	},
 
 };
@@ -407,7 +422,7 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 				# try to find curated_by pubprop with the same 'timelastmodified' timestamp as the triage flag audit table information
 				my @temp0=split(/\s+/, $transaction_timestamp);
 				my $time_flag=$temp0[0];
-				#print "\n$flag_source,$raw_flag_type,$transaction_timestamp time_flag:$time_flag\n";
+				print "\nFLAG INFO: $flag_source,$raw_flag_type,$transaction_timestamp time_flag:$time_flag\n";
 				#get all possible 'curated_by', then based on the flag_source, and timestamp to decided who curate it.
 				my $sql_curated=sprintf("select distinct  pp.value, ac.transaction_timestamp, pp.pubprop_id  from   pubprop pp, cvterm c, audit_chado ac  where ac.audited_table='pubprop' and ac.audit_transaction='I' and pp.pubprop_id=ac.record_pkey and pp.pub_id=%s and c.cvterm_id=pp.type_id and c.name in ('curated_by')", $pub_id);
 				#print "\n$sql_curated\n";
@@ -415,7 +430,7 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 				my $flag_curated = $dbh->prepare  ($sql_curated);
 				$flag_curated->execute or die" CAN'T GET curator info FROM CHADO:\n$sql_curated\n";
 				while (($transaction_timestamp_curated,  $transaction_timestamp_audit, $pubprop_id) = $flag_curated->fetchrow_array()) {
-					#print "curated_by_time: $transaction_timestamp_audit\n";
+					print "CURATED INFO: curated_by_time: $transaction_timestamp_audit, curated_by_details: $transaction_timestamp_curated\n";
 					my @case=( $transaction_timestamp_curated =~ /(Curator:.*;)(Proforma: .*;)(timelastmodified: .*)/ ); #Curator: Author Submission;Proforma: as773.user;timelastmodified: Thu Mar 17 08:24:07 2011
 					if ($#case >-1){
 =header  this use the timestamp attached to the pubprop.value , eg. Curator: P. Leyland;Proforma: pl174708.bibl;timelastmodified: Thu Dec  6 07:15:20 2018
