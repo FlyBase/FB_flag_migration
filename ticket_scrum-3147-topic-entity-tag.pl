@@ -449,7 +449,7 @@ my $entity_source='alliance';
 # my $okta_token='';
 
 print "#FBrf\tFlag_type\tFlag\tCurator\tCuration record\tTime_from_curated_by\tTime_from_audit_chado\n";
-foreach my $uniquename_p (keys %FBrf_pubid){
+foreach my $uniquename_p (sort keys %FBrf_pubid){
     
 	my $pubid=$FBrf_pubid{$uniquename_p};
 	#print "uniquename_p:$uniquename_p:pubid:$pubid:\n";
@@ -490,7 +490,7 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 				# try to find curated_by pubprop with the same 'timelastmodified' timestamp as the triage flag audit table information
 				my @temp0=split(/\s+/, $transaction_timestamp);
 				my $time_flag=$temp0[0];
-				print "\nFLAG INFO: $flag_source,$raw_flag_type,$transaction_timestamp time_flag:$time_flag\n";
+				#print "\nFLAG INFO: $flag_source,$raw_flag_type,$transaction_timestamp time_flag:$time_flag\n";
 				#get all possible 'curated_by', then based on the flag_source, and timestamp to decided who curate it.
 				my $sql_curated=sprintf("select distinct  pp.value, ac.transaction_timestamp, pp.pubprop_id  from   pubprop pp, cvterm c, audit_chado ac  where ac.audited_table='pubprop' and ac.audit_transaction='I' and pp.pubprop_id=ac.record_pkey and pp.pub_id=%s and c.cvterm_id=pp.type_id and c.name in ('curated_by')", $pub_id);
 				#print "\n$sql_curated\n";
@@ -498,7 +498,7 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 				my $flag_curated = $dbh->prepare  ($sql_curated);
 				$flag_curated->execute or die" CAN'T GET curator info FROM CHADO:\n$sql_curated\n";
 				while (($transaction_timestamp_curated,  $transaction_timestamp_audit, $pubprop_id) = $flag_curated->fetchrow_array()) {
-					print "CURATED INFO: curated_by_time: $transaction_timestamp_audit, curated_by_details: $transaction_timestamp_curated\n";
+					#print "CURATED INFO: curated_by_time: $transaction_timestamp_audit, curated_by_details: $transaction_timestamp_curated\n";
 					my @case=( $transaction_timestamp_curated =~ /(Curator:.*;)(Proforma: .*;)(timelastmodified: .*)/ ); #Curator: Author Submission;Proforma: as773.user;timelastmodified: Thu Mar 17 08:24:07 2011
 					if ($#case >-1){
 =header  this use the timestamp attached to the pubprop.value , eg. Curator: P. Leyland;Proforma: pl174708.bibl;timelastmodified: Thu Dec  6 07:15:20 2018
@@ -571,10 +571,10 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 
 							$data='{"date_created": "'.$time_from_curator.'","created_by": "'.$curator.'", "topic": "'.$topic.'", "species": "'.$species.'","topic_entity_tag_source_id": '.$topic_entity_tag_source_id.', "negated": '.$negated.', "reference_curie": "'.$reference_curie.'"}';
 
-							if ($ENV_STATE eq "dev") {
-								print "JSON: $data\n";
+#							if ($ENV_STATE eq "dev") {
+#								print "JSON: $data\n";
 
-							}
+#							}
 
 							my $cmd;
 							if ($ENV_STATE eq "test"){
