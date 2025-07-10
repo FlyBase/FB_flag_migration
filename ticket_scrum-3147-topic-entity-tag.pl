@@ -137,7 +137,7 @@ my $flag_mapping = {
 
 			'ATP_topic' => 'ATP:0000079',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'novel_data_qualifier' => 'ATP:0000321', # ATP:0000321 is 'new data'
+			'novel_data_qualifier' => 'ATP:0000321', # new data
 		},
 
 		'pheno_anat' => {
@@ -162,6 +162,38 @@ my $flag_mapping = {
 			'ATP_topic' => 'ATP:0000042',
 		},
 
+# place holder where have asked for new ATP term, will need to update ATP_topic with ATP term id
+
+		'merge' => {
+
+			'ATP_topic' => 'ATP:merge',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+		},
+
+		'split' => {
+
+			'ATP_topic' => 'ATP:split',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+		},
+
+		'new_char' => {
+
+			'ATP_topic' => 'ATP:new_char',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+		},
+
+# place holder - nocur will not be mapped to a topic tag, but to curation status in Alliance in some way
+# this may happen in this script, or a different one. adding in now so it doesn't get forgotten and for testing
+
+		'nocur' => {
+
+			'ATP_topic' => 'ATP:nocur',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'negated' => '1',
+		},
+
+
+
 	},
 
 
@@ -182,13 +214,13 @@ my $flag_mapping = {
 
 		'disease' => {
 
-			'ATP_topic' => 'ATP:0000152',# disease model ATP term
+			'ATP_topic' => 'ATP:0000152',# 'disease model' ATP term - using more specific ATP term for DO curation
 			'species' => 'NCBITaxon:7214', # Drosophilidae
 		},
 
 		'diseaseHP' => {
 
-			'ATP_topic' => 'ATP:0000152',# disease model ATP term
+			'ATP_topic' => 'ATP:0000152',# disease model ATP term - using more specific ATP term for DO curation
 			'species' => 'NCBITaxon:7214', # Drosophilidae
 			'novel_data_qualifier' => 'ATP:0000229', # new to field
 		},
@@ -217,6 +249,19 @@ my $flag_mapping = {
 			'species' => 'NCBITaxon:7214', # Drosophilidae
 		},
 
+
+		'cell_line(commercial)' => {
+			'ATP_topic' => 'ATP:0000008',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'note' => 'Commercially purchased cell line', # this is what is on FTYP form
+		},
+
+		'cell_line(stable)' => {
+			'ATP_topic' => 'ATP:0000008',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'note' => 'Stable line generated', # this is what is on FTYP form
+		},
+
 		'chemical' => {
 			'ATP_topic' => 'ATP:0000094',
 		},
@@ -228,6 +273,21 @@ my $flag_mapping = {
 		'dataset' => {
 			'ATP_topic' => 'ATP:0000150',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
+		},
+
+		# may decide not to submit this flag depending on whether FBhh curation will be done in Alliance (so may need deleting here and adding to ignore hash)
+		'disease' => {
+
+			'ATP_topic' => 'ATP:0000011',# 'disease' ATP term - using more general ATP term for FBhh curation
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+		},
+
+		# may decide not to submit this flag depending on whether FBhh curation will be done in Alliance (so may need deleting here and adding to ignore hash)
+		'diseaseHP' => {
+
+			'ATP_topic' => 'ATP:0000011',# 'disease' ATP term - using more general ATP term for FBhh curation
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'novel_data_qualifier' => 'ATP:0000321', # new data
 		},
 
 		'gene_model' => {
@@ -258,6 +318,13 @@ my $flag_mapping = {
 		'wt_exp' => {
 			'ATP_topic' => 'ATP:0000041',
 		},
+
+# place holder where have asked for new ATP term, will need to update ATP_topic with ATP term id
+
+		'neur_exp' => {
+			'ATP_topic' => 'ATP:neur_exp',
+		},
+
 
 
 
@@ -314,6 +381,7 @@ my $flags_to_ignore = {
 		'gene_model_nonmel' => '1',
 		'no_flag' => '1', # need to double-check with harvcur
 		'diseaseF' => '1', # need to double-check with harvcur
+		'marker' => '1', # need to double-check with harvcur
 
 	},
 
