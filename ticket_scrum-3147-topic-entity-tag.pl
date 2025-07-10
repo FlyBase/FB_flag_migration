@@ -475,7 +475,7 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 		} 
 
 		# only process flags that we want to submit the FB flag to the Alliance
-		unless (exists $flags_to_ignore->{$flag_source} && exists $flags_to_ignore->{$flag_type}) {
+		unless (exists $flags_to_ignore->{$flag_source} && exists $flags_to_ignore->{$flag_source}->{$flag_type}) {
 
 
 			if (exists $flag_mapping->{$flag_source} && exists $flag_mapping->{$flag_source}->{$flag_type}) {
@@ -603,7 +603,7 @@ foreach my $uniquename_p (keys %FBrf_pubid){
 
 			} else {
 
-				print "ERROR: no mapping in the the flag_mapping hash for this flag_type:$raw_flag_type from $flag_source\n";
+				print "\nERROR: no mapping in the the flag_mapping hash for this flag_type:$raw_flag_type from $flag_source\n";
 
 			}
 		}
