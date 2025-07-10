@@ -562,7 +562,7 @@ sub get_relevant_curator {
 
 
 
-	my ($dbh, $pub_id, $transaction_timestamp, $flag_source,$raw_flag_type) = @_;
+	my ($dbh, $pub_id, $transaction_timestamp) = @_;
 
 	my ($relevant_curator, $relevant_time_curated, $relevant_file, $relevant_time_from_curator) = '', 
 
