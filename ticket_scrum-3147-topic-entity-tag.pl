@@ -495,7 +495,7 @@ foreach my $uniquename_p (sort keys %FBrf_pubid){
 
 					my $FBrf_with_prefix="FB:".$uniquename_p;
 
-					print "DATA: $uniquename_p\t$flag_source\t$raw_flag_type\t$curator\t$file\t$time_from_curator\t$time_curated\n";
+					print "DATA: $uniquename_p\t$flag_source\t$raw_flag_type\t$curator\t$file;\t$time_from_curator\t$time_curated\n";
 					#choose different topic_entity_tag_source_id based on ENV_STATE and 'created_by' value
 					if ($curator eq "Author Submission" || $curator eq "User Submission"){
 						$topic_entity_tag_source_id =$topic_entity_tag_source_hash{"users"}{$ENV_STATE};
@@ -547,11 +547,22 @@ sub get_relevant_curator {
 =head1
 
 	Title:    get_relevant_curator
-	Usage:    get_relevant_curator(database handle, pub_id of reference, timestamp information for triage flag);
-	Function: The get_relevant_curator subroutine takes audit_chado table timestamp information for a particular triage flag and tries to find a matching 'curated_by' pubprop with the the same audit_chado table timestamp as the triage flag, to identify who added the triage flag and in which curatin record.
-	Example:  my ($curator, $time_curated, $file) = &get_relevant_curator($dbh, $pub_id, $transaction_timestamp);
+	Usage:    get_relevant_curator(database handle, pub_id of reference, timestamp information to be matched);
+	Function: The get_relevant_curator subroutine takes audit_chado table timestamp information to be matched (e.g. timestamp for a particular triage flag) and the pub_id of the relevant reference and tries to find a matching 'curated_by' pubprop for that pub_id with the same audit_chado table timestamp. If it finds a match it returns relevant information from the matching 'curated_by' pubprop, otherwise all returned values are set to ''.
+	Example: my ($curator, $time_curated, $file, $time_from_curator) = &get_relevant_curator($dbh, $pub_id, $transaction_timestamp);
+
+	Returns:
+
+	o $relevant_curator: curator name from 'Curator:' portion of matching 'curated_by' pubprop
+
+    o $relevant_time_from_audit: audit_chado table timestamp from matching 'curated_by' pubprop
+
+    o $relevant_record: curation record number from 'Proforma:' portion of matching 'curated_by' pubprop
+
+	o $relevant_time_from_record: time from 'timelastmodified:' portion of matching 'curated_by' pubprop
 
 
+	(Not yet sure whether will need both $relevant_time_from_audit and $relevant_time_from_record).
 
 =cut
 
@@ -564,7 +575,7 @@ sub get_relevant_curator {
 
 	my ($dbh, $pub_id, $transaction_timestamp) = @_;
 
-	my ($relevant_curator, $relevant_time_curated, $relevant_file, $relevant_time_from_curator) = '', 
+	my ($relevant_curator, $relevant_time_from_audit, $relevant_record, $relevant_time_from_record) = '', 
 
 
 	# try to find curated_by pubprop with the same 'timelastmodified' timestamp as the triage flag audit table information
@@ -572,87 +583,62 @@ sub get_relevant_curator {
 	my $time_flag=$temp0[0];
 	#print "\nFLAG INFO: $flag_source,$raw_flag_type,$transaction_timestamp time_flag:$time_flag\n";
 	#get all possible 'curated_by', then based on the flag_source, and timestamp to decided who curate it.
-	my $sql_curated=sprintf("select distinct  pp.value, ac.transaction_timestamp, pp.pubprop_id  from   pubprop pp, cvterm c, audit_chado ac  where ac.audited_table='pubprop' and ac.audit_transaction='I' and pp.pubprop_id=ac.record_pkey and pp.pub_id=%s and c.cvterm_id=pp.type_id and c.name in ('curated_by')", $pub_id);
+	my $sql_curated=sprintf("select distinct pp.value, ac.transaction_timestamp, pp.pubprop_id from  pubprop pp, cvterm c, audit_chado ac  where ac.audited_table='pubprop' and ac.audit_transaction='I' and pp.pubprop_id=ac.record_pkey and pp.pub_id=%s and c.cvterm_id=pp.type_id and c.name in ('curated_by')", $pub_id);
 	#print "\n$sql_curated\n";
-	my $flag_curated = $dbh->prepare  ($sql_curated);
+	my $flag_curated = $dbh->prepare ($sql_curated);
 	$flag_curated->execute or die" CAN'T GET curator info FROM CHADO:\n$sql_curated\n";
 
-	my ($transaction_timestamp_curated,  $transaction_timestamp_audit, $pubprop_id);
-	while (($transaction_timestamp_curated,  $transaction_timestamp_audit, $pubprop_id) = $flag_curated->fetchrow_array()) {
-#print "CURATED INFO: curated_by_time: $transaction_timestamp_audit, curated_by_details: $transaction_timestamp_curated\n";
-		my @case=( $transaction_timestamp_curated =~ /(Curator:.*;)(Proforma: .*;)(timelastmodified: .*)/ ); #Curator: Author Submission;Proforma: as773.user;timelastmodified: Thu Mar 17 08:24:07 2011
-		if ($#case >-1){
-=header  this use the timestamp attached to the pubprop.value , eg. Curator: P. Leyland;Proforma: pl174708.bibl;timelastmodified: Thu Dec  6 07:15:20 2018
-			#print "$case[2]\n";
-			my @temp=split(/timelastmodified\:\s+/, $case[2]);
-			my $time = $temp[1];	    
-			#print "$pub_id $raw_flag_type $transaction_timestamp_curated time:$time:\n";
-			#expect date format:Thu Jan 17 07:47:53 2008
-			#wrong date format cause error: FBrf0072646 nocur Curator: B. Matthews;Proforma: 72646.bev.chem.200617;timelastmodified: Thu 29 Oct 2020 09:13:21 AM EDT
+	while (my ($curated_by_value, $curated_by_audit_timestamp, $curated_by_pubprop_id) = $flag_curated->fetchrow_array()) {
 
-			my @case_time=($time =~/([A-Za-z]+)\s+([A-Za-z]+)\s+(\d+)\s+(\d+:\d+:\d+)\s+(\d+)/); #Thu Mar 17 08:24:07 2011
-			my @case_time1=($time =~/([a-zA-Z]+)\s+(\d+)\s+([a-zA-Z]+)\s+(\d+)\s+(\d+:\d+:\d+)\s+([A-Z]+)\s+([A-Z]+)/);#Thu 29 Oct 2020 09:13:21 AM EDT
-	    
-			my $time_curated;
-			if ($#case_time>-1){
-				$time_curated= Time::Piece->strptime($time, '%a %b %d %H:%M:%S %Y')->ymd("-");#Thu Mar 17 08:24:07 2011
-			} elsif ($#case_time1>-1) {#Thu 29 Oct 2020 09:13:21 AM EDT
-				print "wrong format:$pub_id $raw_flag_type $transaction_timestamp_curated time:$time:\n";
-				Time::Piece->strptime($time, '%a %d %b %Y %H:%M:%S %Y %c %e')->ymd("-");
-				next;
-			} else {
-				print "weird format:$pub_id $raw_flag_type $transaction_timestamp_curated time:$time:\n";
-				next;
-			}
+		if ($curated_by_value =~ m/^Curator: (.+?);Proforma: (.+?);timelastmodified: (.*)$/) {
 
-=cut
-			#here we use the audit_chado timestamp as 'curated' time to figure out who curate the flag
-			my ($time_curated, $junk)=split(/\s+/, $transaction_timestamp_audit);
+			my $curator = $1;
+			my $record_number = $2;
+			my $timelastmodified = $3;
+
+			my ($time_curated, $junk)=split(/\s+/, $curated_by_audit_timestamp);
+
 
 			#print "time_flag:$time_flag\ttime_curated:$time_curated\n";
 			if ($time_curated eq $time_flag){
-				#get the right curator
-				my @temp2=($case[0]=~/(.*):\s(.*)(;)/); #Curator: P. Leyland;
-				my $curator=$temp2[1];
-				#print "$curator $time_curated\n";
 
-				#here to parse filename which insert this flag from pubprop.value
-				my ($junk0, $file)=split(/Proforma\:\s+/, $case[1]);
-				#here need to parse the time from the pubprop.value
-				my @temp=split(/timelastmodified\:\s+/, $case[2]);
-				my $time = $temp[1];
-				my @case_time=($time =~/([A-Za-z]+)\s+([A-Za-z]+)\s+(\d+)\s+(\d+:\d+:\d+)\s+(\d+)/); #Thu Mar 17 08:24:07 2011
-				my @case_time1=($time =~/([a-zA-Z]+)\s+(\d+)\s+([a-zA-Z]+)\s+(\d+)\s+(\d+:\d+:\d+)\s+([A-Z]+)\s+([A-Z]+)/);#Thu 29 Oct 2020 09:13:21 AM EDT
+				# if have identified the relevant curated_by pubprop, make sure that the $timelastmodified value is a valid time format, in case we want to use this in alliance submission
 				my $time_from_curator;
-				if ($#case_time>-1){
-					$time_from_curator= Time::Piece->strptime($time, '%a %b %d %H:%M:%S %Y')->ymd("-");#Thu Mar 17 08:24:07 2011
-					$time_from_curator.=" ".$case_time[3];
-				} elsif ($#case_time1>-1) {#Thu 29 Oct 2020 09:13:21 AM EDT
-					my @temp=split(/\s+/, $time);
+				# well behaved time format: Thu Mar 17 08:24:07 2011
+				if ($timelastmodified =~ m/([A-Za-z]+)\s+([A-Za-z]+)\s+(\d+)\s+(\d+:\d+:\d+)\s+(\d+)/) {
+					$time_from_curator= Time::Piece->strptime($timelastmodified, '%a %b %d %H:%M:%S %Y')->ymd("-");
+					$time_from_curator.=" ".$4;
+
+				# incorrect time format that cannot be converted by Time::Piece: Thu 29 Oct 2020 09:13:21 AM EDT
+				# have to convert to correct order first, before run through Time::Piece
+				} elsif ($timelastmodified =~ m/([a-zA-Z]+)\s+(\d+)\s+([a-zA-Z]+)\s+(\d+)\s+(\d+:\d+:\d+)\s+([A-Z]+)\s+([A-Z]+)/) {
+					my @temp=split(/\s+/, $timelastmodified);
 					my $time_before=$temp[0]." ".$temp[2]." ".$temp[1]." ".$temp[4]." ".$temp[3];
 					$time_from_curator= Time::Piece->strptime($time_before, '%a %b %d %H:%M:%S %Y')->ymd("-");
 					$time_from_curator.=" ".$temp[4];
+
 				} else {
-					print "ERROR: weird curated_by time format:$pub_id $raw_flag_type $transaction_timestamp_curated time:$time:\n";
+					print "ERROR: weird curated_by time format:$pub_id $curated_by_value\n";
 					next;
 				}
 
+
 				$relevant_curator = $curator;
-				$relevant_time_curated = $time_curated;
-				$relevant_file = $file;
-				$relevant_time_from_curator = $time_from_curator;
-###
+				$relevant_time_from_audit = $time_curated;
+				$relevant_record = $record_number;
+				$relevant_time_from_record = $time_from_curator;
+
 				last;
 			}
 		} else {
-			print "ERROR: wrong curated_by date format for $pub_id transaction_timestamp_curated\n";
+			# not expecting to trip this error
+			print "ERROR: wrong curated_by pubprop format for pub_id: $pub_id, pubprop: $curated_by_value\n";
 		}
-
 
 
 	}
 
-	return ($relevant_curator, $relevant_time_curated, $relevant_file, $relevant_time_from_curator);
+	return ($relevant_curator, $relevant_time_from_audit, $relevant_record, $relevant_time_from_record);
 
 }
 
