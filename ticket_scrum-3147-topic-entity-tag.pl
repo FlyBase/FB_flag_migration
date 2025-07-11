@@ -449,18 +449,17 @@ my $entity_source='alliance';
 # my $okta_token='';
 
 print "#FBrf\tFlag_type\tFlag\tCurator\tCuration record\tTime_from_curated_by\tTime_from_audit_chado\n";
-foreach my $uniquename_p (sort keys %FBrf_pubid){
+foreach my $FBrf (sort keys %FBrf_pubid){
     
-	my $pubid=$FBrf_pubid{$uniquename_p};
-	#print "uniquename_p:$uniquename_p:pubid:$pubid:\n";
-	my $sql=sprintf("select  c.name, pp.value, pp.pub_id, ac.audit_transaction, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.pub_id=%s and c.cvterm_id=pp.type_id  and c.name in ('cam_flag', 'harv_flag', 'dis_flag', 'onto_flag')  and ac.audited_table='pubprop' and ac.audit_transaction='I'  and pp.pubprop_id=ac.record_pkey",$pubid );
+	my $pubid=$FBrf_pubid{$FBrf};
+	#print "uniquename_p:$FBrf:pubid:$pubid:\n";
+	my $sql=sprintf("select  c.name, pp.value, pp.pub_id, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.pub_id=%s and c.cvterm_id=pp.type_id  and c.name in ('cam_flag', 'harv_flag', 'dis_flag', 'onto_flag')  and ac.audited_table='pubprop' and ac.audit_transaction='I'  and pp.pubprop_id=ac.record_pkey",$pubid );
 
 	#print "\n$sql\n\n";
 	my $flag = $dbh->prepare  ($sql);
 	$flag->execute or die" CAN'T GET flag FROM CHADO:\n$sql\n";
 
-	my ($flag_source,$raw_flag_type, $pub_id, $transaction_type, $transaction_timestamp);
-	while (($flag_source,$raw_flag_type, $pub_id, $transaction_type, $transaction_timestamp ) = $flag->fetchrow_array()) {
+	while (my ($flag_source,$raw_flag_type, $pub_id, $flag_audit_timestamp) = $flag->fetchrow_array()) {
 
 
 		# split the $raw_flag_type into the triage flag and suffix components. set defaults for the case where there is no suffix
@@ -487,15 +486,16 @@ foreach my $uniquename_p (sort keys %FBrf_pubid){
 
 				my $topic = $flag_mapping->{$flag_source}->{$flag_type}->{ATP_topic};
 
-				my ($curator, $time_curated, $file, $time_from_curator) = &get_relevant_curator($dbh, $pub_id, $transaction_timestamp);
+				# try to find the relevant curator and curation record using audit table timestamp information
+				my ($curator, $file, $time_from_curator) = &get_relevant_curator($dbh, $pub_id, $flag_audit_timestamp);
 
 				#
 
 				unless ($curator eq '') {
 
-					my $FBrf_with_prefix="FB:".$uniquename_p;
+					my $FBrf_with_prefix="FB:".$FBrf;
 
-					print "DATA: $uniquename_p\t$flag_source\t$raw_flag_type\t$curator\t$file;\t$time_from_curator\t$time_curated\n";
+					print "DATA: $FBrf\t$flag_source\t$raw_flag_type\t$curator\t$file;\t$time_from_curator\t$flag_audit_timestamp\n";
 					#choose different topic_entity_tag_source_id based on ENV_STATE and 'created_by' value
 					if ($curator eq "Author Submission" || $curator eq "User Submission"){
 						$topic_entity_tag_source_id =$topic_entity_tag_source_hash{"users"}{$ENV_STATE};
@@ -522,13 +522,13 @@ foreach my $uniquename_p (sort keys %FBrf_pubid){
 						$cmd="curl -X 'POST' 'https://literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$data'";
 					}
 
-					#print "\n$uniquename_p $raw_flag_type\n$data\n";
+					#print "\n$FBrf $raw_flag_type\n$data\n";
 					#print "\n\n$cmd\n";
 					#system($cmd);
 
 				} else {
 
-					print "ERROR: unable to find who curated for $flag_source $raw_flag_type $uniquename_p\n";
+					print "ERROR: unable to find who curated for $flag_source $raw_flag_type $FBrf\n";
 
 				}
 
@@ -548,21 +548,17 @@ sub get_relevant_curator {
 
 	Title:    get_relevant_curator
 	Usage:    get_relevant_curator(database handle, pub_id of reference, timestamp information to be matched);
-	Function: The get_relevant_curator subroutine takes audit_chado table timestamp information to be matched (e.g. timestamp for a particular triage flag) and the pub_id of the relevant reference and tries to find a matching 'curated_by' pubprop for that pub_id with the same audit_chado table timestamp. If it finds a match it returns relevant information from the matching 'curated_by' pubprop, otherwise all returned values are set to ''.
-	Example: my ($curator, $time_curated, $file, $time_from_curator) = &get_relevant_curator($dbh, $pub_id, $transaction_timestamp);
+	Function: The get_relevant_curator subroutine takes audit_chado table timestamp information to be matched (e.g. timestamp for a particular triage flag) and the pub_id of the relevant reference and tries to find a matching 'curated_by' pubprop for that pub_id (ie. one with the same audit_chado table timestamp). If it finds a match it returns relevant information from the matching 'curated_by' pubprop, otherwise all returned values are set to ''.
+	Example: my ($curator, $file, $time_from_curator) = &get_relevant_curator($dbh, $pub_id, $flag_audit_timestamp);
 
 	Returns:
 
 	o $relevant_curator: curator name from 'Curator:' portion of matching 'curated_by' pubprop
 
-    o $relevant_time_from_audit: audit_chado table timestamp from matching 'curated_by' pubprop
-
     o $relevant_record: curation record number from 'Proforma:' portion of matching 'curated_by' pubprop
 
 	o $relevant_time_from_record: time from 'timelastmodified:' portion of matching 'curated_by' pubprop
 
-
-	(Not yet sure whether will need both $relevant_time_from_audit and $relevant_time_from_record).
 
 =cut
 
@@ -573,15 +569,15 @@ sub get_relevant_curator {
 
 
 
-	my ($dbh, $pub_id, $transaction_timestamp) = @_;
+	my ($dbh, $pub_id, $audit_timestamp_to_match) = @_;
 
 	my ($relevant_curator, $relevant_time_from_audit, $relevant_record, $relevant_time_from_record) = '', 
 
 
 	# try to find curated_by pubprop with the same 'timelastmodified' timestamp as the triage flag audit table information
-	my @temp0=split(/\s+/, $transaction_timestamp);
+	my @temp0=split(/\s+/, $audit_timestamp_to_match);
 	my $time_flag=$temp0[0];
-	#print "\nFLAG INFO: $flag_source,$raw_flag_type,$transaction_timestamp time_flag:$time_flag\n";
+	#print "\nFLAG INFO: $flag_source,$raw_flag_type,$audit_timestamp_to_match time_flag:$time_flag\n";
 	#get all possible 'curated_by', then based on the flag_source, and timestamp to decided who curate it.
 	my $sql_curated=sprintf("select distinct pp.value, ac.transaction_timestamp, pp.pubprop_id from  pubprop pp, cvterm c, audit_chado ac  where ac.audited_table='pubprop' and ac.audit_transaction='I' and pp.pubprop_id=ac.record_pkey and pp.pub_id=%s and c.cvterm_id=pp.type_id and c.name in ('curated_by')", $pub_id);
 	#print "\n$sql_curated\n";
@@ -624,7 +620,6 @@ sub get_relevant_curator {
 
 
 				$relevant_curator = $curator;
-				$relevant_time_from_audit = $time_curated;
 				$relevant_record = $record_number;
 				$relevant_time_from_record = $time_from_curator;
 
@@ -638,7 +633,7 @@ sub get_relevant_curator {
 
 	}
 
-	return ($relevant_curator, $relevant_time_from_audit, $relevant_record, $relevant_time_from_record);
+	return ($relevant_curator, $relevant_record, $relevant_time_from_record);
 
 }
 
