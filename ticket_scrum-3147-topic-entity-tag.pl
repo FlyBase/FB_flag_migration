@@ -5,7 +5,7 @@ use DBI;
 use Digest::MD5  qw(md5 md5_hex md5_base64);
 use Time::Piece;
 
-=head
+=head1
  use to load FB triage flag into alliance, here we use post to post data into test/stage/production server. 
  before that, we need to set the top_entity_tag_source_id, so We need first create those two top_entity_tag_source 
 
@@ -144,12 +144,14 @@ my $flag_mapping = {
 
 			'ATP_topic' => 'ATP:0000032',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'curator_only' => '1',
 		},
 
 		'pheno_chem' => {
 
 			'ATP_topic' => 'ATP:0000080',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'curator_only' => '1',
 		},
 
 		'rename' => {
@@ -168,6 +170,7 @@ my $flag_mapping = {
 
 			'ATP_topic' => 'ATP:merge',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
+			# not curator only - was in original version of FTYP
 		},
 
 		'split' => {
@@ -190,6 +193,7 @@ my $flag_mapping = {
 			'ATP_topic' => 'ATP:nocur',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
 			'negated' => '1',
+			'curator_only' => '1',
 		},
 
 
@@ -204,12 +208,14 @@ my $flag_mapping = {
 
 			'ATP_topic' => 'ATP:0000151',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'curator_only' => '1',
 		},
 
 		'dm_other' => {
 
 			'ATP_topic' => 'ATP:0000040',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'curator_only' => '1',
 		},
 
 		'disease' => {
@@ -223,6 +229,7 @@ my $flag_mapping = {
 			'ATP_topic' => 'ATP:0000152',# disease model ATP term - using more specific ATP term for DO curation
 			'species' => 'NCBITaxon:7214', # Drosophilidae
 			'novel_data_qualifier' => 'ATP:0000229', # new to field
+			'curator_only' => '1',
 		},
 
 		'noDOcur' => {
@@ -230,6 +237,7 @@ my $flag_mapping = {
 			'ATP_topic' => 'ATP:0000152',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
 			'negated' => '1', # only present if the flag should have the 'no data' boolean set in ATP, note that representation of this is in flux in ATP
+			'curator_only' => '1',
 		},
 
 
@@ -304,6 +312,7 @@ my $flag_mapping = {
 
 		'pert_exp' => {
 			'ATP_topic' => 'ATP:0000042',
+			# not curator only - was in original version of FTYP
 		},
 
 		'phys_int' => {
@@ -323,6 +332,7 @@ my $flag_mapping = {
 
 		'neur_exp' => {
 			'ATP_topic' => 'ATP:neur_exp',
+			'curator_only' => '1',
 		},
 
 
@@ -482,15 +492,49 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 
 				my $topic = $flag_mapping->{$flag_source}->{$flag_type}->{ATP_topic};
 
-				# try to find the relevant curator and curation record using audit table timestamp information
-				my ($curator, $file) = &get_relevant_curator($dbh, $pub_id, $flag_audit_timestamp);
+				# try to find the relevant curator and curation record (from curated_by pubprop) using audit table timestamp information
+				my $curator_data = &get_relevant_curator($dbh, $pub_id, $flag_audit_timestamp);
 
-				#
-
-				unless ($curator eq '') {
+				if (defined $curator_data) {
 
 					my $FBrf_with_prefix="FB:".$FBrf;
 
+					my $curator = '';
+					my $file = '';
+					# simple case, only one matching curated_by pubprop
+					if ($curator_data->{count} == 1) {
+
+						$curator = $curator_data->{relevant_curator};
+						$file = $curator_data->{relevant_record};
+
+					} else {
+
+						# multiple records for same FBrf submitted in same week by same curator
+						if (scalar keys %{$curator_data->{curator}} == 1) {
+
+							$curator = join '', keys %{$curator_data->{curator}};
+							$file = join ', ', sort keys %{$curator_data->{curator}->{$curator}};
+
+						} else {
+
+							# flag info must have been submitted/looked at by a curator rather than just multiple user curation, so set curator to the generic 'FB_curator';
+							if (exists $flag_mapping->{$flag_source}->{$flag_type}->{curator_only} || $flag_suffix ne '' || exists $curator_data->{FB_curator_count} ) {
+								$curator = 'FB_curator';
+
+							} else {
+								$curator = 'MULTIPLE CURATORS';
+								print "WARNING: multiple different curators that cannot reconcile, DATA would be: $FBrf\t$flag_source\t$raw_flag_type\t" . (join ', ', keys %{$curator_data->{curator}}) . "\t" . (join ', ', keys %{$curator_data->{curator}->{$curator}}) . "\t$flag_audit_timestamp\n";
+
+							}
+
+						}
+
+					}
+
+
+					if ($curator eq 'Unknown Curator' || $curator eq 'Generic Curator') {
+						$curator = 'FB_curator';
+					}
 					print "DATA: $FBrf\t$flag_source\t$raw_flag_type\t$curator\t$file;\t$flag_audit_timestamp\n";
 					#choose different topic_entity_tag_source_id based on ENV_STATE and 'created_by' value
 					if ($curator eq "Author Submission" || $curator eq "User Submission"){
@@ -540,18 +584,39 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 
 sub get_relevant_curator {
 
+=head1 SUBROUTINE:
+=cut
+
 =head1
 
 	Title:    get_relevant_curator
 	Usage:    get_relevant_curator(database handle, pub_id of reference, timestamp information to be matched);
-	Function: The get_relevant_curator subroutine takes audit_chado table timestamp information to be matched (e.g. timestamp for a particular triage flag) and the pub_id of the relevant reference and tries to find a matching 'curated_by' pubprop for that pub_id (ie. one with the same audit_chado table timestamp). If it finds a match it returns relevant information from the matching 'curated_by' pubprop, otherwise all returned values are set to ''.
+	Function: The get_relevant_curator subroutine takes audit_chado table timestamp information to be matched (e.g. timestamp for a particular triage flag) and the pub_id of the relevant reference and tries to find a matching 'curated_by' pubprop for that pub_id (ie. one with the same audit_chado table timestamp). If it finds any matches, it returns a data structure containing the relevant information from all matching 'curated_by' pubprop(s), otherwise it returns undef.
 	Example: my ($curator, $file) = &get_relevant_curator($dbh, $pub_id, $flag_audit_timestamp);
 
-	Returns:
+	
+	For each matching curated_by pubprop it captures the 'Curator:' portion ($curator) and Proforma:' portion ($record_number) of the pubprop value and stores it as follows
 
-	o $relevant_curator: curator name from 'Curator:' portion of matching 'curated_by' pubprop
+	It captures the following information:
 
-    o $relevant_record: curation record number from 'Proforma:' portion of matching 'curated_by' pubprop
+	o Count of the number of matching curated_by pubprops:
+
+		$data->{count}++;
+
+	o Count of number of matching curated_by pubprops where the $curator is a FlyBase curator (and not community/UniProt curation)
+
+		$data->{FB_curator_count}++;
+
+	o A $data->{curator} hash structure that captures $curator and $record_number info for all matching pubprops (used when there is more than one matching pubprop)
+
+		$data->{curator}->{$curator}->{$record_number}++;
+
+
+	o Two 'relevant' shortcut key-value pairs that capture the $curator and $record_number info for the last matching pubprop - **NB: these are only safe to use to if $data->{count} == 1, otherwise need to use the $data->{curator} hash structure**
+
+		$data->{relevant_curator} = $curator;
+		$data->{relevant_record} = $record_number;
+
 
 
 
@@ -566,12 +631,14 @@ sub get_relevant_curator {
 
 	my ($dbh, $pub_id, $audit_timestamp_to_match) = @_;
 
-	my ($relevant_curator, $relevant_record) = '', 
+	my ($relevant_curator , $relevant_record) = '', 
 
 	my $sql_query=sprintf("select distinct pp.value, ac.transaction_timestamp, pp.pubprop_id from  pubprop pp, cvterm c, audit_chado ac  where ac.audited_table='pubprop' and ac.audit_transaction='I' and pp.pubprop_id=ac.record_pkey and pp.pub_id=%s and c.cvterm_id=pp.type_id and c.name in ('curated_by')", $pub_id);
 
 	my $db_query = $dbh->prepare ($sql_query);
 	$db_query->execute or die" CAN'T GET curator info FROM CHADO:\n$sql_query\n";
+
+	my $data = undef;
 
 	while (my ($curated_by_value, $curated_by_audit_timestamp, $curated_by_pubprop_id) = $db_query->fetchrow_array()) {
 
@@ -580,6 +647,8 @@ sub get_relevant_curator {
 			my $curator = $1;
 			my $record_number = $2;
 			my $timelastmodified = $3;
+
+			
 
 			if ($curated_by_audit_timestamp eq $audit_timestamp_to_match){
 
@@ -605,8 +674,16 @@ sub get_relevant_curator {
 
 				$relevant_curator = $curator;
 				$relevant_record = $record_number;
+				$data->{curator}->{$curator}->{$record_number}++;
+				$data->{count}++;
+				$data->{relevant_curator} = $curator;
+				$data->{relevant_record} = $record_number;
 
-				last;
+				unless ($curator eq 'Author Submission' || $curator eq 'User Submission' || $curator eq 'UniProtKB') {
+
+					$data->{FB_curator_count}++;
+				}
+
 			}
 		} else {
 			# not expecting to trip this error
@@ -616,8 +693,7 @@ sub get_relevant_curator {
 
 	}
 
-	return ($relevant_curator, $relevant_record);
-
+	return ($data);
 }
 
 
