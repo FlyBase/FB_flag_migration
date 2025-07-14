@@ -494,13 +494,12 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 
 				# try to find the relevant curator and curation record (from curated_by pubprop) using audit table timestamp information
 				my $curator_data = &get_relevant_curator($dbh, $pub_id, $flag_audit_timestamp);
+				my $curator = ''; # this will be the relevant curator.
+				my $file = ''; # this will be the relevant curation record. Not submitted to the Alliance, but useful for plain text output (DATA: lines) when testing.
 
 				if (defined $curator_data) {
 
-					my $FBrf_with_prefix="FB:".$FBrf;
 
-					my $curator = '';
-					my $file = '';
 					# simple case, only one matching curated_by pubprop
 					if ($curator_data->{count} == 1) {
 
@@ -517,13 +516,12 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 
 						} else {
 
-							# flag info must have been submitted/looked at by a curator rather than just multiple user curation, so set curator to the generic 'FB_curator';
+							# flag info must have been submitted/looked at by a curator rather than just multiple user curation, so set curator to the generic 'FB_curator'
 							if (exists $flag_mapping->{$flag_source}->{$flag_type}->{curator_only} || $flag_suffix ne '' || exists $curator_data->{FB_curator_count} ) {
 								$curator = 'FB_curator';
 
 							} else {
-								$curator = 'MULTIPLE CURATORS';
-								print "WARNING: multiple different curators that cannot reconcile, DATA would be: $FBrf\t$flag_source\t$raw_flag_type\t" . (join ', ', keys %{$curator_data->{curator}}) . "\t" . (join ', ', keys %{$curator_data->{curator}->{$curator}}) . "\t$flag_audit_timestamp\n";
+								print "ERROR: multiple different curators that cannot reconcile, not adding: $FBrf\t$flag_source\t$raw_flag_type\t" . (join ', ', keys %{$curator_data->{curator}}) . "\t" . (join ', ', keys %{$curator_data->{curator}->{$curator}}) . "\t$flag_audit_timestamp\n";
 
 							}
 
@@ -535,6 +533,23 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 					if ($curator eq 'Unknown Curator' || $curator eq 'Generic Curator' || $curator eq 'P. Leyland') {
 						$curator = 'FB_curator';
 					}
+
+				} else {
+
+					# flag info must have been submitted/looked at by a curator rather than just user curation, so set curator to the generic 'FB_curator'
+					if (exists $flag_mapping->{$flag_source}->{$flag_type}->{curator_only} || $flag_suffix ne '') {
+						$curator = 'FB_curator';
+
+					} else {
+
+						print "ERROR: unable to find who curated for $flag_source $raw_flag_type $FBrf\n";
+					}
+				}
+
+
+				if ($curator ne '') {
+
+
 					print "DATA: $FBrf\t$flag_source\t$raw_flag_type\t$curator\t$file;\t$flag_audit_timestamp\n";
 					#choose different topic_entity_tag_source_id based on ENV_STATE and 'created_by' value
 					if ($curator eq "Author Submission" || $curator eq "User Submission"){
@@ -544,9 +559,12 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 					}
 
 					my $data = '';
+					my $FBrf_with_prefix="FB:".$FBrf;
 					my $reference_curie = ($ENV_STATE eq "dev") ? $FBrf_with_prefix : $FB_curie{$FBrf_with_prefix};
 
 					$data='{"date_created": "'.$flag_audit_timestamp.'","created_by": "'.$curator.'", "topic": "'.$topic.'", "species": "'.$species.'","topic_entity_tag_source_id": '.$topic_entity_tag_source_id.', "negated": '.$negated.', "reference_curie": "'.$reference_curie.'"}';
+
+
 
 #					if ($ENV_STATE eq "dev") {
 #						print "JSON: $data\n";
@@ -566,11 +584,9 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 					#print "\n\n$cmd\n";
 					#system($cmd);
 
-				} else {
-
-					print "ERROR: unable to find who curated for $flag_source $raw_flag_type $FBrf\n";
 
 				}
+
 
 			} else {
 
