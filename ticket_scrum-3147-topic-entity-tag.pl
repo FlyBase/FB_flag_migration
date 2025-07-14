@@ -532,7 +532,7 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 					}
 
 
-					if ($curator eq 'Unknown Curator' || $curator eq 'Generic Curator') {
+					if ($curator eq 'Unknown Curator' || $curator eq 'Generic Curator' || $curator eq 'P. Leyland') {
 						$curator = 'FB_curator';
 					}
 					print "DATA: $FBrf\t$flag_source\t$raw_flag_type\t$curator\t$file;\t$flag_audit_timestamp\n";
@@ -648,7 +648,7 @@ sub get_relevant_curator {
 			my $record_number = $2;
 			my $timelastmodified = $3;
 
-			
+
 
 			if ($curated_by_audit_timestamp eq $audit_timestamp_to_match){
 
