@@ -5,6 +5,8 @@ use DBI;
 use Digest::MD5  qw(md5 md5_hex md5_base64);
 use Time::Piece;
 
+use JSON::PP;
+
 =head1
  use to load FB triage flag into alliance, here we use post to post data into test/stage/production server. 
  before that, we need to set the top_entity_tag_source_id, so We need first create those two top_entity_tag_source 
@@ -87,6 +89,20 @@ my $dsource = sprintf("dbi:Pg:dbname=%s;host=%s;port=5432",$db,$server);
 my $dbh = DBI->connect($dsource,$user,$pwd) or die "cannot connect to $dsource\n";
 
 my $FBrf_like='^FBrf[0-9]+$';
+
+
+# 
+
+my $json_encoder;
+
+# set the json output format to be slightly different for dev mode - pretty separates the name/value pairs by return so its easier to read
+if ($ENV_STATE eq "dev") {
+
+	$json_encoder = JSON::PP->new()->pretty(1)->canonical(1);
+} else {
+	$json_encoder = JSON::PP->new()->canonical(1);
+
+}
 
 # not complete yet
 
@@ -440,9 +456,6 @@ $topic_entity_tag_source_hash{"curators"}{"dev"}=223;
 $topic_entity_tag_source_hash{"curators"}{"test"}=223;
 $topic_entity_tag_source_hash{"curators"}{"stage"}=223;
 $topic_entity_tag_source_hash{"curators"}{"production"}=172;
-my $topic_entity_tag_source_id;#need to re-create topic_entity_tag_source and update manually for stage/production ?
-
-
 
 =head
 {
@@ -455,7 +468,6 @@ my $topic_entity_tag_source_id;#need to re-create topic_entity_tag_source and up
 }
 =cut
 
-print "#FBrf\tFlag_type\tFlag\tCurator\tCuration record\tTime_from_curated_by\tTime_from_audit_chado\n";
 foreach my $FBrf (sort keys %FBrf_pubid){
     
 	my $pubid=$FBrf_pubid{$FBrf};
@@ -479,7 +491,7 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 
 		} 
 
-		# only process flags that we want to submit the FB flag to the Alliance
+		# 1. only process flags that we want to submit the FB flag to the Alliance
 		unless (exists $flags_to_ignore->{$flag_source} && exists $flags_to_ignore->{$flag_source}->{$flag_type}) {
 
 
@@ -492,22 +504,13 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 					next;
 				}
 
-				# set parameters based on mapping hash (set a default if key does not exist)
-				my $species = exists $flag_mapping->{$flag_source}->{$flag_type}->{species} ? $flag_mapping->{$flag_source}->{$flag_type}->{species} : 'NCBITaxon:7227';
-				my $negated = exists $flag_mapping->{$flag_source}->{$flag_type}->{negated} ? 1 : 0;
 
-				my $novel_topic_data = exists $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty} ? 1 : 0;
-				my $data_novelty = exists $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty} ? $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty} : '';
-
-				my $topic = $flag_mapping->{$flag_source}->{$flag_type}->{ATP_topic};
-
-				# try to find the relevant curator and curation record (from curated_by pubprop) using audit table timestamp information
+				# 2. try to find the relevant curator (from curated_by pubprop) using audit table timestamp information
 				my $curator_data = &get_relevant_curator($dbh, $pub_id, $flag_audit_timestamp);
-				my $curator = ''; # this will be the relevant curator.
+				my $curator = ''; # this will be the relevant curator with a matching timestamp.
 				my $file = ''; # this will be the relevant curation record. Not submitted to the Alliance, but useful for plain text output (DATA: lines) when testing.
 
 				if (defined $curator_data) {
-
 
 					# simple case, only one matching curated_by pubprop
 					if ($curator_data->{count} == 1) {
@@ -538,7 +541,7 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 
 					}
 
-
+					# convert all unknown style curators to the same 'FB_curator' name that is used for persistent store submissions
 					if ($curator eq 'Unknown Curator' || $curator eq 'Generic Curator' || $curator eq 'P. Leyland') {
 						$curator = 'FB_curator';
 					}
@@ -555,38 +558,60 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 					}
 				}
 
-
+				# 3. if a curator has been assigned, make a json structure and (unless in dev mode) submit to alliance.
 				if ($curator ne '') {
 
 
-					print "DATA: $FBrf\t$flag_source\t$raw_flag_type\t$curator\t$file;\t$flag_audit_timestamp\n";
-					#choose different topic_entity_tag_source_id based on ENV_STATE and 'created_by' value
-					if ($curator eq "Author Submission" || $curator eq "User Submission"){
-						$topic_entity_tag_source_id =$topic_entity_tag_source_hash{"users"}{$ENV_STATE};
-					} else {
-						$topic_entity_tag_source_id =$topic_entity_tag_source_hash{"curators"}{$ENV_STATE};
+					# first store variables in a $data hash so it is easy to convert to correct json format later (and to add/change json structure if Alliance model changes)
+					my $data = {};
+
+					# set basic information for this particular flag and FBrf combination
+					my $FBrf_with_prefix="FB:".$FBrf;
+					$data->{reference_curie} = ($ENV_STATE eq "dev") ? $FBrf_with_prefix : $FB_curie{$FBrf_with_prefix};
+
+					$data->{created_by} = $curator;
+					$data->{date_created} = $flag_audit_timestamp;
+
+
+					# set other parameters for the flag based on $flag_mapping hash or set the relevant default if the key does not exist in the mapping hash for that flag
+					$data->{topic} = $flag_mapping->{$flag_source}->{$flag_type}->{ATP_topic};
+
+					$data->{species} = exists $flag_mapping->{$flag_source}->{$flag_type}->{species} ? $flag_mapping->{$flag_source}->{$flag_type}->{species} : 'NCBITaxon:7227';
+					$data->{negated} = exists $flag_mapping->{$flag_source}->{$flag_type}->{negated} ? 1 : 0;
+
+					$data->{novel_topic_data} = exists $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty} ? 1 : 0;
+
+					if (exists $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty}) {
+
+						$data->{data_novelty} = $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty};
 					}
 
-					my $data = '';
-					my $FBrf_with_prefix="FB:".$FBrf;
-					my $reference_curie = ($ENV_STATE eq "dev") ? $FBrf_with_prefix : $FB_curie{$FBrf_with_prefix};
+					#choose different topic_entity_tag_source_id based on ENV_STATE and 'created_by' value
+					if ($curator eq "Author Submission" || $curator eq "User Submission"){
+						$data->{topic_entity_tag_source_id} = $topic_entity_tag_source_hash{"users"}{$ENV_STATE};
+					} else {
+						$data->{topic_entity_tag_source_id} = $topic_entity_tag_source_hash{"curators"}{$ENV_STATE};
+					}
 
-					$data='{"date_created": "'.$flag_audit_timestamp.'","created_by": "'.$curator.'", "topic": "'.$topic.'", "species": "'.$species.'","topic_entity_tag_source_id": '.$topic_entity_tag_source_id.', "negated": '.$negated.', "reference_curie": "'.$reference_curie.'"}';
+					# plain text output useful for testing
+					print "DATA: $FBrf\t$flag_source\t$raw_flag_type\t$curator\t$file;\t$flag_audit_timestamp\n";
+
+					my $json_data = $json_encoder->encode($data);
 
 
 
-#					if ($ENV_STATE eq "dev") {
-#						print "JSON: $data\n";
+					if ($ENV_STATE eq "dev") {
+						print "JSON: \n$json_data\n";
 
-#					}
+					}
 
 					my $cmd;
 					if ($ENV_STATE eq "test"){
-						$cmd="curl -X 'POST' 'https://dev4005-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$data'";
+						$cmd="curl -X 'POST' 'https://dev4005-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
 					} elsif ($ENV_STATE eq "stage"){
-						$cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$data'";
+						$cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
 					} elsif ($ENV_STATE eq "production"){
-						$cmd="curl -X 'POST' 'https://literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$data'";
+						$cmd="curl -X 'POST' 'https://literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
 					}
 
 					#print "\n$FBrf $raw_flag_type\n$data\n";
