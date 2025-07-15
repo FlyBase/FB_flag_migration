@@ -93,7 +93,7 @@ my $FBrf_like='^FBrf[0-9]+$';
 # ATP_topic is compulsory for every flag
 # other keys are optional
 # species only present if it differs from default Dmel (NCBITaxon:7227) for that flag
-# novel_data_qualifier only present if it applies to that flag
+# data_novelty only present if it applies to that flag
 # negated only present if it applies to that flag
 my $flag_mapping = {
 
@@ -104,20 +104,20 @@ my $flag_mapping = {
 		'new_al' => {
 			'ATP_topic' => 'ATP:0000006',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'novel_data_qualifier' => 'ATP:0000229', # new to field
+			'data_novelty' => 'ATP:0000229', # new to field
 		},
 
 		'new_allele' => {
 			'ATP_topic' => 'ATP:0000006',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'novel_data_qualifier' => 'ATP:0000229', # new to field
+			'data_novelty' => 'ATP:0000229', # new to field
 		},
 
 		'new_transg' => {
 
 			'ATP_topic' => 'ATP:0000013',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'novel_data_qualifier' => 'ATP:0000229', # new to field
+			'data_novelty' => 'ATP:0000229', # new to field
 		},
 
 
@@ -137,7 +137,7 @@ my $flag_mapping = {
 
 			'ATP_topic' => 'ATP:0000079',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'novel_data_qualifier' => 'ATP:0000321', # new data
+			'data_novelty' => 'ATP:0000321', # new data
 		},
 
 		'pheno_anat' => {
@@ -228,7 +228,7 @@ my $flag_mapping = {
 
 			'ATP_topic' => 'ATP:0000152',# disease model ATP term - using more specific ATP term for DO curation
 			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'novel_data_qualifier' => 'ATP:0000229', # new to field
+			'data_novelty' => 'ATP:0000229', # new to field
 			'curator_only' => '1',
 		},
 
@@ -295,7 +295,7 @@ my $flag_mapping = {
 
 			'ATP_topic' => 'ATP:0000011',# 'disease' ATP term - using more general ATP term for FBhh curation
 			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'novel_data_qualifier' => 'ATP:0000321', # new data
+			'data_novelty' => 'ATP:0000321', # new data
 		},
 
 		'gene_model' => {
@@ -346,7 +346,7 @@ my $flag_mapping = {
 
 			'ATP_topic' => 'ATP:0000031',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'novel_data_qualifier' => 'ATP:0000229', # new to field
+			'data_novelty' => 'ATP:0000229', # new to field
 		},
 
 	},
@@ -495,7 +495,9 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 				# set parameters based on mapping hash (set a default if key does not exist)
 				my $species = exists $flag_mapping->{$flag_source}->{$flag_type}->{species} ? $flag_mapping->{$flag_source}->{$flag_type}->{species} : 'NCBITaxon:7227';
 				my $negated = exists $flag_mapping->{$flag_source}->{$flag_type}->{negated} ? 1 : 0;
-				my $novel_data_qualifier = exists $flag_mapping->{$flag_source}->{$flag_type}->{novel_data_qualifier} ? $flag_mapping->{$flag_source}->{$flag_type}->{novel_data_qualifier} : '';
+
+				my $novel_topic_data = exists $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty} ? 1 : 0;
+				my $data_novelty = exists $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty} ? $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty} : '';
 
 				my $topic = $flag_mapping->{$flag_source}->{$flag_type}->{ATP_topic};
 
