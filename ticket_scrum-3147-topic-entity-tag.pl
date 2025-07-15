@@ -485,6 +485,13 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 
 			if (exists $flag_mapping->{$flag_source} && exists $flag_mapping->{$flag_source}->{$flag_type}) {
 
+
+				# this suffix indicates that the flag is incorrect: ignore and do not submit to the Alliance
+				# It would technically be possible to subtmit this with validation information saying flag was incorrect, but this would only add a tiny subset of all the incorrect flags, as it would only be those updated directly in the db (e.g. via chia), and not those that were corrected via plingc in proforma. So decided better to not submit them.
+				if ($flag_suffix && $flag_suffix eq 'Inappropriate use of flag') {
+					next;
+				}
+
 				# set parameters based on mapping hash (set a default if key does not exist)
 				my $species = exists $flag_mapping->{$flag_source}->{$flag_type}->{species} ? $flag_mapping->{$flag_source}->{$flag_type}->{species} : 'NCBITaxon:7227';
 				my $negated = exists $flag_mapping->{$flag_source}->{$flag_type}->{negated} ? 1 : 0;
