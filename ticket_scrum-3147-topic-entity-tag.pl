@@ -7,9 +7,77 @@ use Time::Piece;
 
 use JSON::PP;
 
-=head1
+
+=head1 NAME ticket_scrum-3147-topic-entity-tag.pl
+
+
+=head1 SYNOPSIS
+
+Used to load FlyBase triage flag information into the Alliance ABC literature database. Generates a json object for each FBrf+triage flag combination which is then submitted using POST to the appropriate ABC server, depending on the script mode provided as one of the arguments.
+
+=cut
+
+=head1 USAGE
+
+USAGE: perl ticket_scrum-3147-topic-entity-tag.pl pg_server db_name pg_username pg_password dev|test|stage|production filename okta_token
+
+
+=cut
+
+=head1 DESCRIPTION
+
+Script has four modes:
+
+o test/stage/production modes - script uses POST to load the json object data into the corresponding Alliance test/stage/production server. 
+
+o dev mode - script does not try to POST data into a server, but instead just prints the json. In addition, it works for a single FBrf (rather than all FBrfs); the user is asked to submit the FBrf to be tested.
+
+
+Mapping hashes:
+
+o $flags_to_ignore - triage flags that we do not want to submit to the Alliance
+
+o $flag_mapping - triage flags that we DO want to submit to the Alliance, with key value pairs specifying the relevant mapping information and metadata
+
+
+
+Script logic:
+
+1. gets FBrf and pub_id of all current publications that have triage flag information.
+
+2. For each pub_id:
+
+2a. gets triage flag details, including the 'I' timestamp from audit_chado (which indicates when the flag was added).
+
+2b. splits the 'raw' triage flag into the flag part and the suffix part (splits on ::) (e.g. disease::DONE -> flag = disease, suffix = DONE).
+
+3. For each flag,
+
+3a. the flag is ignored if it is in the $flags_to_ignore hash or it has a suffix and the suffix is 'Inappropriate use of flag' (which indicates the flag is incorrect).
+
+3b. For the remaining flags, the script tries to find the matching curator from the 'curated_by' pubprop for that pub_id by comparing audit_chado timestamps.
+
+- the get_relevant_curator subroutine first gets all matching 'curated_by' pubprops with the same audit_chado 'I' timestamp as the triage flag and then:
+
+- if a single match is found, that curator is used.
+
+- if multiple or no curator matches are found, the flag properties are used to try to determine if it must have been a FB curator that added the flag (rather than community curation) - if that is the case, the curator is set to 'FB_curator'.
+
+3c. If a matching curator was successfully identified, a data structure with the relevant information is made for that flag+FBrf combination, using the flag timestamp from audit_chado and mapping information in the $flag_mapping hash to fill out the data structure.
+
+3d. the data structure is then converted to json, and either printed (dev mode) or submitted to the appropriate ABC server using POST (all other modes).
+
+
+=cut
+
+=head1 STILL TO DO
+
+1. script currently has the topic_entity_tag_source_id number hard-coded, and the number is different for the test/stage/production servers. It is possible to use GET to get this information so investigate whether can change code to use GET instead, so that it is not hard-coded (in case of changes in the servers).
+
+Here is the information about the two topic_entity_tag_sources used, whose ids are currently hard-coded
+
  use to load FB triage flag into alliance, here we use post to post data into test/stage/production server. 
- before that, we need to set the top_entity_tag_source_id, so We need first create those two top_entity_tag_source 
+ before that, we need to set the topic_entity_tag_source_id, so We need first create those two top_entity_tag_source 
 
 So, if Created By = ‘Author Submission’ or ‘User Submission’ you should use: test: 222 stage:222 prod:171
 
@@ -33,6 +101,18 @@ otherwise for any other ‘Created by’ value , you should use: test: 223 stage
   "data_provider": "FB",
   "secondary_data_provider_abbreviation": "FB"
 }
+
+
+
+
+2. some values in the $flag_mapping hash are temporary place holders (have asked for new ATP terms) so will need replacing before being run for real.
+
+3. The system call to actually run the $cmd to POST the data to a server is currently commented out. In addition, need to add a test to check that the system call completes successfully and to print an error if not.
+
+4. the script currently requires an input file (given in 5th argument) that maps FBrf numbres to AGKRB numbers. Investigate whether its possible to submit the json using FBrf (I assume not) or whether could use GET to get the AGKRB for each required FBrf (this might make it to slow as its all FBrfs ?!)
+
+
+the instructions to make the currently required input file are:
 
 To generate the input file use:-
 You may need to change the --host value if you want to use prod etc.
