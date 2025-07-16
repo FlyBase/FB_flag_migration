@@ -5,9 +5,79 @@ use DBI;
 use Digest::MD5  qw(md5 md5_hex md5_base64);
 use Time::Piece;
 
-=head
+use JSON::PP;
+
+
+=head1 NAME ticket_scrum-3147-topic-entity-tag.pl
+
+
+=head1 SYNOPSIS
+
+Used to load FlyBase triage flag information into the Alliance ABC literature database. Generates a json object for each FBrf+triage flag combination which is then submitted using POST to the appropriate ABC server, depending on the script mode provided as one of the arguments.
+
+=cut
+
+=head1 USAGE
+
+USAGE: perl ticket_scrum-3147-topic-entity-tag.pl pg_server db_name pg_username pg_password dev|test|stage|production filename okta_token
+
+
+=cut
+
+=head1 DESCRIPTION
+
+Script has four modes:
+
+o test/stage/production modes - script uses POST to load the json object data into the corresponding Alliance test/stage/production server. 
+
+o dev mode - script does not try to POST data into a server, but instead just prints the json. In addition, it works for a single FBrf (rather than all FBrfs); the user is asked to submit the FBrf to be tested.
+
+
+Mapping hashes:
+
+o $flags_to_ignore - triage flags that we do not want to submit to the Alliance
+
+o $flag_mapping - triage flags that we DO want to submit to the Alliance, with key value pairs specifying the relevant mapping information and metadata
+
+
+
+Script logic:
+
+1. gets FBrf and pub_id of all current publications that have triage flag information.
+
+2. For each pub_id:
+
+2a. gets triage flag details, including the 'I' timestamp from audit_chado (which indicates when the flag was added).
+
+2b. splits the 'raw' triage flag into the flag part and the suffix part (splits on ::) (e.g. disease::DONE -> flag = disease, suffix = DONE).
+
+3. For each flag,
+
+3a. the flag is ignored if it is in the $flags_to_ignore hash or it has a suffix and the suffix is 'Inappropriate use of flag' (which indicates the flag is incorrect).
+
+3b. For the remaining flags, the script tries to find the matching curator from the 'curated_by' pubprop for that pub_id by comparing audit_chado timestamps.
+
+- the get_relevant_curator subroutine first gets all matching 'curated_by' pubprops with the same audit_chado 'I' timestamp as the triage flag and then:
+
+- if a single match is found, that curator is used.
+
+- if multiple or no curator matches are found, the flag properties are used to try to determine if it must have been a FB curator that added the flag (rather than community curation) - if that is the case, the curator is set to 'FB_curator'.
+
+3c. If a matching curator was successfully identified, a data structure with the relevant information is made for that flag+FBrf combination, using the flag timestamp from audit_chado and mapping information in the $flag_mapping hash to fill out the data structure.
+
+3d. the data structure is then converted to json, and either printed (dev mode) or submitted to the appropriate ABC server using POST (all other modes).
+
+
+=cut
+
+=head1 STILL TO DO
+
+1. script currently has the topic_entity_tag_source_id number hard-coded, and the number is different for the test/stage/production servers. It is possible to use GET to get this information so investigate whether can change code to use GET instead, so that it is not hard-coded (in case of changes in the servers).
+
+Here is the information about the two topic_entity_tag_sources used, whose ids are currently hard-coded
+
  use to load FB triage flag into alliance, here we use post to post data into test/stage/production server. 
- before that, we need to set the top_entity_tag_source_id, so We need first create those two top_entity_tag_source 
+ before that, we need to set the topic_entity_tag_source_id, so We need first create those two top_entity_tag_source 
 
 So, if Created By = ‘Author Submission’ or ‘User Submission’ you should use: test: 222 stage:222 prod:171
 
@@ -31,6 +101,18 @@ otherwise for any other ‘Created by’ value , you should use: test: 223 stage
   "data_provider": "FB",
   "secondary_data_provider_abbreviation": "FB"
 }
+
+
+
+
+2. some values in the $flag_mapping hash are temporary place holders (have asked for new ATP terms) so will need replacing before being run for real.
+
+3. The system call to actually run the $cmd to POST the data to a server is currently commented out. In addition, need to add a test to check that the system call completes successfully and to print an error if not.
+
+4. the script currently requires an input file (given in 5th argument) that maps FBrf numbres to AGKRB numbers. Investigate whether its possible to submit the json using FBrf (I assume not) or whether could use GET to get the AGKRB for each required FBrf (this might make it to slow as its all FBrfs ?!)
+
+
+the instructions to make the currently required input file are:
 
 To generate the input file use:-
 You may need to change the --host value if you want to use prod etc.
@@ -68,10 +150,10 @@ if (! grep( /^$ENV_STATE$/, @STATE ) ) {
     exit;
 }
 
-# Sanity check if state isnot test, make sure the user wants to
+# Sanity check if state is not test, make sure the user wants to
 # save the data to the database
-if ($ENV_STATE ne "test") {
-	print STDERR "You are about to write data to $server $db\n";
+if ($ENV_STATE eq "stage" || $ENV_STATE eq "production") {
+	print STDERR "You are about to write data to $ENV_STATE Alliance literature server\n";
 	print STDERR "Type y to continue else anything else to stop\n";
 	my $continue = <STDIN>;
 	chomp $continue;
@@ -88,79 +170,328 @@ my $dbh = DBI->connect($dsource,$user,$pwd) or die "cannot connect to $dsource\n
 
 my $FBrf_like='^FBrf[0-9]+$';
 
-#updated 20250612, see https://flybase.atlassian.net/browse/FTA-47
-my %flag_ATP=(
-'GOcur'=>'ATP:0000012',# GO (gene ontology)                                  | cam_flag  |  1393
- 'gene_group'=>'ATP:0000065',#                              | cam_flag  |   449
- 'gene_group::DONE'=>'ATP:0000065',#                        | cam_flag  |    68
- #'merge'=>'',#                                   | cam_flag  |   360
- 'new_al'=>'ATP:0000006',# allele                                 | cam_flag  |  4306
- 'new_char'=>'ATP:0000142',# entity, NOT SURE                              | cam_flag  |  2489
- 'new_gene'=>'ATP:0000045',#NOT SURE                                | cam_flag  |   105
- 'new_transg'=>'ATP:0000013',#  new transgenic construct               | cam_flag  |  9443
- 'noGOcur'=>'ATP:0000012',#                                 | cam_flag  |   296
- #'nocur'=>'',#                                   | cam_flag  | 10332
- #'nocur_abs'=>'',#                               | cam_flag  |   946
- #'orthologs'=>'',#                               | cam_flag  |   100    N/A
- 'pathway'=>'ATP:0000113',#                                 | cam_flag  |    92
-# changed pheno mapping to more specific ATP term (genetic phenotype)
- 'pheno'=>'ATP:0000079',# phenotype                                 | cam_flag  | 13754
- 'pheno_anat'=>'ATP:0000032',#                              | cam_flag  |   968
- 'pheno_chem'=>'ATP:0000080',#                              | cam_flag  |  2558
- 'rename'=>'ATP:0000048',#                                  | cam_flag  |  1474
- #'split'=>'',#                                   | cam_flag  |    15
- #'RNAi'=>'ATP:0000082',#                                   | harv_flag |   431
- 'cell_cult'=>'ATP:0000008',#                               | harv_flag |    20
- 'cell_cult::DONE'=>'ATP:0000008',#                         | harv_flag |   612
- #'cell_line(commercial)::DONE'=>'ATP:0000008',#             | harv_flag |   101
- #'cell_line(stable)::DONE'=>'ATP:0000008',#                 | harv_flag |    31
- 'cell_line::DONE'=>'ATP:0000008',#                         | harv_flag |  1556
- 'chemical'=>'ATP:0000094',#                                | harv_flag |   300
- 'chemical::DONE'=>'ATP:0000094',#                          | harv_flag |  1384
- 'cis_reg'=>'ATP:0000055',#                                 | harv_flag |  1499
- 'cis_reg::DONE'=>'ATP:0000055',#                           | harv_flag |    51
- 'dataset'=>'ATP:0000150',#                                 | harv_flag |  2264
- 'disease'=>'ATP:0000152',#                                 | harv_flag |    23
- 'disease::DONE'=>'ATP:0000152',#                           | harv_flag |  3642
- #'disease::Inappropriate use of flag'=>'',#      | harv_flag |   215                  ???
- #'diseaseF'=>'',#                                | harv_flag |   593
- #'diseaseF::DONE'=>'',#                          | harv_flag |   210
- #'diseaseHP::DONE'=>'',#                         | harv_flag |   225
- 'gene_model'=>'ATP:0000054',#                              | harv_flag |    23
- 'gene_model::DONE'=>'ATP:0000054',#                        | harv_flag |   624
- #'gene_model_nonmel'=>'',#                       | harv_flag |   125              N/A
- 'genom_feat'=>'ATP:0000056',#                              | harv_flag |    59
- 'genom_feat::DONE'=>'ATP:0000056',#                        | harv_flag |  3105
- #'genom_feat::No response to author query'=>'',# | harv_flag |    56
- #'marker'=>'',#                                  | harv_flag |   635
- #'n'=>'',#                                       | harv_flag |   121    N/A
- #'neur_exp'=>'',#                                | harv_flag |  1136
- #'neur_exp::DONE'=>'',#                          | harv_flag |   115
- #'no_flag'=>'',#                                 | harv_flag | 22412
- 'pert_exp'=>'ATP:0000042',#                                | harv_flag |  8287
- 'pert_exp::DONE'=>'ATP:0000042',#                          | harv_flag |    16
- 'phys_int'=>'ATP:0000069',#                               | harv_flag |   252
- 'phys_int::DONE'=>'ATP:0000069',#                          | harv_flag |  5131
- #'trans_assay'=>'',#                             | harv_flag |    44            N/A
- 'wt_exp'=>'ATP:0000041',#gene expression in wild type     | harv_flag |  3186
- 'wt_exp::DONE'=>'ATP:0000041',#gene expression in wild type  | harv_flag |  4449
- #'wt_exp::Inappropriate use of flag'=>'',#       | harv_flag |   963
-'wt_exp::Needs cam curation'=>'ATP:0000041',#gene expression in wild type    | harv_flag |   277
- #'y'=>'',#                                     | harv_flag |    56   N/A
-    'disease'=>'ATP:0000011',#                                 | dis_flag  |   899
-    'diseaseHP'=>'ATP:0000152',#                                 | dis_flag  | ?
- 'dm_gen'=>'ATP:0000151',#                            | dis_flag  |
- 'dm_gen::DONE'=>'ATP:0000151',#                            | dis_flag  |  2726
- 'dm_other'=>'ATP:0000040',#                                | dis_flag  |   659
- 'noDOcur'=>'ATP:0000152',#                                 | dis_flag  | 12086                   ???
- 'novel_anat'=>'ATP:0000031',#                              | onto_flag |   212
-    'novel_anat::DONE'=>'ATP:0000031',#                        | onto_flag |   538
-    
- 'gene'=>'ATP:0000005',   #entity ATP ?
- 'allele'=>'ATP:0000006', #entity ATP ?
- 
- 
-    );
+
+# 
+
+my $json_encoder;
+
+# set the json output format to be slightly different for dev mode - pretty separates the name/value pairs by return so its easier to read
+if ($ENV_STATE eq "dev") {
+
+	$json_encoder = JSON::PP->new()->pretty(1)->canonical(1);
+} else {
+	$json_encoder = JSON::PP->new()->canonical(1);
+
+}
+
+# not complete yet
+
+# ATP_topic is compulsory for every flag
+# other keys are optional
+# species only present if it differs from default Dmel (NCBITaxon:7227) for that flag
+# data_novelty only present if it applies to that flag
+# negated only present if it applies to that flag
+my $flag_mapping = {
+
+
+	'cam_flag' => {
+
+
+		'new_al' => {
+			'ATP_topic' => 'ATP:0000006',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'data_novelty' => 'ATP:0000229', # new to field
+		},
+
+		'new_allele' => {
+			'ATP_topic' => 'ATP:0000006',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'data_novelty' => 'ATP:0000229', # new to field
+		},
+
+		'new_transg' => {
+
+			'ATP_topic' => 'ATP:0000013',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'data_novelty' => 'ATP:0000229', # new to field
+		},
+
+
+		'gene_group' => {
+			'ATP_topic' => 'ATP:0000065',
+		},
+
+		'pathway' => {
+			'ATP_topic' => 'ATP:0000113',
+		},
+
+		'pert_exp' => {
+			'ATP_topic' => 'ATP:0000042',
+		},
+
+		'pheno' => {
+
+			'ATP_topic' => 'ATP:0000079',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'data_novelty' => 'ATP:0000321', # new data
+		},
+
+		'pheno_anat' => {
+
+			'ATP_topic' => 'ATP:0000032',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'curator_only' => '1',
+		},
+
+		'pheno_chem' => {
+
+			'ATP_topic' => 'ATP:0000080',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'curator_only' => '1',
+		},
+
+		'rename' => {
+
+			'ATP_topic' => 'ATP:0000048',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+		},
+
+		'pert_exp' => {
+			'ATP_topic' => 'ATP:0000042',
+		},
+
+# place holder where have asked for new ATP term, will need to update ATP_topic with ATP term id
+
+		'merge' => {
+
+			'ATP_topic' => 'ATP:merge',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			# not curator only - was in original version of FTYP
+		},
+
+		'split' => {
+
+			'ATP_topic' => 'ATP:split',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+		},
+
+		'new_char' => {
+
+			'ATP_topic' => 'ATP:new_char',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+		},
+
+# place holder - nocur will not be mapped to a topic tag, but to curation status in Alliance in some way
+# this may happen in this script, or a different one. adding in now so it doesn't get forgotten and for testing
+
+		'nocur' => {
+
+			'ATP_topic' => 'ATP:nocur',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'negated' => '1',
+			'curator_only' => '1',
+		},
+
+
+
+	},
+
+
+	'dis_flag' => {
+
+
+		'dm_gen' => {
+
+			'ATP_topic' => 'ATP:0000151',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'curator_only' => '1',
+		},
+
+		'dm_other' => {
+
+			'ATP_topic' => 'ATP:0000040',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'curator_only' => '1',
+		},
+
+		'disease' => {
+
+			'ATP_topic' => 'ATP:0000152',# 'disease model' ATP term - using more specific ATP term for DO curation
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+		},
+
+		'diseaseHP' => {
+
+			'ATP_topic' => 'ATP:0000152',# disease model ATP term - using more specific ATP term for DO curation
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'data_novelty' => 'ATP:0000229', # new to field
+			'curator_only' => '1',
+		},
+
+		'noDOcur' => {
+
+			'ATP_topic' => 'ATP:0000152',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'negated' => '1', # only present if the flag should have the 'no data' boolean set in ATP, note that representation of this is in flux in ATP
+			'curator_only' => '1',
+		},
+
+
+	},
+
+
+	'harv_flag' => {
+
+
+		'cell_cult' => {
+			'ATP_topic' => 'ATP:0000008',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+		},
+
+		'cell_line' => {
+			'ATP_topic' => 'ATP:0000008',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+		},
+
+
+		'cell_line(commercial)' => {
+			'ATP_topic' => 'ATP:0000008',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'note' => 'Commercially purchased cell line', # this is what is on FTYP form
+		},
+
+		'cell_line(stable)' => {
+			'ATP_topic' => 'ATP:0000008',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'note' => 'Stable line generated', # this is what is on FTYP form
+		},
+
+		'chemical' => {
+			'ATP_topic' => 'ATP:0000094',
+		},
+
+		'cis_reg' => {
+			'ATP_topic' => 'ATP:0000055',
+		},
+
+		'dataset' => {
+			'ATP_topic' => 'ATP:0000150',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+		},
+
+		# may decide not to submit this flag depending on whether FBhh curation will be done in Alliance (so may need deleting here and adding to ignore hash)
+		'disease' => {
+
+			'ATP_topic' => 'ATP:0000011',# 'disease' ATP term - using more general ATP term for FBhh curation
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+		},
+
+		# may decide not to submit this flag depending on whether FBhh curation will be done in Alliance (so may need deleting here and adding to ignore hash)
+		'diseaseHP' => {
+
+			'ATP_topic' => 'ATP:0000011',# 'disease' ATP term - using more general ATP term for FBhh curation
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'data_novelty' => 'ATP:0000321', # new data
+		},
+
+		'gene_model' => {
+			'ATP_topic' => 'ATP:0000054',
+		},
+
+		'genom_feat' => {
+			'ATP_topic' => 'ATP:0000056',
+		},
+
+		'genome_feat' => {
+			'ATP_topic' => 'ATP:0000056',
+		},
+
+		'pert_exp' => {
+			'ATP_topic' => 'ATP:0000042',
+			# not curator only - was in original version of FTYP
+		},
+
+		'phys_int' => {
+			'ATP_topic' => 'ATP:0000069',
+		},
+
+		'wt_cell_line' => {
+			'ATP_topic' => 'ATP:0000008',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+		},
+
+		'wt_exp' => {
+			'ATP_topic' => 'ATP:0000041',
+		},
+
+# place holder where have asked for new ATP term, will need to update ATP_topic with ATP term id
+
+		'neur_exp' => {
+			'ATP_topic' => 'ATP:neur_exp',
+			'curator_only' => '1',
+		},
+
+
+
+
+	},
+
+	'onto_flag' => {
+
+		'novel_anat' => {
+
+			'ATP_topic' => 'ATP:0000031',
+			'species' => 'NCBITaxon:7214', # Drosophilidae
+			'data_novelty' => 'ATP:0000229', # new to field
+		},
+
+	},
+};
+
+
+# sanity check for $flag_mapping hash - to check that every flag has an ATP_topic mapping
+
+foreach my $type (keys %{$flag_mapping}) {
+
+	foreach my $flag (keys %{$flag_mapping->{$type}}) {
+
+		unless (exists $flag_mapping->{$type}->{$flag}->{ATP_topic}) {
+
+			die "ERROR in flag_mapping hash: ATP_topic missing for $type, $flag: add the correct ATP term and then try again\n";
+		}
+	}
+}
+
+# triage flags that we do not want to submit to the Alliance
+my $flags_to_ignore = {
+
+	'cam_flag' => {
+
+		'no_flag' => '1',
+		'nocur_abs' => '1',
+		'orthologs' => '1',
+		'new_gene' => '1',
+		'y' => '1',
+		'GO_cur' => '1',
+		'GOcur' => '1',
+		'noGOcur' => '1',
+	},
+
+	'harv_flag' => {
+		'y' => '1',
+		'n' => '1',
+		'no' => '1',
+		'trans_assay' => '1',
+		'RNAi' => '1',
+		'micr_arr' => '1',
+		'gene_model_nonmel' => '1',
+		'no_flag' => '1', # need to double-check with harvcur
+		'diseaseF' => '1', # need to double-check with harvcur
+		'marker' => '1', # need to double-check with harvcur
+
+	},
+
+};
 
 
 my %FBgn_type; #key:FBgn, value: transcript type
@@ -187,7 +518,7 @@ my %FBrf_pubid;
 #my $sql_FBrf=sprintf("select distinct p.uniquename, p.pub_id from pub p, pubprop pp, cvterm c  where p.pub_id=pp.pub_id and c.cvterm_id=pp.type_id and p.is_obsolete='false' and c.name in ('cam_flag', 'harv_flag', 'dis_flag', 'onto_flag') and  p.uniquename~'%s' and p.uniquename in ('FBrf0240817','FBrf0236883','FBrf0134733','FBrf0167748','FBrf0213082','FBrf0246285','FBrf0244403','FBrf0209874')  group by p.uniquename, p.pub_id  ",$FBrf_like); #,'harv_flag'  and p.uniquename not in ('FBrf0072646', 'FBrf0081144','FBrf0209074','FBrf0126732','FBrf0210738','FBrf0134733','FBrf0201683','FBrf0108289')    and p.uniquename in ('FBrf0240817','FBrf0236883','FBrf0134733','FBrf0167748','FBrf0213082','FBrf0246285','FBrf0244403','FBrf0209874')  'FBrf0256192', 'FBrf0167748',
 my $sql_FBrf=sprintf("select distinct p.uniquename, p.pub_id from pub p, pubprop pp, cvterm c  where p.pub_id=pp.pub_id and c.cvterm_id=pp.type_id and p.is_obsolete='false' and c.name in ('cam_flag', 'harv_flag', 'dis_flag', 'onto_flag') and  p.uniquename~'%s' group by p.uniquename, p.pub_id  ",$FBrf_like);
 
-#print "\n$sql_FBrf";
+#print "$sql_FBrf\n";
 my $FBrf= $dbh->prepare  ($sql_FBrf);
 $FBrf->execute or die" CAN'T GET FBrf FROM CHADO:\n$sql_FBrf)\n";
 my ($uniquename_FBrf, $pubid);
@@ -195,18 +526,16 @@ while (( $uniquename_FBrf, $pubid) = $FBrf->fetchrow_array()) {
   $FBrf_pubid{$uniquename_FBrf}= $pubid;
 }
 
-my $species='NCBITaxon:7214';
 my %topic_entity_tag_source_hash;
+$topic_entity_tag_source_hash{"users"}{"dev"}=222;
 $topic_entity_tag_source_hash{"users"}{"test"}=222;
 $topic_entity_tag_source_hash{"users"}{"stage"}=222;
 $topic_entity_tag_source_hash{"users"}{"production"}=171;
 
+$topic_entity_tag_source_hash{"curators"}{"dev"}=223;
 $topic_entity_tag_source_hash{"curators"}{"test"}=223;
 $topic_entity_tag_source_hash{"curators"}{"stage"}=223;
 $topic_entity_tag_source_hash{"curators"}{"production"}=172;
-my $topic_entity_tag_source_id;#need to re-create topic_entity_tag_source and update manually for stage/production ?
-
-
 
 =head
 {
@@ -218,156 +547,283 @@ my $topic_entity_tag_source_id;#need to re-create topic_entity_tag_source and up
   "secondary_data_provider_abbreviation": "FB"l
 }
 =cut
-my $entity_source='alliance';
 
-# my $okta_token='';
-
-print "\nEntity\tEntity_type_ATP\tEntity_source\tFBrf\tFlag_type\tCurator\tTime_from_curator\tTime_from_audit_chado";
-foreach my $uniquename_p (keys %FBrf_pubid){
+foreach my $FBrf (sort keys %FBrf_pubid){
     
-    my $pubid=$FBrf_pubid{$uniquename_p};
-    #print "\nuniquename_p:$uniquename_p:pubid:$pubid:";
-  my $sql=sprintf("select  c.name, pp.value, pp.pub_id, ac.audit_transaction, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.pub_id=%s and c.cvterm_id=pp.type_id  and c.name in ('cam_flag', 'harv_flag', 'dis_flag', 'onto_flag')  and ac.audited_table='pubprop' and ac.audit_transaction='I'  and pp.pubprop_id=ac.record_pkey",$pubid );
+	my $pubid=$FBrf_pubid{$FBrf};
+	#print "uniquename_p:$FBrf:pubid:$pubid:\n";
+	my $sql=sprintf("select  c.name, pp.value, pp.pub_id, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.pub_id=%s and c.cvterm_id=pp.type_id  and c.name in ('cam_flag', 'harv_flag', 'dis_flag', 'onto_flag')  and ac.audited_table='pubprop' and ac.audit_transaction='I'  and pp.pubprop_id=ac.record_pkey",$pubid );
 
-  #print "\n$sql\n\n";
-  my $flag = $dbh->prepare  ($sql);
-  $flag->execute or die" CAN'T GET flag FROM CHADO:\n$sql\n";
+	my $flag = $dbh->prepare  ($sql);
+	$flag->execute or die" CAN'T GET flag FROM CHADO:\n$sql\n";
 
-  my ($flag_source,$flag_type, $pub_id, $transaction_type, $transaction_timestamp, $transaction_timestamp_curated, $transaction_timestamp_audit, $pubprop_id);
-  while (($flag_source,$flag_type, $pub_id, $transaction_type, $transaction_timestamp ) = $flag->fetchrow_array()) {
-    
-    my @temp0=split(/\s+/, $transaction_timestamp);
-    my $time_flag=$temp0[0];
-    #print "\n$flag_source,$flag_type,$transaction_timestamp time_flag:$time_flag\n";
-    #get all possible 'curated_by', then based on the flag_source, and timestamp to decided who curate it.
-    my $sql_curated=sprintf("select distinct  pp.value, ac.transaction_timestamp, pp.pubprop_id  from   pubprop pp, cvterm c, audit_chado ac  where ac.audited_table='pubprop' and ac.audit_transaction='I' and pp.pubprop_id=ac.record_pkey and pp.pub_id=%s and c.cvterm_id=pp.type_id and c.name in ('curated_by')", $pub_id);
-    #print "\n$sql_curated\n";
-    my $flag=0;
-    my $flag_curated = $dbh->prepare  ($sql_curated);
-    $flag_curated->execute or die" CAN'T GET curator info FROM CHADO:\n$sql_curated\n";
-    while (($transaction_timestamp_curated,  $transaction_timestamp_audit, $pubprop_id) = $flag_curated->fetchrow_array()) {
-	#print "\ncurated_by_time: $transaction_timestamp_audit";
-	my @case=( $transaction_timestamp_curated =~ /(Curator:.*;)(Proforma: .*;)(timelastmodified: .*)/ ); #Curator: Author Submission;Proforma: as773.user;timelastmodified: Thu Mar 17 08:24:07 2011
-	if ($#case >-1){
-=header  this use the timestamp attached to the pubprop.value , eg. Curator: P. Leyland;Proforma: pl174708.bibl;timelastmodified: Thu Dec  6 07:15:20 2018
-	    #print "\n$case[2]";
-	    my @temp=split(/timelastmodified\:\s+/, $case[2]);
-	    my $time = $temp[1];	    
-            #print "\n$uniquename_p $flag_type $transaction_timestamp_curated time:$time:";
-	    #expect date format:Thu Jan 17 07:47:53 2008
-	    #wrong date format cause error: FBrf0072646 nocur Curator: B. Matthews;Proforma: 72646.bev.chem.200617;timelastmodified: Thu 29 Oct 2020 09:13:21 AM EDT
+	while (my ($flag_source,$raw_flag_type, $pub_id, $flag_audit_timestamp) = $flag->fetchrow_array()) {
 
-	    my @case_time=($time =~/([A-Za-z]+)\s+([A-Za-z]+)\s+(\d+)\s+(\d+:\d+:\d+)\s+(\d+)/); #Thu Mar 17 08:24:07 2011
-	    my @case_time1=($time =~/([a-zA-Z]+)\s+(\d+)\s+([a-zA-Z]+)\s+(\d+)\s+(\d+:\d+:\d+)\s+([A-Z]+)\s+([A-Z]+)/);#Thu 29 Oct 2020 09:13:21 AM EDT
-	    
-	    my $time_curated;
-	    if ($#case_time>-1){
-		$time_curated= Time::Piece->strptime($time, '%a %b %d %H:%M:%S %Y')->ymd("-");#Thu Mar 17 08:24:07 2011
-	    }
-	    elsif ($#case_time1>-1) {#Thu 29 Oct 2020 09:13:21 AM EDT
-		print "\nwrong format:$uniquename_p $flag_type $transaction_timestamp_curated time:$time:";
-                Time::Piece->strptime($time, '%a %d %b %Y %H:%M:%S %Y %c %e')->ymd("-");
-		next;
-	    }
-	    else {
-	        print "\nweird format:$uniquename_p $flag_type $transaction_timestamp_curated time:$time:";
-		next;
-	    }
+
+		# try to split the $raw_flag_type into the triage flag and suffix components. set defaults for the case where there is no suffix
+		my $flag_type = $raw_flag_type;
+		my $flag_suffix = '';
+
+		if ($raw_flag_type =~ m/^(.+)::(.+)$/) {
+
+			$flag_type = $1;
+			$flag_suffix = $2;
+
+		} 
+
+		# 1. only process flags that we want to submit the FB flag to the Alliance
+		unless (exists $flags_to_ignore->{$flag_source} && exists $flags_to_ignore->{$flag_source}->{$flag_type}) {
+
+
+			if (exists $flag_mapping->{$flag_source} && exists $flag_mapping->{$flag_source}->{$flag_type}) {
+
+
+				# this suffix indicates that the flag is incorrect: ignore and do not submit to the Alliance
+				# It would technically be possible to subtmit this with validation information saying flag was incorrect, but this would only add a tiny subset of all the incorrect flags, as it would only be those updated directly in the db (e.g. via chia), and not those that were corrected via plingc in proforma. So decided better to not submit them.
+				if ($flag_suffix && $flag_suffix eq 'Inappropriate use of flag') {
+					next;
+				}
+
+
+				# 2. try to find the relevant curator (from curated_by pubprop) using audit table timestamp information
+				my $curator_data = &get_relevant_curator($dbh, $pub_id, $flag_audit_timestamp);
+				my $curator = ''; # this will be the relevant curator with a matching timestamp.
+				my $file = ''; # this will be the relevant curation record. Not submitted to the Alliance, but useful for plain text output (DATA: lines) when testing.
+
+				if (defined $curator_data) {
+
+					# simple case, only one matching curated_by pubprop
+					if ($curator_data->{count} == 1) {
+
+						$curator = $curator_data->{relevant_curator};
+						$file = $curator_data->{relevant_record};
+
+					} else {
+
+						# multiple records for same FBrf submitted in same week by same curator
+						if (scalar keys %{$curator_data->{curator}} == 1) {
+
+							$curator = join '', keys %{$curator_data->{curator}};
+							$file = join ', ', sort keys %{$curator_data->{curator}->{$curator}};
+
+						} else {
+
+							# flag info must have been submitted/looked at by a curator rather than just multiple user curation, so set curator to the generic 'FB_curator'
+							if (exists $flag_mapping->{$flag_source}->{$flag_type}->{curator_only} || $flag_suffix ne '' || exists $curator_data->{FB_curator_count} ) {
+								$curator = 'FB_curator';
+
+							} else {
+								print "ERROR: multiple different curators that cannot reconcile, not adding: $FBrf\t$flag_source\t$raw_flag_type\t" . (join ', ', keys %{$curator_data->{curator}}) . "\t" . (join ', ', keys %{$curator_data->{curator}->{$curator}}) . "\t$flag_audit_timestamp\n";
+
+							}
+
+						}
+
+					}
+
+					# convert all unknown style curators to the same 'FB_curator' name that is used for persistent store submissions
+					if ($curator eq 'Unknown Curator' || $curator eq 'Generic Curator' || $curator eq 'P. Leyland') {
+						$curator = 'FB_curator';
+					}
+
+				} else {
+
+					# flag info must have been submitted/looked at by a curator rather than just user curation, so set curator to the generic 'FB_curator'
+					if (exists $flag_mapping->{$flag_source}->{$flag_type}->{curator_only} || $flag_suffix ne '') {
+						$curator = 'FB_curator';
+
+					} else {
+
+						print "ERROR: unable to find who curated for $flag_source $raw_flag_type $FBrf\n";
+					}
+				}
+
+				# 3. if a curator has been assigned, make a json structure and (unless in dev mode) submit to alliance.
+				if ($curator ne '') {
+
+
+					# first store variables in a $data hash so it is easy to convert to correct json format later (and to add/change json structure if Alliance model changes)
+					my $data = {};
+
+					# set basic information for this particular flag and FBrf combination
+					my $FBrf_with_prefix="FB:".$FBrf;
+					$data->{reference_curie} = ($ENV_STATE eq "dev") ? $FBrf_with_prefix : $FB_curie{$FBrf_with_prefix};
+
+					$data->{created_by} = $curator;
+					$data->{date_created} = $flag_audit_timestamp;
+
+
+					# set other parameters for the flag based on $flag_mapping hash or set the relevant default if the key does not exist in the mapping hash for that flag
+					$data->{topic} = $flag_mapping->{$flag_source}->{$flag_type}->{ATP_topic};
+
+					$data->{species} = exists $flag_mapping->{$flag_source}->{$flag_type}->{species} ? $flag_mapping->{$flag_source}->{$flag_type}->{species} : 'NCBITaxon:7227';
+					$data->{negated} = exists $flag_mapping->{$flag_source}->{$flag_type}->{negated} ? 1 : 0;
+
+					$data->{novel_topic_data} = exists $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty} ? 1 : 0;
+
+					if (exists $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty}) {
+
+						$data->{data_novelty} = $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty};
+					}
+
+					#choose different topic_entity_tag_source_id based on ENV_STATE and 'created_by' value
+					if ($curator eq "Author Submission" || $curator eq "User Submission"){
+						$data->{topic_entity_tag_source_id} = $topic_entity_tag_source_hash{"users"}{$ENV_STATE};
+					} else {
+						$data->{topic_entity_tag_source_id} = $topic_entity_tag_source_hash{"curators"}{$ENV_STATE};
+					}
+
+					# plain text output useful for testing
+					print "DATA: $FBrf\t$flag_source\t$raw_flag_type\t$curator\t$file;\t$flag_audit_timestamp\n";
+
+					my $json_data = $json_encoder->encode($data);
+
+
+
+					if ($ENV_STATE eq "dev") {
+						print "JSON: \n$json_data\n";
+
+					}
+
+					my $cmd;
+					if ($ENV_STATE eq "test"){
+						$cmd="curl -X 'POST' 'https://dev4005-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
+					} elsif ($ENV_STATE eq "stage"){
+						$cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
+					} elsif ($ENV_STATE eq "production"){
+						$cmd="curl -X 'POST' 'https://literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
+					}
+
+					#print "\n$FBrf $raw_flag_type\n$data\n";
+					#print "\n\n$cmd\n";
+					#system($cmd);
+
+
+				}
+
+
+			} else {
+
+				print "\nERROR: no mapping in the the flag_mapping hash for this flag_type:$raw_flag_type from $flag_source\n";
+
+			}
+		}
+	}
+}
+
+
+sub get_relevant_curator {
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    get_relevant_curator
+	Usage:    get_relevant_curator(database handle, pub_id of reference, timestamp information to be matched);
+	Function: The get_relevant_curator subroutine takes audit_chado table timestamp information to be matched (e.g. timestamp for a particular triage flag) and the pub_id of the relevant reference and tries to find a matching 'curated_by' pubprop for that pub_id (ie. one with the same audit_chado table timestamp). If it finds any matches, it returns a data structure containing the relevant information from all matching 'curated_by' pubprop(s), otherwise it returns undef.
+	Example: my ($curator, $file) = &get_relevant_curator($dbh, $pub_id, $flag_audit_timestamp);
+
+	
+	For each matching curated_by pubprop it captures the 'Curator:' portion ($curator) and Proforma:' portion ($record_number) of the pubprop value and stores it as follows
+
+	It captures the following information:
+
+	o Count of the number of matching curated_by pubprops:
+
+		$data->{count}++;
+
+	o Count of number of matching curated_by pubprops where the $curator is a FlyBase curator (and not community/UniProt curation)
+
+		$data->{FB_curator_count}++;
+
+	o A $data->{curator} hash structure that captures $curator and $record_number info for all matching pubprops (used when there is more than one matching pubprop)
+
+		$data->{curator}->{$curator}->{$record_number}++;
+
+
+	o Two 'relevant' shortcut key-value pairs that capture the $curator and $record_number info for the last matching pubprop - **NB: these are only safe to use to if $data->{count} == 1, otherwise need to use the $data->{curator} hash structure**
+
+		$data->{relevant_curator} = $curator;
+		$data->{relevant_record} = $record_number;
+
+
+
 
 =cut
-            #here we use the audti_chado timestamp as 'curated' time to figure out who curate the flag
-	    my ($time_curated, $junk)=split(/\s+/, $transaction_timestamp_audit);
-	    
-	    #print "\ntime_flag:$time_flag\ttime_curated:$time_curated";
-	    if ($time_curated eq $time_flag){
-		#get the right curator
-		my @temp2=($case[0]=~/(.*):\s(.*)(;)/); #Curator: P. Leyland;
-		my $curator=$temp2[1];
-		#print "\n$curator $time_curated\n";
 
-		#here to parse filename which insert this flag from pubprop.value
-		my ($junk0, $file)=split(/Proforma\:\s+/, $case[1]);
-		#here need to parse the time from the pubprop.value
-                my @temp=split(/timelastmodified\:\s+/, $case[2]);
-		my $time = $temp[1];
-		my @case_time=($time =~/([A-Za-z]+)\s+([A-Za-z]+)\s+(\d+)\s+(\d+:\d+:\d+)\s+(\d+)/); #Thu Mar 17 08:24:07 2011
-		my @case_time1=($time =~/([a-zA-Z]+)\s+(\d+)\s+([a-zA-Z]+)\s+(\d+)\s+(\d+:\d+:\d+)\s+([A-Z]+)\s+([A-Z]+)/);#Thu 29 Oct 2020 09:13:21 AM EDT
-		my $time_from_curator="";
-                if ($#case_time>-1){
-		    $time_from_curator= Time::Piece->strptime($time, '%a %b %d %H:%M:%S %Y')->ymd("-");#Thu Mar 17 08:24:07 2011
-		    $time_from_curator.=" ".$case_time[3];
-	        }
-	        elsif ($#case_time1>-1) {#Thu 29 Oct 2020 09:13:21 AM EDT
-	  	    my @temp=split(/\s+/, $time);
-                    my $time_before=$temp[0]." ".$temp[2]." ".$temp[1]." ".$temp[4]." ".$temp[3];
-                    $time_from_curator= Time::Piece->strptime($time_before, '%a %b %d %H:%M:%S %Y')->ymd("-");
-		    $time_from_curator.=" ".$temp[4];
-	       }
-	       else {
-	          print "\nweird format:$uniquename_p $flag_type $transaction_timestamp_curated time:$time:";
-		  next;
-	       }
+	unless (@_ == 3) {
 
-		my $FBrf_with_prefix="FB:".$uniquename_p;
-		my $topic=$flag_ATP{$flag_type};
+		die "Wrong number of parameters passed to the get_relevant_curator subroutine\n";
+	}
 
-		print "\n$uniquename_p\t$flag_source\t$flag_type\t$curator\t$file\t$time_from_curator\t$time_curated";
-		if (!(exists $flag_ATP{$flag_type})){
-		    warn "\nno ATP for this flag_type:$flag_type from $flag_source";
-		    next;
-		}
-		my $negated='false';
-		if ($flag_type eq 'noDOcur'){
-		    $negated='true';
-		}
-		#choose different topic_entity_tag_source_id based on ENV_STATE and 'crated_by' value
-		if ($curator eq "Author Submission" || $curator eq "User Submission"){
-                    $topic_entity_tag_source_id =$topic_entity_tag_source_hash{"users"}{$ENV_STATE};
-                }
-                else {
-                    $topic_entity_tag_source_id =$topic_entity_tag_source_hash{"curators"}{$ENV_STATE};
-                }
 
-		my $data = '';
-		unless ($ENV_STATE eq "dev") {
-			$data='{"date_created": "'.$time_from_curator.'","created_by": "'.$curator.'", "topic": "'.$topic.'", "species": "'.$species.'","topic_entity_tag_source_id": '.$topic_entity_tag_source_id.', "negated": '.$negated.', "reference_curie": "'.$FB_curie{$FBrf_with_prefix}.'"}';
 
+	my ($dbh, $pub_id, $audit_timestamp_to_match) = @_;
+
+	my ($relevant_curator , $relevant_record) = '', 
+
+	my $sql_query=sprintf("select distinct pp.value, ac.transaction_timestamp, pp.pubprop_id from  pubprop pp, cvterm c, audit_chado ac  where ac.audited_table='pubprop' and ac.audit_transaction='I' and pp.pubprop_id=ac.record_pkey and pp.pub_id=%s and c.cvterm_id=pp.type_id and c.name in ('curated_by')", $pub_id);
+
+	my $db_query = $dbh->prepare ($sql_query);
+	$db_query->execute or die" CAN'T GET curator info FROM CHADO:\n$sql_query\n";
+
+	my $data = undef;
+
+	while (my ($curated_by_value, $curated_by_audit_timestamp, $curated_by_pubprop_id) = $db_query->fetchrow_array()) {
+
+		if ($curated_by_value =~ m/^Curator: (.+?);Proforma: (.+?);timelastmodified: (.*)$/) {
+
+			my $curator = $1;
+			my $record_number = $2;
+			my $timelastmodified = $3;
+
+
+
+			if ($curated_by_audit_timestamp eq $audit_timestamp_to_match){
+
+				### commented out original code that was checking and converting format of 'timelastmodified' part of pubprop as not using this timestamp when submitting data:
+				### - using audit_chado timestamp information instead to be consistent with what has been done in alliance-linkml-flybase work
+				#my $time_from_curator;
+				# well behaved time format: Thu Mar 17 08:24:07 2011
+				#if ($timelastmodified =~ m/([A-Za-z]+)\s+([A-Za-z]+)\s+(\d+)\s+(\d+:\d+:\d+)\s+(\d+)/) {
+					#$time_from_curator= Time::Piece->strptime($timelastmodified, '%a %b %d %H:%M:%S %Y')->ymd("-");
+					#$time_from_curator.=" ".$4;
+				# incorrect time format that cannot be converted by Time::Piece: Thu 29 Oct 2020 09:13:21 AM EDT
+				# have to convert to correct order first, before run through Time::Piece
+				#} elsif ($timelastmodified =~ m/([a-zA-Z]+)\s+(\d+)\s+([a-zA-Z]+)\s+(\d+)\s+(\d+:\d+:\d+)\s+([A-Z]+)\s+([A-Z]+)/) {
+					#my @temp=split(/\s+/, $timelastmodified);
+					#my $time_before=$temp[0]." ".$temp[2]." ".$temp[1]." ".$temp[4]." ".$temp[3];
+					#$time_from_curator= Time::Piece->strptime($time_before, '%a %b %d %H:%M:%S %Y')->ymd("-");
+					#$time_from_curator.=" ".$temp[4];
+				#} else {
+					#print "ERROR: weird curated_by time format:$pub_id $curated_by_value\n";
+					#next;
+				#}
+				###
+
+				$relevant_curator = $curator;
+				$relevant_record = $record_number;
+				$data->{curator}->{$curator}->{$record_number}++;
+				$data->{count}++;
+				$data->{relevant_curator} = $curator;
+				$data->{relevant_record} = $record_number;
+
+				unless ($curator eq 'Author Submission' || $curator eq 'User Submission' || $curator eq 'UniProtKB') {
+
+					$data->{FB_curator_count}++;
+				}
+
+			}
 		} else {
-
-			$data='{"date_created": "'.$time_from_curator.'","created_by": "'.$curator.'", "topic": "'.$topic.'", "species": "'.$species.'","topic_entity_tag_source_id": '.$topic_entity_tag_source_id.', "negated": '.$negated.', "reference_curie": "'. $FBrf_with_prefix .'"}';
-			print "\n$data";
-
-
-		}
-		my $cmd;
-		if ($ENV_STATE eq "test"){
-		    $cmd="curl -X 'POST' 'https://dev4005-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$data'";
-		}
-		elsif ($ENV_STATE eq "stage"){
-		    $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$data'";
-		}
-		elsif ($ENV_STATE eq "production"){
-		    $cmd="curl -X 'POST' 'https://literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$data'";
+			# not expecting to trip this error
+			print "ERROR: wrong curated_by pubprop format for pub_id: $pub_id, pubprop: $curated_by_value\n";
 		}
 
-		print "\n$uniquename_p $flag_type\n$data\n";
-		#print "\n\n$cmd\n";
-		#system($cmd);
-		
-		$flag=1;
-		last;
-	    }
+
 	}
-	else {
-	    print "\nwrong curated_by date format for $uniquename_p transaction_timestamp_curated\n";
-	}
-    }
-    if ($flag==0){
-	print "\nunable to find who curated for $flag_source $flag_type $uniquename_p";
-    }
-  }
-}#foreach
 
-
+	return ($data);
+}
 
 
