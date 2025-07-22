@@ -104,12 +104,9 @@ otherwise for any other ‘Created by’ value , you should use: test: 223 stage
 
 
 
+2. The system call to actually run the $cmd to POST the data to a server is currently commented out. In addition, need to add a test to check that the system call completes successfully and to print an error if not.
 
-2. some values in the $flag_mapping hash are temporary place holders (have asked for new ATP terms) so will need replacing before being run for real.
-
-3. The system call to actually run the $cmd to POST the data to a server is currently commented out. In addition, need to add a test to check that the system call completes successfully and to print an error if not.
-
-4. the script currently requires an input file (given in 5th argument) that maps FBrf numbres to AGKRB numbers. Investigate whether its possible to submit the json using FBrf (I assume not) or whether could use GET to get the AGKRB for each required FBrf (this might make it to slow as its all FBrfs ?!)
+3. the script currently requires an input file (given in 5th argument) that maps FBrf numbres to AGKRB numbers. Investigate whether its possible to submit the json using FBrf (I assume not) or whether could use GET to get the AGKRB for each required FBrf (this might make it to slow as its all FBrfs ?!)
 
 
 the instructions to make the currently required input file are:
@@ -260,39 +257,25 @@ my $flag_mapping = {
 			'ATP_topic' => 'ATP:0000042',
 		},
 
-# place holder where have asked for new ATP term, will need to update ATP_topic with ATP term id
 
 		'merge' => {
 
-			'ATP_topic' => 'ATP:merge',
+			'ATP_topic' => 'ATP:0000340',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
 			# not curator only - was in original version of FTYP
 		},
 
 		'split' => {
 
-			'ATP_topic' => 'ATP:split',
+			'ATP_topic' => 'ATP:0000341',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
 		},
 
 		'new_char' => {
 
-			'ATP_topic' => 'ATP:new_char',
+			'ATP_topic' => 'ATP:0000339',
 			'species' => 'NCBITaxon:7214', # Drosophilidae
 		},
-
-# place holder - nocur will not be mapped to a topic tag, but to curation status in Alliance in some way
-# this may happen in this script, or a different one. adding in now so it doesn't get forgotten and for testing
-
-		'nocur' => {
-
-			'ATP_topic' => 'ATP:nocur',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'negated' => '1',
-			'curator_only' => '1',
-		},
-
-
 
 	},
 
@@ -424,10 +407,8 @@ my $flag_mapping = {
 			'ATP_topic' => 'ATP:0000041',
 		},
 
-# place holder where have asked for new ATP term, will need to update ATP_topic with ATP term id
-
 		'neur_exp' => {
-			'ATP_topic' => 'ATP:neur_exp',
+			'ATP_topic' => 'ATP:0000338',
 			'curator_only' => '1',
 		},
 
@@ -475,6 +456,8 @@ my $flags_to_ignore = {
 		'GO_cur' => '1',
 		'GOcur' => '1',
 		'noGOcur' => '1',
+
+		'nocur' => '1', # nocur will not be added as a topic, but will instead be added to the curation status information in the workflow editor in the Alliance
 	},
 
 	'harv_flag' => {
