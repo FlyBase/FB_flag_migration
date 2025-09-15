@@ -16,6 +16,7 @@ use lib File::Spec->catdir(File::Basename::dirname(File::Spec->rel2abs($0)), 'li
 
 # add modules from lib-subfolder
 use AuditTable;
+use ABCInfo;
 
 =head1 NAME ticket_scrum-3147-topic-entity-tag.pl
 
@@ -81,41 +82,9 @@ Script logic:
 
 =head1 STILL TO DO
 
-1. script currently has the topic_entity_tag_source_id number hard-coded, and the number is different for the test/stage/production servers. It is possible to use GET to get this information so investigate whether can change code to use GET instead, so that it is not hard-coded (in case of changes in the servers).
+1. The system call to actually run the $cmd to POST the data to a server is currently commented out. In addition, need to add a test to check that the system call completes successfully and to print an error if not.
 
-Here is the information about the two topic_entity_tag_sources used, whose ids are currently hard-coded
-
- use to load FB triage flag into alliance, here we use post to post data into test/stage/production server. 
- before that, we need to set the topic_entity_tag_source_id, so We need first create those two top_entity_tag_source 
-
-So, if Created By = ‘Author Submission’ or ‘User Submission’ you should use: test: 222 stage:222 prod:171
-
-{
-  "source_evidence_assertion": "ATP:0000035",
-  "source_method": "author_first_pass",
-  "description": "Manual creation of entity and data type associations to publications during author first-pass curation using the FlyBase Fast-Track Your Paper form.",
-  "validation_type": "author",
-  "data_provider": "FB",
-  "secondary_data_provider_abbreviation": "FB"
-}
-
-
-otherwise for any other ‘Created by’ value , you should use: test: 223 stage:223 prod: 172
-
-{
-  "source_evidence_assertion": "ATP:0000036",
-  "source_method": "FlyBase_curation",
-  "validation_type": "professional_biocurator",
-  "description": "Creation or association of entities and data by biocurator using FB curation systems.",
-  "data_provider": "FB",
-  "secondary_data_provider_abbreviation": "FB"
-}
-
-
-
-2. The system call to actually run the $cmd to POST the data to a server is currently commented out. In addition, need to add a test to check that the system call completes successfully and to print an error if not.
-
-3. the script currently requires an input file (given in 5th argument) that maps FBrf numbres to AGKRB numbers. Investigate whether its possible to submit the json using FBrf (I assume not) or whether could use GET to get the AGKRB for each required FBrf (this might make it to slow as its all FBrfs ?!)
+2. the script currently requires an input file (given in 5th argument) that maps FBrf numbres to AGKRB numbers. Investigate whether its possible to submit the json using FBrf (I assume not) or whether could use GET to get the AGKRB for each required FBrf (this might make it to slow as its all FBrfs ?!)
 
 
 the instructions to make the currently required input file are:
@@ -177,18 +146,32 @@ my $dbh = DBI->connect($dsource,$user,$pwd) or die "cannot connect to $dsource\n
 my $FBrf_like='^FBrf[0-9]+$';
 
 
-# 
-
+# information that depends on the $ENV_STATE chosen
+# json encoder is just for styling so easier to read in dev mode
 my $json_encoder;
+# topic_entity_tag_source from relevant ABC database - this is not always in sync between production vs stage ABC databases, so get the current correct data using an API call when run script, rather than hard-coding 
+my $author_source_data = {};
+my $curator_source_data = {};
+
 
 # set the json output format to be slightly different for dev mode - pretty separates the name/value pairs by return so its easier to read
 if ($ENV_STATE eq "dev") {
 
 	$json_encoder = JSON::PP->new()->pretty(1)->canonical(1);
+
+
+	$author_source_data = &get_topic_entity_tag_source_data('stage', 'author');
+	$curator_source_data = &get_topic_entity_tag_source_data('stage', 'curator');
+
 } else {
 	$json_encoder = JSON::PP->new()->canonical(1);
 
+	$author_source_data = &get_topic_entity_tag_source_data($ENV_STATE, 'author');
+	$curator_source_data = &get_topic_entity_tag_source_data($ENV_STATE, 'curator');
+
 }
+
+
 
 # not complete yet
 
@@ -518,27 +501,8 @@ while (( $uniquename_FBrf, $pubid) = $FBrf->fetchrow_array()) {
   $FBrf_pubid{$uniquename_FBrf}= $pubid;
 }
 
-my %topic_entity_tag_source_hash;
-$topic_entity_tag_source_hash{"users"}{"dev"}=222;
-$topic_entity_tag_source_hash{"users"}{"test"}=222;
-$topic_entity_tag_source_hash{"users"}{"stage"}=222;
-$topic_entity_tag_source_hash{"users"}{"production"}=171;
 
-$topic_entity_tag_source_hash{"curators"}{"dev"}=223;
-$topic_entity_tag_source_hash{"curators"}{"test"}=223;
-$topic_entity_tag_source_hash{"curators"}{"stage"}=223;
-$topic_entity_tag_source_hash{"curators"}{"production"}=172;
 
-=head
-{
-  "source_evidence_assertion": "ATP:0000036",
-  "source_method": "author_first_pass",
-  "validation_type": "professional_biocurator",
-  "description": "FlyBase literature curation flag",
-  "data_provider": "FB",
-  "secondary_data_provider_abbreviation": "FB"l
-}
-=cut
 
 foreach my $FBrf (sort keys %FBrf_pubid){
     
@@ -657,9 +621,9 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 
 					#choose different topic_entity_tag_source_id based on ENV_STATE and 'created_by' value
 					if ($curator eq "Author Submission" || $curator eq "User Submission"){
-						$data->{topic_entity_tag_source_id} = $topic_entity_tag_source_hash{"users"}{$ENV_STATE};
+						$data->{topic_entity_tag_source_id} = $author_source_data->{topic_entity_tag_source_id};
 					} else {
-						$data->{topic_entity_tag_source_id} = $topic_entity_tag_source_hash{"curators"}{$ENV_STATE};
+						$data->{topic_entity_tag_source_id} = $curator_source_data->{topic_entity_tag_source_id};
 					}
 
 					# plain text output useful for testing
