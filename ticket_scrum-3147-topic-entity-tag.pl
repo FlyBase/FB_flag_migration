@@ -195,7 +195,7 @@ if ($ENV_STATE eq "dev") {
 # ATP_topic is compulsory for every flag
 # other keys are optional
 # species only present if it differs from default Dmel (NCBITaxon:7227) for that flag
-# data_novelty only present if it applies to that flag
+# data_novelty only present if the FB triage flag indicates 'new' data of some kind
 # negated only present if it applies to that flag
 my $flag_mapping = {
 
@@ -653,10 +653,7 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 
 					$data->{novel_topic_data} = exists $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty} ? 1 : 0;
 
-					if (exists $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty}) {
-
-						$data->{data_novelty} = $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty};
-					}
+					$data->{data_novelty} = exists $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty} ? $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty} : 'ATP:0000335'; # if the mapping hash has no specific data novelty term set, the parent term (ATP:0000335 = 'data novelty') must be added for ABC validation purposes
 
 					#choose different topic_entity_tag_source_id based on ENV_STATE and 'created_by' value
 					if ($curator eq "Author Submission" || $curator eq "User Submission"){
