@@ -618,8 +618,6 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 					$data->{species} = exists $flag_mapping->{$flag_source}->{$flag_type}->{species} ? $flag_mapping->{$flag_source}->{$flag_type}->{species} : 'NCBITaxon:7227';
 					$data->{negated} = exists $flag_mapping->{$flag_source}->{$flag_type}->{negated} ? TRUE : FALSE;
 
-					$data->{novel_topic_data} = exists $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty} ? TRUE : FALSE;
-
 					$data->{data_novelty} = exists $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty} ? $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty} : 'ATP:0000335'; # if the mapping hash has no specific data novelty term set, the parent term (ATP:0000335 = 'data novelty') must be added for ABC validation purposes
 
 					#choose different topic_entity_tag_source_id based on ENV_STATE and 'created_by' value
