@@ -32,7 +32,7 @@ Used to load FlyBase triage flag information into the Alliance ABC literature da
 
 =head1 USAGE
 
-USAGE: perl ticket_scrum-3147-topic-entity-tag.pl pg_server db_name pg_username pg_password dev|test|stage|production filename okta_token
+USAGE: perl ticket_scrum-3147-topic-entity-tag.pl pg_server db_name pg_username pg_password dev|test|stage|production okta_token
 
 
 =cut
@@ -87,28 +87,13 @@ Script logic:
 
 1. The system call to actually run the $cmd to POST the data to a server is currently commented out. In addition, need to add a test to check that the system call completes successfully and to print an error if not.
 
-2. the script currently requires an input file (given in 5th argument) that maps FBrf numbres to AGKRB numbers. Investigate whether its possible to submit the json using FBrf (I assume not) or whether could use GET to get the AGKRB for each required FBrf (this might make it to slow as its all FBrfs ?!)
-
-
-the instructions to make the currently required input file are:
-
-To generate the input file use:-
-You may need to change the --host value if you want to use prod etc.
-You will be prompted for a password, obviously not given here.
-You will also need VPN access to the database for this to work.
-
-psql --host literature-dev.cmnnhlso7wdi.us-east-1.rds.amazonaws.com \
-     -U postgres -d literature\
-     -c "select cr.curie, r.curie from reference r, cross_reference cr where r.reference_id=cr.reference_id and curie_prefix='FB'" \
-     -A -F ' ' -t > FBrf_to_AGRKB.txt
-
 =cut
 
 
-if (@ARGV != 7) {
-    warn "Wrong number of argument, shouldbe 7!\n";
-    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production filename okta_token\n\n";
-    warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production FBrf_to_AGRKB.txt ABCD1234\n\n";
+if (@ARGV != 6) {
+    warn "Wrong number of arguments, should be 6!\n";
+    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production okta_token\n\n";
+    warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production ABCD1234\n\n";
     exit;
 }
 
@@ -117,7 +102,6 @@ my $db = shift(@ARGV);
 my $user = shift(@ARGV);
 my $pwd = shift(@ARGV);
 my $ENV_STATE = shift(@ARGV);
-my $INPUT_FILE = shift(@ARGV);
 my $okta_token = shift(@ARGV);
 
 
@@ -474,18 +458,7 @@ my $flags_to_ignore = {
 
 my %FBgn_type; #key:FBgn, value: transcript type
 
-#read the mapping of FBrf vs alliance curie, which generate from: select cr.curie, r.curie from reference r, cross_reference cr where r.reference_id=cr.reference_id and curie_prefix='FB' ;
-my %FB_curie;
-
-unless ($ENV_STATE eq "dev") {
-
-	open (IN, $INPUT_FILE) or die "unable to open file $INPUT_FILE";
-	while (<IN>){
-   	 chomp;
-    	my ($FB, $curie)=split(/\s+/);
-    	$FB_curie{$FB}=$curie;
-	}
-} else {
+if ($ENV_STATE eq "dev") {
 
 	print STDERR "FBrf to test:";
 	$FBrf_like = <STDIN>;
@@ -606,7 +579,7 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 
 					# set basic information for this particular flag and FBrf combination
 					my $FBrf_with_prefix="FB:".$FBrf;
-					$data->{reference_curie} = ($ENV_STATE eq "dev") ? $FBrf_with_prefix : $FB_curie{$FBrf_with_prefix};
+					$data->{reference_curie} = $FBrf_with_prefix;
 
 					$data->{created_by} = $curator;
 					$data->{date_created} = $flag_audit_timestamp;
