@@ -17,6 +17,7 @@ use lib File::Spec->catdir(File::Basename::dirname(File::Spec->rel2abs($0)), 'li
 # add modules from lib-subfolder
 use AuditTable;
 use ABCInfo;
+use Util;
 
 use constant FALSE => \0;
 use constant TRUE => \1;
@@ -43,7 +44,7 @@ Script has four modes:
 
 o test/stage/production modes - script uses POST to load the json object data into the corresponding Alliance test/stage/production server. 
 
-o dev mode - script does not try to POST data into a server, but instead just prints the json. In addition, it works for a single FBrf (rather than all FBrfs); the user is asked to submit the FBrf to be tested.
+o dev mode - script does not try to POST data into a server, but instead just prints json. In addition, it works for a single FBrf (rather than all FBrfs); the user is asked to submit the FBrf to be tested. The output json is now a single json structure for all the data (topic data is a set of arrays within a 'data' object, plsu there is a 'metaData' object to indicate source and intended destination database).
 
 
 Mapping hashes:
@@ -456,8 +457,6 @@ my $flags_to_ignore = {
 };
 
 
-my %FBgn_type; #key:FBgn, value: transcript type
-
 if ($ENV_STATE eq "dev") {
 
 	print STDERR "FBrf to test:";
@@ -477,8 +476,20 @@ while (( $uniquename_FBrf, $pubid) = $FBrf->fetchrow_array()) {
   $FBrf_pubid{$uniquename_FBrf}= $pubid;
 }
 
+# open output and error logging files
+
+open my $output_file, '>', 'populate_FB_topic_data.json'
+	or die "Can't open output file ($!)\n";
 
 
+open my $data_error_file, '>', 'populate_FB_topic_data_errors.txt'
+	or die "Can't open data error logging file ($!)\n";
+
+open my $process_error_file, '>', 'populate_FB_topic_process_errors.txt'
+	or die "Can't open processing error logging file ($!)\n";
+
+
+my $complete_data = {};
 
 foreach my $FBrf (sort keys %FBrf_pubid){
     
@@ -545,7 +556,7 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 								$curator = 'FB_curator';
 
 							} else {
-								print "ERROR: multiple different curators that cannot reconcile, not adding: $FBrf\t$flag_source\t$raw_flag_type\t" . (join ', ', keys %{$curator_data->{curator}}) . "\t" . (join ', ', keys %{$curator_data->{curator}->{$curator}}) . "\t$flag_audit_timestamp\n";
+								print $data_error_file "ERROR: multiple different curators that cannot reconcile, not adding: $FBrf\t$flag_source\t$raw_flag_type\t" . (join ', ', keys %{$curator_data->{curator}}) . "\t" . (join ', ', keys %{$curator_data->{curator}->{$curator}}) . "\t$flag_audit_timestamp\n";
 
 							}
 
@@ -566,7 +577,7 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 
 					} else {
 
-						print "ERROR: unable to find who curated for $flag_source $raw_flag_type $FBrf\n";
+						print $data_error_file "ERROR: unable to find who curated for $flag_source $raw_flag_type $FBrf\n";
 					}
 				}
 
@@ -600,15 +611,14 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 						$data->{topic_entity_tag_source_id} = $curator_source_data->{topic_entity_tag_source_id};
 					}
 
-					# plain text output useful for testing
-					print "DATA: $FBrf\t$flag_source\t$raw_flag_type\t$curator\t$file;\t$flag_audit_timestamp\n";
+					# plain text output useful for testing - will comment this out once finished
+					print $data_error_file "DATA: $FBrf\t$flag_source\t$raw_flag_type\t$curator\t$file;\t$flag_audit_timestamp\n";
 
 					my $json_data = $json_encoder->encode($data);
 
 
-
 					if ($ENV_STATE eq "dev") {
-						print "JSON: \n$json_data\n";
+						push @{$complete_data->{data}}, $data;
 
 					}
 
@@ -631,7 +641,7 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 
 			} else {
 
-				print "\nERROR: no mapping in the the flag_mapping hash for this flag_type:$raw_flag_type from $flag_source\n";
+				print $data_error_file "ERROR: no mapping in the the flag_mapping hash for this flag_type:$raw_flag_type from $flag_source\n";
 
 			}
 		}
@@ -639,5 +649,18 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 }
 
 
+if ($ENV_STATE eq "dev") {
+
+	my $json_metadata = &make_abc_json_metadata('production');
+	$complete_data->{"metaData"} = $json_metadata;
+	my $complete_json_data = $json_encoder->encode($complete_data);
+
+	print $output_file $complete_json_data;
 
 
+}
+
+
+close $output_file;
+close $data_error_file;
+close $process_error_file;
