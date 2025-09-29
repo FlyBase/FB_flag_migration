@@ -337,7 +337,7 @@ sub get_flags_to_ignore {
 			'gene_model_nonmel' => '1',
 			'no_flag' => '1', # need to double-check with harvcur
 			'diseaseF' => '1', # need to double-check with harvcur
-		'marker' => '1', # need to double-check with harvcur
+			'marker' => '1', # need to double-check with harvcur
 	
 		},
 
