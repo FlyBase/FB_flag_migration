@@ -1,3 +1,5 @@
+#!/usr/bin/env perl
+
 use strict;
 use warnings;
 #use XML::DOM;
@@ -45,7 +47,7 @@ Script has four modes:
 
 o test/stage/production modes - script uses POST to load the json object data into the corresponding Alliance test/stage/production server. 
 
-o dev mode - script does not try to POST data into a server, but instead just prints json. In addition, it works for a single FBrf (rather than all FBrfs); the user is asked to submit the FBrf to be tested. The output json is now a single json structure for all the data (topic data is a set of arrays within a 'data' object, plsu there is a 'metaData' object to indicate source and intended destination database).
+o dev mode - script does not try to POST data into a server, but instead just prints json. In addition, it works for a single FBrf (rather than all FBrfs); the user is asked to submit the FBrf to be tested. The output json is now a single json structure for all the data (topic data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source and intended destination database).
 
 
 Mapping hashes:
