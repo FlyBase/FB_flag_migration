@@ -118,17 +118,16 @@ if (! grep( /^$ENV_STATE$/, @STATE ) ) {
 
 # Sanity check if state is not test, make sure the user wants to
 # save the data to the database
-if ($ENV_STATE eq "stage" || $ENV_STATE eq "production") {
+unless ($ENV_STATE eq "dev") {
 	print STDERR "You are about to write data to $ENV_STATE Alliance literature server\n";
-	print STDERR "Type y to continue else anything else to stop\n";
+	print STDERR "Type y to continue else anything else to stop:\n";
 	my $continue = <STDIN>;
 	chomp $continue;
 	if (($continue eq 'y') || ($continue eq 'Y')) {
-	    print STDERR "Processing will continue.";
-    }
-    else{
-	    die "Processing has been cancelled.";
-    }
+		print STDERR "Processing will continue.";
+	} else{
+		die "Processing has been cancelled.";
+	}
 }
 
 my $dsource = sprintf("dbi:Pg:dbname=%s;host=%s;port=5432",$db,$server);
@@ -146,7 +145,7 @@ my $curator_source_data = {};
 
 
 # set the json output format to be slightly different for dev mode - pretty separates the name/value pairs by return so its easier to read
-if ($ENV_STATE eq "dev") {
+if ($ENV_STATE eq "dev" || $ENV_STATE eq "test") {
 
 	$json_encoder = JSON::PP->new()->pretty(1)->canonical(1);
 
@@ -166,11 +165,20 @@ if ($ENV_STATE eq "dev") {
 
 
 
-if ($ENV_STATE eq "dev") {
+if ($ENV_STATE eq "dev" || $ENV_STATE eq "test") {
 
 	print STDERR "FBrf to test:";
 	$FBrf_like = <STDIN>;
 	chomp $FBrf_like;
+
+	if ($ENV_STATE eq "test") {
+
+		unless ($FBrf_like =~ m/^FBrf[0-9]{7}$/) {
+
+			die "Only a single FBrf is allowed in test mode."
+
+		}
+	}
 
 }
 my %FBrf_pubid;
@@ -328,6 +336,13 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 					# plain text output useful for testing - will comment this out once finished
 					print $data_error_file "DATA: $FBrf\t$flag_source\t$raw_flag_type\t$curator\t$file;\t$flag_audit_timestamp\n";
 
+
+					if ($ENV_STATE eq "test" || $ENV_STATE eq "dev") {
+
+						$data->{note} = "gm testing adding topics for $FBrf (for SCRUM-5145)";
+
+					}
+
 					my $json_data = $json_encoder->encode($data);
 
 
@@ -338,11 +353,26 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 
 					my $cmd;
 					if ($ENV_STATE eq "test"){
-						$cmd="curl -X 'POST' 'https://dev4005-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
-					} elsif ($ENV_STATE eq "stage"){
 						$cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
+						my $raw_result = `$cmd`;
+						my $result = $json_encoder->decode($raw_result);
+
+
+						if (exists $result->{'status'} && $result->{'status'} eq 'success') {
+							
+							print $output_file "json post success\nDATA:\n$json_data\n\n";
+
+						} else {
+
+							print $process_error_file "json post failed\nDATA:\n$json_data\nREASON:\n$raw_result\n\n";
+
+						}
+						
+						
+					} elsif ($ENV_STATE eq "stage"){
+						#$cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
 					} elsif ($ENV_STATE eq "production"){
-						$cmd="curl -X 'POST' 'https://literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
+						#$cmd="curl -X 'POST' 'https://literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
 					}
 
 					#print "\n$FBrf $raw_flag_type\n$data\n";
@@ -370,6 +400,7 @@ if ($ENV_STATE eq "dev") {
 	my $complete_json_data = $json_encoder->encode($complete_data);
 
 	print $output_file $complete_json_data;
+
 
 
 }
