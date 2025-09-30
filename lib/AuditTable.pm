@@ -5,7 +5,7 @@ use warnings;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw(get_relevant_curator);
+our @EXPORT = qw(get_relevant_curator get_flag_info_with_audit_data);
 
 
 =head1 MODULE: AuditTable
@@ -129,4 +129,75 @@ sub get_relevant_curator {
 	}
 
 	return ($data);
+}
+
+
+sub get_flag_info_with_audit_data {
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    get_flag_info_with_audit_data
+	Usage:    get_flag_info_with_audit_data(database_handle,triage_flag_type, triage_flag);
+	Function: Gets all references that are associated with a particular triage flag, returning a hash reference that includes audit_table information.
+	Example:  my $phys_int_data = &get_flag_info_with_audit_data($dbh,'harv_flag','phys_int');
+
+Arguments:
+
+o triage_flag_type must be either 'cam', 'dis', 'harv' or 'onto' (i.e. one of the allowed triage flag types).
+
+The returned hash reference has the following structure:
+
+   $data->{$pub_id}->{$matching_triage_flag}->{$audit_type}->{$audit_timestamp}++;
+
+(The same pubprop can be updated multple times (via chiacur) so need to store timestamp as hash key).
+
+o $pub_id is the pub_id of the reference.
+
+o $matching_triage_flag is triage flag(s) that *start with* the triage_flag argument - so this subroutine returns both the 'plain' flag (without any :: suffix) matching the triage_flag argument and also the corresponding flag *with* a :: suffix (which can be relevant for curation status information).
+
+o $audit_type is either 'I' (for insert) or 'U' (for update)
+
+o $audit_timestamp is the timestamp from the audit_chado table.
+
+
+Note
+
+=cut
+
+
+	unless (@_ == 3) {
+
+		die "Wrong number of parameters passed to the get_flag_info_with_audit_data subroutine\n";
+	}
+
+
+	my ($dbh, $triage_flag_type, $triage_flag) = @_;
+
+
+	unless ($triage_flag_type eq 'cam' || $triage_flag_type eq 'harv' || $triage_flag_type eq 'dis' || $triage_flag_type eq 'onto') {
+
+		die "unexpected triage flag type $triage_flag_type (must be one of 'cam', 'harv', 'dis' or 'onto'\n";
+
+	}
+
+	my $data = {};
+
+
+	my $sql_query = sprintf("select pp.pub_id, pp.value, ac.audit_transaction, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value ~'^%s' and c.cvterm_id=pp.type_id  and c.name ='%s_flag' and ac.audited_table='pubprop' and ac.audit_transaction in ('I', 'U')  and pp.pubprop_id=ac.record_pkey",$triage_flag, $triage_flag_type);
+	my $db_query = $dbh->prepare($sql_query);
+	$db_query->execute or die "WARNING: ERROR: Unable to execute get_flag_info_with_audit_data query ($!)\n";
+
+
+	while (my ($pub_id, $matching_triage_flag, $audit_type, $audit_timestamp) = $db_query->fetchrow_array) {
+
+		$data->{$pub_id}->{$matching_triage_flag}->{$audit_type}->{$audit_timestamp}++;
+
+	}
+
+
+	return $data;
+
 }

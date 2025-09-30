@@ -1,3 +1,5 @@
+#!/usr/bin/env perl
+
 use strict;
 use warnings;
 #use XML::DOM;
@@ -17,6 +19,11 @@ use lib File::Spec->catdir(File::Basename::dirname(File::Spec->rel2abs($0)), 'li
 # add modules from lib-subfolder
 use AuditTable;
 use ABCInfo;
+use Util;
+use Mappings;
+
+use constant FALSE => \0;
+use constant TRUE => \1;
 
 =head1 NAME ticket_scrum-3147-topic-entity-tag.pl
 
@@ -29,7 +36,7 @@ Used to load FlyBase triage flag information into the Alliance ABC literature da
 
 =head1 USAGE
 
-USAGE: perl ticket_scrum-3147-topic-entity-tag.pl pg_server db_name pg_username pg_password dev|test|stage|production filename okta_token
+USAGE: perl ticket_scrum-3147-topic-entity-tag.pl pg_server db_name pg_username pg_password dev|test|stage|production okta_token
 
 
 =cut
@@ -40,7 +47,7 @@ Script has four modes:
 
 o test/stage/production modes - script uses POST to load the json object data into the corresponding Alliance test/stage/production server. 
 
-o dev mode - script does not try to POST data into a server, but instead just prints the json. In addition, it works for a single FBrf (rather than all FBrfs); the user is asked to submit the FBrf to be tested.
+o dev mode - script does not try to POST data into a server, but instead just prints json. In addition, it works for a single FBrf (rather than all FBrfs); the user is asked to submit the FBrf to be tested. The output json is now a single json structure for all the data (topic data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source and intended destination database).
 
 
 Mapping hashes:
@@ -84,28 +91,13 @@ Script logic:
 
 1. The system call to actually run the $cmd to POST the data to a server is currently commented out. In addition, need to add a test to check that the system call completes successfully and to print an error if not.
 
-2. the script currently requires an input file (given in 5th argument) that maps FBrf numbres to AGKRB numbers. Investigate whether its possible to submit the json using FBrf (I assume not) or whether could use GET to get the AGKRB for each required FBrf (this might make it to slow as its all FBrfs ?!)
-
-
-the instructions to make the currently required input file are:
-
-To generate the input file use:-
-You may need to change the --host value if you want to use prod etc.
-You will be prompted for a password, obviously not given here.
-You will also need VPN access to the database for this to work.
-
-psql --host literature-dev.cmnnhlso7wdi.us-east-1.rds.amazonaws.com \
-     -U postgres -d literature\
-     -c "select cr.curie, r.curie from reference r, cross_reference cr where r.reference_id=cr.reference_id and curie_prefix='FB'" \
-     -A -F ' ' -t > FBrf_to_AGRKB.txt
-
 =cut
 
 
-if (@ARGV != 7) {
-    warn "Wrong number of argument, shouldbe 7!\n";
-    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production filename okta_token\n\n";
-    warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production FBrf_to_AGRKB.txt ABCD1234\n\n";
+if (@ARGV != 6) {
+    warn "Wrong number of arguments, should be 6!\n";
+    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production okta_token\n\n";
+    warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production ABCD1234\n\n";
     exit;
 }
 
@@ -114,30 +106,28 @@ my $db = shift(@ARGV);
 my $user = shift(@ARGV);
 my $pwd = shift(@ARGV);
 my $ENV_STATE = shift(@ARGV);
-my $INPUT_FILE = shift(@ARGV);
 my $okta_token = shift(@ARGV);
 
 
 my @STATE = ("dev", "test", "stage", "production");
 if (! grep( /^$ENV_STATE$/, @STATE ) ) {
-    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production filename okta_token\n\n";
-    warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production FBrf_to_AGRKB.txt ABCD1234\n\n";
+    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production okta_token\n\n";
+    warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production ABCD1234\n\n";
     exit;
 }
 
 # Sanity check if state is not test, make sure the user wants to
 # save the data to the database
-if ($ENV_STATE eq "stage" || $ENV_STATE eq "production") {
+unless ($ENV_STATE eq "dev") {
 	print STDERR "You are about to write data to $ENV_STATE Alliance literature server\n";
-	print STDERR "Type y to continue else anything else to stop\n";
+	print STDERR "Type y to continue else anything else to stop:\n";
 	my $continue = <STDIN>;
 	chomp $continue;
 	if (($continue eq 'y') || ($continue eq 'Y')) {
-	    print STDERR "Processing will continue.";
-    }
-    else{
-	    die "Processing has been cancelled.";
-    }
+		print STDERR "Processing will continue.";
+	} else{
+		die "Processing has been cancelled.";
+	}
 }
 
 my $dsource = sprintf("dbi:Pg:dbname=%s;host=%s;port=5432",$db,$server);
@@ -155,7 +145,7 @@ my $curator_source_data = {};
 
 
 # set the json output format to be slightly different for dev mode - pretty separates the name/value pairs by return so its easier to read
-if ($ENV_STATE eq "dev") {
+if ($ENV_STATE eq "dev" || $ENV_STATE eq "test") {
 
 	$json_encoder = JSON::PP->new()->pretty(1)->canonical(1);
 
@@ -173,320 +163,22 @@ if ($ENV_STATE eq "dev") {
 
 
 
-# not complete yet
 
-# ATP_topic is compulsory for every flag
-# other keys are optional
-# species only present if it differs from default Dmel (NCBITaxon:7227) for that flag
-# data_novelty only present if the FB triage flag indicates 'new' data of some kind
-# negated only present if it applies to that flag
-my $flag_mapping = {
 
-
-	'cam_flag' => {
-
-
-		'new_al' => {
-			'ATP_topic' => 'ATP:0000006',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'data_novelty' => 'ATP:0000229', # new to field
-		},
-
-		'new_allele' => {
-			'ATP_topic' => 'ATP:0000006',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'data_novelty' => 'ATP:0000229', # new to field
-		},
-
-		'new_transg' => {
-
-			'ATP_topic' => 'ATP:0000013',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'data_novelty' => 'ATP:0000229', # new to field
-		},
-
-
-		'gene_group' => {
-			'ATP_topic' => 'ATP:0000065',
-		},
-
-		'pathway' => {
-			'ATP_topic' => 'ATP:0000113',
-		},
-
-		'pert_exp' => {
-			'ATP_topic' => 'ATP:0000042',
-		},
-
-		'pheno' => {
-
-			'ATP_topic' => 'ATP:0000079',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'data_novelty' => 'ATP:0000321', # new data
-		},
-
-		'pheno_anat' => {
-
-			'ATP_topic' => 'ATP:0000032',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'curator_only' => '1',
-		},
-
-		'pheno_chem' => {
-
-			'ATP_topic' => 'ATP:0000080',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'curator_only' => '1',
-		},
-
-		'rename' => {
-
-			'ATP_topic' => 'ATP:0000048',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-		},
-
-		'pert_exp' => {
-			'ATP_topic' => 'ATP:0000042',
-		},
-
-
-		'merge' => {
-
-			'ATP_topic' => 'ATP:0000340',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-			# not curator only - was in original version of FTYP
-		},
-
-		'split' => {
-
-			'ATP_topic' => 'ATP:0000341',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-		},
-
-		'new_char' => {
-
-			'ATP_topic' => 'ATP:0000339',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-		},
-
-	},
-
-
-	'dis_flag' => {
-
-
-		'dm_gen' => {
-
-			'ATP_topic' => 'ATP:0000151',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'curator_only' => '1',
-		},
-
-		'dm_other' => {
-
-			'ATP_topic' => 'ATP:0000040',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'curator_only' => '1',
-		},
-
-		'disease' => {
-
-			'ATP_topic' => 'ATP:0000152',# 'disease model' ATP term - using more specific ATP term for DO curation
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-		},
-
-		'diseaseHP' => {
-
-			'ATP_topic' => 'ATP:0000152',# disease model ATP term - using more specific ATP term for DO curation
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'data_novelty' => 'ATP:0000229', # new to field
-			'curator_only' => '1',
-		},
-
-		'noDOcur' => {
-
-			'ATP_topic' => 'ATP:0000152',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'negated' => '1', # only present if the flag should have the 'no data' boolean set in ATP, note that representation of this is in flux in ATP
-			'curator_only' => '1',
-		},
-
-
-	},
-
-
-	'harv_flag' => {
-
-
-		'cell_cult' => {
-			'ATP_topic' => 'ATP:0000008',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-		},
-
-		'cell_line' => {
-			'ATP_topic' => 'ATP:0000008',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-		},
-
-
-		'cell_line(commercial)' => {
-			'ATP_topic' => 'ATP:0000008',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'note' => 'Commercially purchased cell line', # this is what is on FTYP form
-		},
-
-		'cell_line(stable)' => {
-			'ATP_topic' => 'ATP:0000008',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'note' => 'Stable line generated', # this is what is on FTYP form
-		},
-
-		'chemical' => {
-			'ATP_topic' => 'ATP:0000094',
-		},
-
-		'cis_reg' => {
-			'ATP_topic' => 'ATP:0000055',
-		},
-
-		'dataset' => {
-			'ATP_topic' => 'ATP:0000150',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-		},
-
-		# may decide not to submit this flag depending on whether FBhh curation will be done in Alliance (so may need deleting here and adding to ignore hash)
-		'disease' => {
-
-			'ATP_topic' => 'ATP:0000011',# 'disease' ATP term - using more general ATP term for FBhh curation
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-		},
-
-		# may decide not to submit this flag depending on whether FBhh curation will be done in Alliance (so may need deleting here and adding to ignore hash)
-		'diseaseHP' => {
-
-			'ATP_topic' => 'ATP:0000011',# 'disease' ATP term - using more general ATP term for FBhh curation
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'data_novelty' => 'ATP:0000321', # new data
-		},
-
-		'gene_model' => {
-			'ATP_topic' => 'ATP:0000054',
-		},
-
-		'genom_feat' => {
-			'ATP_topic' => 'ATP:0000056',
-		},
-
-		'genome_feat' => {
-			'ATP_topic' => 'ATP:0000056',
-		},
-
-		'pert_exp' => {
-			'ATP_topic' => 'ATP:0000042',
-			# not curator only - was in original version of FTYP
-		},
-
-		'phys_int' => {
-			'ATP_topic' => 'ATP:0000069',
-		},
-
-		'wt_cell_line' => {
-			'ATP_topic' => 'ATP:0000008',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-		},
-
-		'wt_exp' => {
-			'ATP_topic' => 'ATP:0000041',
-		},
-
-		'neur_exp' => {
-			'ATP_topic' => 'ATP:0000338',
-			'curator_only' => '1',
-		},
-
-
-
-
-	},
-
-	'onto_flag' => {
-
-		'novel_anat' => {
-
-			'ATP_topic' => 'ATP:0000031',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'data_novelty' => 'ATP:0000229', # new to field
-		},
-
-	},
-};
-
-
-# sanity check for $flag_mapping hash - to check that every flag has an ATP_topic mapping
-
-foreach my $type (keys %{$flag_mapping}) {
-
-	foreach my $flag (keys %{$flag_mapping->{$type}}) {
-
-		unless (exists $flag_mapping->{$type}->{$flag}->{ATP_topic}) {
-
-			die "ERROR in flag_mapping hash: ATP_topic missing for $type, $flag: add the correct ATP term and then try again\n";
-		}
-	}
-}
-
-# triage flags that we do not want to submit to the Alliance
-my $flags_to_ignore = {
-
-	'cam_flag' => {
-
-		'no_flag' => '1',
-		'nocur_abs' => '1',
-		'orthologs' => '1',
-		'new_gene' => '1',
-		'y' => '1',
-		'GO_cur' => '1',
-		'GOcur' => '1',
-		'noGOcur' => '1',
-
-		'nocur' => '1', # nocur will not be added as a topic, but will instead be added to the curation status information in the workflow editor in the Alliance
-	},
-
-	'harv_flag' => {
-		'y' => '1',
-		'n' => '1',
-		'no' => '1',
-		'trans_assay' => '1',
-		'RNAi' => '1',
-		'micr_arr' => '1',
-		'gene_model_nonmel' => '1',
-		'no_flag' => '1', # need to double-check with harvcur
-		'diseaseF' => '1', # need to double-check with harvcur
-		'marker' => '1', # need to double-check with harvcur
-
-	},
-
-};
-
-
-my %FBgn_type; #key:FBgn, value: transcript type
-
-#read the mapping of FBrf vs alliance curie, which generate from: select cr.curie, r.curie from reference r, cross_reference cr where r.reference_id=cr.reference_id and curie_prefix='FB' ;
-my %FB_curie;
-
-unless ($ENV_STATE eq "dev") {
-
-	open (IN, $INPUT_FILE) or die "unable to open file $INPUT_FILE";
-	while (<IN>){
-   	 chomp;
-    	my ($FB, $curie)=split(/\s+/);
-    	$FB_curie{$FB}=$curie;
-	}
-} else {
+if ($ENV_STATE eq "dev" || $ENV_STATE eq "test") {
 
 	print STDERR "FBrf to test:";
 	$FBrf_like = <STDIN>;
 	chomp $FBrf_like;
+
+	if ($ENV_STATE eq "test") {
+
+		unless ($FBrf_like =~ m/^FBrf[0-9]{7}$/) {
+
+			die "Only a single FBrf is allowed in test mode."
+
+		}
+	}
 
 }
 my %FBrf_pubid;
@@ -501,8 +193,25 @@ while (( $uniquename_FBrf, $pubid) = $FBrf->fetchrow_array()) {
   $FBrf_pubid{$uniquename_FBrf}= $pubid;
 }
 
+# open output and error logging files
+
+open my $output_file, '>', 'populate_FB_topic_data.json'
+	or die "Can't open output file ($!)\n";
 
 
+open my $data_error_file, '>', 'populate_FB_topic_data_errors.txt'
+	or die "Can't open data error logging file ($!)\n";
+
+open my $process_error_file, '>', 'populate_FB_topic_process_errors.txt'
+	or die "Can't open processing error logging file ($!)\n";
+
+
+# data structures for how/whether to map FB triage flags to corresponding ABC topic info
+my $flag_mapping = &get_flag_mapping();
+my $flags_to_ignore = &get_flags_to_ignore();
+
+
+my $complete_data = {};
 
 foreach my $FBrf (sort keys %FBrf_pubid){
     
@@ -569,7 +278,7 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 								$curator = 'FB_curator';
 
 							} else {
-								print "ERROR: multiple different curators that cannot reconcile, not adding: $FBrf\t$flag_source\t$raw_flag_type\t" . (join ', ', keys %{$curator_data->{curator}}) . "\t" . (join ', ', keys %{$curator_data->{curator}->{$curator}}) . "\t$flag_audit_timestamp\n";
+								print $data_error_file "ERROR: multiple different curators that cannot reconcile, not adding: $FBrf\t$flag_source\t$raw_flag_type\t" . (join ', ', keys %{$curator_data->{curator}}) . "\t" . (join ', ', keys %{$curator_data->{curator}->{$curator}}) . "\t$flag_audit_timestamp\n";
 
 							}
 
@@ -590,7 +299,7 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 
 					} else {
 
-						print "ERROR: unable to find who curated for $flag_source $raw_flag_type $FBrf\n";
+						print $data_error_file "ERROR: unable to find who curated for $flag_source $raw_flag_type $FBrf\n";
 					}
 				}
 
@@ -603,7 +312,7 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 
 					# set basic information for this particular flag and FBrf combination
 					my $FBrf_with_prefix="FB:".$FBrf;
-					$data->{reference_curie} = ($ENV_STATE eq "dev") ? $FBrf_with_prefix : $FB_curie{$FBrf_with_prefix};
+					$data->{reference_curie} = $FBrf_with_prefix;
 
 					$data->{created_by} = $curator;
 					$data->{date_created} = $flag_audit_timestamp;
@@ -613,9 +322,7 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 					$data->{topic} = $flag_mapping->{$flag_source}->{$flag_type}->{ATP_topic};
 
 					$data->{species} = exists $flag_mapping->{$flag_source}->{$flag_type}->{species} ? $flag_mapping->{$flag_source}->{$flag_type}->{species} : 'NCBITaxon:7227';
-					$data->{negated} = exists $flag_mapping->{$flag_source}->{$flag_type}->{negated} ? 1 : 0;
-
-					$data->{novel_topic_data} = exists $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty} ? 1 : 0;
+					$data->{negated} = exists $flag_mapping->{$flag_source}->{$flag_type}->{negated} ? TRUE : FALSE;
 
 					$data->{data_novelty} = exists $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty} ? $flag_mapping->{$flag_source}->{$flag_type}->{data_novelty} : 'ATP:0000335'; # if the mapping hash has no specific data novelty term set, the parent term (ATP:0000335 = 'data novelty') must be added for ABC validation purposes
 
@@ -626,25 +333,46 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 						$data->{topic_entity_tag_source_id} = $curator_source_data->{topic_entity_tag_source_id};
 					}
 
-					# plain text output useful for testing
-					print "DATA: $FBrf\t$flag_source\t$raw_flag_type\t$curator\t$file;\t$flag_audit_timestamp\n";
+					# plain text output useful for testing - will comment this out once finished
+					print $data_error_file "DATA: $FBrf\t$flag_source\t$raw_flag_type\t$curator\t$file;\t$flag_audit_timestamp\n";
+
+
+					if ($ENV_STATE eq "test" || $ENV_STATE eq "dev") {
+
+						$data->{note} = "gm testing adding topics for $FBrf (for SCRUM-5145)";
+
+					}
 
 					my $json_data = $json_encoder->encode($data);
 
 
-
 					if ($ENV_STATE eq "dev") {
-						print "JSON: \n$json_data\n";
+						push @{$complete_data->{data}}, $data;
 
 					}
 
 					my $cmd;
 					if ($ENV_STATE eq "test"){
-						$cmd="curl -X 'POST' 'https://dev4005-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
-					} elsif ($ENV_STATE eq "stage"){
 						$cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
+						my $raw_result = `$cmd`;
+						my $result = $json_encoder->decode($raw_result);
+
+
+						if (exists $result->{'status'} && $result->{'status'} eq 'success') {
+							
+							print $output_file "json post success\nDATA:\n$json_data\n\n";
+
+						} else {
+
+							print $process_error_file "json post failed\nDATA:\n$json_data\nREASON:\n$raw_result\n\n";
+
+						}
+						
+						
+					} elsif ($ENV_STATE eq "stage"){
+						#$cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
 					} elsif ($ENV_STATE eq "production"){
-						$cmd="curl -X 'POST' 'https://literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
+						#$cmd="curl -X 'POST' 'https://literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
 					}
 
 					#print "\n$FBrf $raw_flag_type\n$data\n";
@@ -657,7 +385,7 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 
 			} else {
 
-				print "\nERROR: no mapping in the the flag_mapping hash for this flag_type:$raw_flag_type from $flag_source\n";
+				print $data_error_file "ERROR: no mapping in the the flag_mapping hash for this flag_type:$raw_flag_type from $flag_source\n";
 
 			}
 		}
@@ -665,5 +393,19 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 }
 
 
+if ($ENV_STATE eq "dev") {
+
+	my $json_metadata = &make_abc_json_metadata('production');
+	$complete_data->{"metaData"} = $json_metadata;
+	my $complete_json_data = $json_encoder->encode($complete_data);
+
+	print $output_file $complete_json_data;
 
 
+
+}
+
+
+close $output_file;
+close $data_error_file;
+close $process_error_file;
