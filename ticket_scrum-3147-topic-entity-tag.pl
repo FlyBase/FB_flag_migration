@@ -45,9 +45,44 @@ USAGE: perl ticket_scrum-3147-topic-entity-tag.pl pg_server db_name pg_username 
 
 Script has four modes:
 
-o test/stage/production modes - script uses POST to load the json object data into the corresponding Alliance test/stage/production server. 
+o dev mode
 
-o dev mode - script does not try to POST data into a server, but instead just prints json. In addition, it works for a single FBrf (rather than all FBrfs); the user is asked to submit the FBrf to be tested. The output json is now a single json structure for all the data (topic data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source and intended destination database).
+  o single FBrf mode: asks user for FBrf number (can also use a regular expression to test multiple FBrfs in this mode).
+
+  o makes a json output file (FB_topic_data.stage.json) containing a single json structure for all the data (topic data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source).
+  o makes error files (see below) to record any errors.
+
+
+o test mode
+
+  o single FBrf mode: asks user for FBrf number (must be a single FBrf number, regular expression *not* allowed in this mode).
+
+  o uses curl to try to POST data to the Alliance ABC stage server (so asks user for okta token for Alliance ABC stage server).
+
+  o makes a txt output file (FB_topic_data.stage.txt) - prints a 'DATA:' tsv row for each FBrf+topic combination. For each successful curl POST event, the successfully loaded json element is printed in this file.
+  o also makes error files (see below) to record any errors.
+
+o stage mode
+
+  o makes data for all FBrfs in chado, with source ids correct for the ABC *stage* database.
+
+  o makes a json output file (FB_topic_data.stage.json) containing a single json structure for all the data (topic data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source).
+  o also makes error files (see below) to record any errors.
+
+o production mode
+
+  o makes data for all FBrfs in chado, with source ids correct for the ABC *production* database.
+
+  o makes a json output file (FB_topic_data.production.json) containing a single json structure for all the data (topic data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source).
+  o also makes error files (see below) to record any errors.
+
+o error files (made for all modes)
+
+  o file names include the intended "destination" ABC database - this is 'production' for production mode, and 'stage' for all other modes (this is needed because the id for source information for the topics can be different in production vs stage ABC).
+
+  o FB_topic_data_errors.<destination>.err - errors in mapping FlyBase data to appropriate Alliance json are printed in this file.
+
+  o FB_topic_process_errors.<processing>.err - processing errors - if a curl POST fails in test mode, the failed json element and the reason for the failure are printed in this file. Expected to be empty for all other modes.
 
 
 Mapping hashes:
