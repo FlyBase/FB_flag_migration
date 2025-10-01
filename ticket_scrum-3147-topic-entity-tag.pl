@@ -144,7 +144,7 @@ my $author_source_data = {};
 my $curator_source_data = {};
 
 
-# set the json output format to be slightly different for dev mode - pretty separates the name/value pairs by return so its easier to read
+# set the json output format to be slightly different for dev and test mode - pretty separates the name/value pairs by return so its easier to read
 if ($ENV_STATE eq "dev" || $ENV_STATE eq "test") {
 
 	$json_encoder = JSON::PP->new()->pretty(1)->canonical(1);
@@ -195,14 +195,29 @@ while (( $uniquename_FBrf, $pubid) = $FBrf->fetchrow_array()) {
 
 # open output and error logging files
 
-open my $output_file, '>', 'populate_FB_topic_data.json'
+# variable to set which Alliance ABC database the output is designed for
+my $destination = 'stage';
+if ($ENV_STATE eq 'production') {
+
+	$destination = 'production';
+
+}
+
+my $output_file_type = 'json';
+if ($ENV_STATE eq 'test') {
+
+	$output_file_type = 'txt';
+
+}
+
+open my $output_file, '>', "FB_topic_data.${destination}.${output_file_type}"
 	or die "Can't open output file ($!)\n";
 
 
-open my $data_error_file, '>', 'populate_FB_topic_data_errors.txt'
+open my $data_error_file, '>', "FB_topic_data_errors.${destination}.err"
 	or die "Can't open data error logging file ($!)\n";
 
-open my $process_error_file, '>', 'populate_FB_topic_process_errors.txt'
+open my $process_error_file, '>', "FB_topic_process_errors.${destination}.err"
 	or die "Can't open processing error logging file ($!)\n";
 
 
@@ -316,6 +331,7 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 
 					$data->{created_by} = $curator;
 					$data->{date_created} = $flag_audit_timestamp;
+					$data->{date_updated} = $flag_audit_timestamp;
 
 
 					# set other parameters for the flag based on $flag_mapping hash or set the relevant default if the key does not exist in the mapping hash for that flag
@@ -333,8 +349,6 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 						$data->{topic_entity_tag_source_id} = $curator_source_data->{topic_entity_tag_source_id};
 					}
 
-					# plain text output useful for testing - will comment this out once finished
-					print $data_error_file "DATA: $FBrf\t$flag_source\t$raw_flag_type\t$curator\t$file;\t$flag_audit_timestamp\n";
 
 
 					if ($ENV_STATE eq "test" || $ENV_STATE eq "dev") {
@@ -346,38 +360,30 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 					my $json_data = $json_encoder->encode($data);
 
 
-					if ($ENV_STATE eq "dev") {
+					unless ($ENV_STATE eq "test") {
 						push @{$complete_data->{data}}, $data;
 
-					}
-
-					my $cmd;
-					if ($ENV_STATE eq "test"){
-						$cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
+					} else {
+						my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
 						my $raw_result = `$cmd`;
 						my $result = $json_encoder->decode($raw_result);
 
 
+						# plain text output useful for testing
+						print $output_file "DATA: $FBrf\t$flag_source\t$raw_flag_type\t$curator\t$file;\t$flag_audit_timestamp\n";
+
 						if (exists $result->{'status'} && $result->{'status'} eq 'success') {
 							
-							print $output_file "json post success\nDATA:\n$json_data\n\n";
+							print $output_file "json post success\nJSON:\n$json_data\n\n";
 
 						} else {
 
-							print $process_error_file "json post failed\nDATA:\n$json_data\nREASON:\n$raw_result\n\n";
+							print $process_error_file "json post failed\nJSON:\n$json_data\nREASON:\n$raw_result\n#################################\n\n";
 
 						}
 						
 						
-					} elsif ($ENV_STATE eq "stage"){
-						#$cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
-					} elsif ($ENV_STATE eq "production"){
-						#$cmd="curl -X 'POST' 'https://literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
 					}
-
-					#print "\n$FBrf $raw_flag_type\n$data\n";
-					#print "\n\n$cmd\n";
-					#system($cmd);
 
 
 				}
@@ -393,9 +399,9 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 }
 
 
-if ($ENV_STATE eq "dev") {
+unless ($ENV_STATE eq "test") {
 
-	my $json_metadata = &make_abc_json_metadata('production');
+	my $json_metadata = &make_abc_json_metadata($db);
 	$complete_data->{"metaData"} = $json_metadata;
 	my $complete_json_data = $json_encoder->encode($complete_data);
 
