@@ -5,7 +5,7 @@ use warnings;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw(get_relevant_curator get_flag_info_with_audit_data);
+our @EXPORT = qw(get_relevant_curator get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix);
 
 
 =head1 MODULE: AuditTable
@@ -177,16 +177,16 @@ Note
 	my ($dbh, $triage_flag_type, $triage_flag) = @_;
 
 
-	unless ($triage_flag_type eq 'cam' || $triage_flag_type eq 'harv' || $triage_flag_type eq 'dis' || $triage_flag_type eq 'onto') {
+	unless ($triage_flag_type eq 'cam_flag' || $triage_flag_type eq 'harv_flag' || $triage_flag_type eq 'dis_flag' || $triage_flag_type eq 'onto_flag') {
 
-		die "unexpected triage flag type $triage_flag_type (must be one of 'cam', 'harv', 'dis' or 'onto'\n";
+		die "unexpected triage flag type $triage_flag_type (must be one of 'cam_flag', 'harv_flag', 'dis_flag' or 'onto_flag'\n";
 
 	}
 
 	my $data = {};
 
 
-	my $sql_query = sprintf("select pp.pub_id, pp.value, ac.audit_transaction, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value ~'^%s' and c.cvterm_id=pp.type_id  and c.name ='%s_flag' and ac.audited_table='pubprop' and ac.audit_transaction in ('I', 'U')  and pp.pubprop_id=ac.record_pkey",$triage_flag, $triage_flag_type);
+	my $sql_query = sprintf("select pp.pub_id, pp.value, ac.audit_transaction, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value ~'^%s' and c.cvterm_id=pp.type_id  and c.name ='%s' and ac.audited_table='pubprop' and ac.audit_transaction in ('I', 'U')  and pp.pubprop_id=ac.record_pkey",$triage_flag, $triage_flag_type);
 	my $db_query = $dbh->prepare($sql_query);
 	$db_query->execute or die "WARNING: ERROR: Unable to execute get_flag_info_with_audit_data query ($!)\n";
 
@@ -194,6 +194,77 @@ Note
 	while (my ($pub_id, $matching_triage_flag, $audit_type, $audit_timestamp) = $db_query->fetchrow_array) {
 
 		$data->{$pub_id}->{$matching_triage_flag}->{$audit_type}->{$audit_timestamp}++;
+
+	}
+
+
+	return $data;
+
+}
+
+
+
+sub get_timestamps_for_flag_with_suffix {
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    get_timestamps_for_flag_with_suffix
+	Usage:    get_timestamps_for_flag_with_suffix(database_handle,triage_flag_type, triage_flag);
+	Function: Gets all references that are associated with a single type of triage flag, where the flag is marked with a suffix, returning a list of the timestamps for chado audit_table 'I' and 'U' transactions.
+	Example:  my $phys_int_data = &get_timestamps_for_flag_with_suffix($dbh,'harv_flag','phys_int');
+
+Arguments:
+
+o triage_flag_type must be either 'cam_flag', 'dis_flag', 'harv_flag' or 'onto_flag' (i.e. one of the allowed triage flag types).
+
+The returned hash reference has the following structure:
+
+   @{$data->{$pub_id}->{$matching_triage_flag}, $audit_timestamp;
+
+
+o $pub_id is the pub_id of the reference.
+
+o $matching_triage_flag is any triage flag(s) that match the triage_flag argument followed by :: - so this subroutine returns only flags *with* a :: suffix (which is often relevant for curation status information).
+
+o $audit_type is either 'I' (for insert) or 'U' (for update) so that timestamps are returned regardless of whether the flag suffix was added directly in a proforma (with or without plingc) - 'I' or updated direct in chado (e.g. via CHIA) - 'U'.
+
+o $audit_timestamp is the timestamp from the audit_chado table. The $audit_timestamp values are sorted earliest to latest within the array.
+
+
+Note
+
+=cut
+
+
+	unless (@_ == 3) {
+
+		die "Wrong number of parameters passed to the get_timestamps_for_flag_with_suffix subroutine\n";
+	}
+
+
+	my ($dbh, $triage_flag_type, $triage_flag) = @_;
+
+
+	unless ($triage_flag_type eq 'cam_flag' || $triage_flag_type eq 'harv_flag' || $triage_flag_type eq 'dis_flag' || $triage_flag_type eq 'onto_flag') {
+
+		die "unexpected triage flag type $triage_flag_type (must be one of 'cam_flag', 'harv_flag', 'dis_flag' or 'onto_flag'\n";
+
+	}
+
+	my $data = {};
+
+
+	my $sql_query = sprintf("select pp.pub_id, pp.value, ac.audit_transaction, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value ~'^%s::' and c.cvterm_id=pp.type_id  and c.name ='%s' and ac.audited_table='pubprop' and ac.audit_transaction in ('I', 'U') and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp",$triage_flag, $triage_flag_type);
+	my $db_query = $dbh->prepare($sql_query);
+	$db_query->execute or die "WARNING: ERROR: Unable to execute get_timestamps_for_flag_with_suffix query ($!)\n";
+
+
+	while (my ($pub_id, $matching_triage_flag, $audit_type, $audit_timestamp) = $db_query->fetchrow_array) {
+
+		push @{$data->{$pub_id}->{$matching_triage_flag}}, $audit_timestamp;
 
 	}
 
