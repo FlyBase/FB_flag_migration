@@ -206,68 +206,87 @@ Note
 
 sub get_timestamps_for_flag_with_suffix {
 
+
 =head1 SUBROUTINE:
 =cut
 
 =head1
 
 	Title:    get_timestamps_for_flag_with_suffix
-	Usage:    get_timestamps_for_flag_with_suffix(database_handle,triage_flag_type, triage_flag);
-	Function: Gets all references that are associated with a single type of triage flag, where the flag is marked with a suffix, returning a list of the timestamps for chado audit_table 'I' and 'U' transactions.
-	Example:  my $phys_int_data = &get_timestamps_for_flag_with_suffix($dbh,'harv_flag','phys_int');
+	Usage:    get_timestamps_for_flag_with_suffix(database_handle,$flag_mapping);
+	Function: Gets timestamp information for flags with suffixes (the suffix is appended to the plain flag name after :: in chado), for the flag(s) specified in the $flag_mapping reference in the second argument.
+	Example:  my $flag_with_suffix_data = &get_timestamps_for_flag_with_suffix($dbh,$flag_mapping);
 
 Arguments:
 
-o triage_flag_type must be either 'cam_flag', 'dis_flag', 'harv_flag' or 'onto_flag' (i.e. one of the allowed triage flag types).
+o $flag_mapping is a hash reference containing the flag(s) to return data for.
+
+Must be in the form:
+
+$flag_mapping->{flag_type}->{flag}
+
+where:  
+
+o flag_type is any of cam_flag, harv_flag, dis_flag, onto_flag - this defines the type of the pubprop in chado that the corresponding child 'flag' keys are stored under.
+
+o flag is the 'plain' flag name (ie. without suffix) e.g. pheno, phys_int, dm_gen, novel_anat
+
+To make a hash reference to use as the $flag_mapping argument that contains *all* the available flags of *all* flag_types, first use the get_flag_mapping subroutine from the Mappings module.
+
+
+Returns:
 
 The returned hash reference has the following structure:
 
-   @{$data->{$pub_id}->{$matching_triage_flag}, $audit_timestamp;
+   @{$data->{$pub_id}->{$flag_type}->{$plain_flag}->{$suffix}}, $audit_timestamp;
 
 
 o $pub_id is the pub_id of the reference.
 
-o $matching_triage_flag is any triage flag(s) that match the triage_flag argument followed by :: - so this subroutine returns only flags *with* a :: suffix (which is often relevant for curation status information).
+o flag_type is as provided by the $flag_mapping hash, ie. any of cam_flag, harv_flag, dis_flag, onto_flag - the type of the pubprop in chado that the corresponding child 'flag' keys are stored under.
 
-o $audit_type is either 'I' (for insert) or 'U' (for update) so that timestamps are returned regardless of whether the flag suffix was added directly in a proforma (with or without plingc) - 'I' or updated direct in chado (e.g. via CHIA) - 'U'.
+o flag is the plain flag name (without suffix) e.g. pheno, phys_int, dm_gen, novel_anat
 
-o $audit_timestamp is the timestamp from the audit_chado table. The $audit_timestamp values are sorted earliest to latest within the array.
+o suffix is the string that was after the :: for the particular pub_id+flag pubprop (this is often relevant for curation status information).
 
+o $audit_timestamp is a timestamp from the audit_chado table. The $audit_timestamp values are sorted earliest to latest within the array. It includes timestamps for both 'I' (for insert) or 'U' (for update) audit_transaction, so that timestamps are returned regardless of whether the flag suffix was added directly in a proforma (with or without plingc) - 'I' - or updated direct in chado (e.g. via CHIA) - 'U'.
 
-Note
 
 =cut
 
 
-	unless (@_ == 3) {
+	unless (@_ == 2) {
 
 		die "Wrong number of parameters passed to the get_timestamps_for_flag_with_suffix subroutine\n";
 	}
 
 
-	my ($dbh, $triage_flag_type, $triage_flag) = @_;
-
-
-	unless ($triage_flag_type eq 'cam_flag' || $triage_flag_type eq 'harv_flag' || $triage_flag_type eq 'dis_flag' || $triage_flag_type eq 'onto_flag') {
-
-		die "unexpected triage flag type $triage_flag_type (must be one of 'cam_flag', 'harv_flag', 'dis_flag' or 'onto_flag'\n";
-
-	}
+	my ($dbh, $flag_mapping) = @_;
 
 	my $data = {};
 
+	foreach my $flag_type (keys %{$flag_mapping}) {
 
-	my $sql_query = sprintf("select pp.pub_id, pp.value, ac.audit_transaction, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value ~'^%s::' and c.cvterm_id=pp.type_id  and c.name ='%s' and ac.audited_table='pubprop' and ac.audit_transaction in ('I', 'U') and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp",$triage_flag, $triage_flag_type);
-	my $db_query = $dbh->prepare($sql_query);
-	$db_query->execute or die "WARNING: ERROR: Unable to execute get_timestamps_for_flag_with_suffix query ($!)\n";
+		foreach my $flag (keys %{$flag_mapping->{$flag_type}}) {
+
+			my $sql_query = sprintf("select pp.pub_id, pp.value, ac.audit_transaction, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value ~'^%s::' and c.cvterm_id=pp.type_id  and c.name ='%s' and ac.audited_table='pubprop' and ac.audit_transaction in ('I', 'U') and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp",$flag, $flag_type);
+			my $db_query = $dbh->prepare($sql_query);
+			$db_query->execute or die "WARNING: ERROR: Unable to execute get_timestamps_for_flag_with_suffix query ($!)\n";
 
 
-	while (my ($pub_id, $matching_triage_flag, $audit_type, $audit_timestamp) = $db_query->fetchrow_array) {
+			while (my ($pub_id, $flag_with_suffix, $audit_type, $audit_timestamp) = $db_query->fetchrow_array) {
 
-		push @{$data->{$pub_id}->{$matching_triage_flag}}, $audit_timestamp;
+
+				my ($plain_flag, $suffix) = ($flag_with_suffix =~ m/^(.+)::(.+)$/);
+
+
+
+				push @{$data->{$pub_id}->{$flag_type}->{$plain_flag}->{$suffix}}, $audit_timestamp;
+
+			}
+		}
 
 	}
-
 
 	return $data;
 
