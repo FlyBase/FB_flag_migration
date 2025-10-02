@@ -27,10 +27,10 @@ sub make_abc_json_metadata {
 =head1
 
 	Title:    make_abc_json_metadata
-	Usage:    make_abc_json_metadata(destination_database);
+	Usage:    make_abc_json_metadata(source database);
 	Function: The make_abc_json_metadata subroutine makes a reference containing standard information for a "metaData" json object for a json file containing data to be submitted to the ABC.
 	Example: my $json_metadata = &make_abc_json_metadata('production');
-        Args    : destination DB that the json is intended for (must be either 'stage' or 'production'.
+        Args    : source database - the name of the FlyBase chado database used to make the file.
 
 
 =cut
@@ -40,12 +40,7 @@ sub make_abc_json_metadata {
 		die "Wrong number of parameters passed to the make_abc_json_metadata subroutine\n";
 	}
 
-	my ($destination) = @_;
-	unless ($destination eq 'production' | $destination eq 'stage') {
-		die "unrecognized value ($destination) passed to make_abc_json_metadata subroutine: argument must be 'production' or 'stage'\n";
-
-	}
-
+	my ($source) = @_;
 
 	my $date_stamp = &get_yyyymmdd_date_stamp();
 
@@ -61,9 +56,7 @@ sub make_abc_json_metadata {
 
 	# copied format from agr_schemas/ingest/metaData.json
 	$metadata->{'dateProduced'} = $date_stamp;
-
-	# new element to say whether json should be submitted to stage or production ABC
-	$metadata->{'destinationDB'} = $destination;
+	$metadata->{'release'} = $source;
 
 
 	return ($metadata);
