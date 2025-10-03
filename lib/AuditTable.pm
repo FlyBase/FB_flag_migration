@@ -346,12 +346,12 @@ NOTE: if the $pubprop type is one of the ones that contains triage flags (cam_fl
 
 
 
-	my $sql_query = sprintf("select pp.pub_id, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value ~'%s' and c.cvterm_id=pp.type_id  and c.name ='%s' and ac.audited_table='pubprop' and ac.audit_transaction = 'I' and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp",$string, $pubprop_type);
+	my $sql_query = sprintf("select distinct pp.pub_id, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value ~'%s' and c.cvterm_id=pp.type_id  and c.name ='%s' and ac.audited_table='pubprop' and ac.audit_transaction = 'I' and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp",$string, $pubprop_type);
 	my $db_query = $dbh->prepare($sql_query);
 	$db_query->execute or die "WARNING: ERROR: Unable to execute get_timestamps_for_pubprop_value query ($!)\n";
 
 
-	while (my ($pub_id, $flag_with_suffix, $audit_type, $audit_timestamp) = $db_query->fetchrow_array) {
+	while (my ($pub_id, $audit_timestamp) = $db_query->fetchrow_array) {
 
 		push @{$data->{$pub_id}}, $audit_timestamp;
 
