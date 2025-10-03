@@ -5,12 +5,12 @@ use warnings;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw(get_relevant_curator get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix);
+our @EXPORT = qw(get_relevant_curator get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_pubprop_value);
 
 
 =head1 MODULE: AuditTable
 
-Module containing subroutines that get information from audit_chado table.
+Module containing subroutines that get information from chado, including information from the audit_chado table.
 
 =cut
 
@@ -285,6 +285,75 @@ o $audit_timestamp is a timestamp from the audit_chado table. The $audit_timesta
 
 			}
 		}
+
+	}
+
+	return $data;
+
+}
+
+
+
+sub get_timestamps_for_pubprop_value {
+
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    get_timestamps_for_pubprop_value
+	Usage:    get_timestamps_for_pubprop_value(database_handle,$pubprop_type,$string);
+	Function: Gets timestamp information for a pubprop of the type given in the second argument with a value that contains the string given in the third argument.
+	Example:  my $phys_int_not_curated = &get_timestamps_for_pubprop_value($dbh,'internalnotes','phys_int not curated');
+
+Arguments:
+
+o $pubprop_type - the pubprop type you are interested in.
+
+o $string - the string that you want the pubprops to contain. The search will find this string anywhere in the pubprop value and it may be all or part of the value.
+
+
+
+Returns:
+
+The returned hash reference has the following structure:
+
+@{$data->{$pub_id}}, $audit_timestamp;
+
+
+o $pub_id is the pub_id of the reference.
+
+o $audit_timestamp is the 'I' timestamp(s) from the audit_chado table for matching pubprops (contain $string) of the specified $pubprop_type. The $audit_timestamp values are sorted earliest to latest within the array.
+
+NOTE: if the $pubprop type is one of the ones that contains triage flags (cam_flag, harv_flag, dis_flag, onto_flag), the script prints a warning to the terminal suggesting that it may be more appropriate to use either the get_flag_info_with_audit_data or get_timestamps_for_flag_with_suffix subroutine.
+
+
+
+
+=cut
+
+
+	unless (@_ == 3) {
+
+		die "Wrong number of parameters passed to the get_timestamps_for_pubprop_value subroutine\n";
+	}
+
+
+	my ($dbh, $pubprop_type, $string) = @_;
+
+	my $data = {};
+
+
+
+	my $sql_query = sprintf("select pp.pub_id, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value ~'%s' and c.cvterm_id=pp.type_id  and c.name ='%s' and ac.audited_table='pubprop' and ac.audit_transaction = 'I' and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp",$string, $pubprop_type);
+	my $db_query = $dbh->prepare($sql_query);
+	$db_query->execute or die "WARNING: ERROR: Unable to execute get_timestamps_for_pubprop_value query ($!)\n";
+
+
+	while (my ($pub_id, $flag_with_suffix, $audit_type, $audit_timestamp) = $db_query->fetchrow_array) {
+
+		push @{$data->{$pub_id}}, $audit_timestamp;
 
 	}
 
