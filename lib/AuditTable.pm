@@ -269,7 +269,7 @@ o $audit_timestamp is a timestamp from the audit_chado table. The $audit_timesta
 
 		foreach my $flag (keys %{$flag_mapping->{$flag_type}}) {
 
-			my $sql_query = sprintf("select pp.pub_id, pp.value, ac.audit_transaction, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value ~'^%s::' and c.cvterm_id=pp.type_id  and c.name ='%s' and ac.audited_table='pubprop' and ac.audit_transaction in ('I', 'U') and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp",$flag, $flag_type);
+			my $sql_query = sprintf("select distinct pp.pub_id, pp.value, ac.audit_transaction, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value ~'^%s::' and c.cvterm_id=pp.type_id  and c.name ='%s' and ac.audited_table='pubprop' and ac.audit_transaction in ('I', 'U') and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp",$flag, $flag_type);
 			my $db_query = $dbh->prepare($sql_query);
 			$db_query->execute or die "WARNING: ERROR: Unable to execute get_timestamps_for_flag_with_suffix query ($!)\n";
 
