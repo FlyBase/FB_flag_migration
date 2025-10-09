@@ -5,7 +5,7 @@ use warnings;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw(make_abc_json_metadata get_yyyymmdd_date_stamp);
+our @EXPORT = qw(make_abc_json_metadata get_yyyymmdd_date_stamp pub_has_curated_data);
 
 use JSON::PP;
 
@@ -106,4 +106,74 @@ sub get_yyyymmdd_date_stamp {
 	return $date_stamp;
 
 }
+
+
+
+
+
+sub pub_has_curated_data {
+
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+        Title   : pub_has_curated_data
+        Usage   : pub_has_curated_data($database_handle,$data_type)
+        Function: Produces a list of current publications which contain curated data of the type specified in the second argument.
+        Returns : Hash reference of matching publications: key is pub_id, value is 'undef' (to allow expansion of hash reference later in main script).
+        Example : my $has_phys_int_data = &pub_has_curated_data($dbh, 'phys_int');
+
+Arguments:
+
+o $data_type is the type of curated data. The value must be present as a key in the $mapping hash of this subroutine; the corresponding value of the hash key is the appropriate sql query for the data_type. The $data_type string for a given type of data is typically the corresponding triage flag used to flag publications containing the type of data.
+
+
+
+=cut
+
+
+	unless (@_ == 2) {
+
+		die "Wrong number of parameters passed to the pub_has_curated_data subroutine.\n";
+	}
+
+
+	my $dbh = shift; # this is the database handle
+	my $data_type = shift; # this is the type of curated data
+
+
+	# in each case, the sql query requires both the publication AND the curated data to be current.
+	my $mapping = {
+
+		'phys_int' => 'select distinct p.pub_id from pub p, interaction_pub ip, interaction i where p.is_obsolete = \'f\' and p.pub_id = ip.pub_id and ip.interaction_id = i.interaction_id and i.is_obsolete = \'f\'',
+		'cell_line' => 'select distinct p.pub_id from pub p, cell_line_pub cp, cell_line c where p.is_obsolete = \'f\' and p.pub_id = cp.pub_id and cp.cell_line_id = c.cell_line_id',
+
+
+	};
+
+
+	unless (exists $mapping->{$data_type}) {
+
+		die "Unknown data type: $data_type passed to pub_has_data_check subroutine: add the appropriate sql query to the \$mapping hash and run the script again.";
+	}
+
+	my $data = {};
+
+	my $sql_query = sprintf("$mapping->{$data_type}");
+	my $db_query = $dbh->prepare($sql_query);
+	$db_query->execute or die "WARNING: ERROR: Unable to execute pub_has_curated_data query ($!)\n";
+
+	while (my ($pub_id) = $db_query->fetchrow_array) {
+
+
+		$data->{$pub_id} = undef;
+	}
+
+	return $data;
+
+
+}
+
 
