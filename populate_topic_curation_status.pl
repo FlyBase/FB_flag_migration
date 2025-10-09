@@ -140,6 +140,8 @@ my $get_curated_data_mapping = {
 
 };
 
+#print Dumper ($curation_status_topics);
+
 foreach my $ATP (sort keys %{$get_curated_data_mapping}) {
 
 	if (exists $curation_status_topics->{$ATP}) {
@@ -154,5 +156,49 @@ foreach my $ATP (sort keys %{$get_curated_data_mapping}) {
 
 }
 
-#print Dumper ($curation_status_topics);
+# 2. go through each topic in the $curation_status_topics hash and determine curation status
 
+foreach my $ATP (keys %{$curation_status_topics}) {
+
+
+
+	my $flags_with_suffix = &get_timestamps_for_flaglist_with_suffix($dbh,$curation_status_topics->{$ATP}->{'flag_type'},$curation_status_topics->{$ATP}->{'flags'});
+#	print Dumper ($flags_with_suffix);
+
+	if (exists $curation_status_topics->{$ATP}->{'get_curated_data'}) {
+
+		my $has_curated_data = &pub_has_curated_data($dbh,$curation_status_topics->{$ATP}->{'get_curated_data'});
+
+#		print "BEFORE\n";
+#		print Dumper ($has_curated_data);
+
+		#go through the list of pubs with data and check whether there is a DONE flag - if so, capture the relevant timestamp
+
+		foreach my $pub_id (sort keys %{$has_curated_data}) {
+			if (exists $flags_with_suffix->{$pub_id}) {
+
+				if (scalar keys %{$flags_with_suffix->{$pub_id}} == 1) {
+
+					my $suffix = join '', keys %{$flags_with_suffix->{$pub_id}};
+
+					if ($suffix eq 'DONE') {
+						# get the latest timestamp for the flag
+						my $timestamp_to_get = $flags_with_suffix->{$pub_id}->{$suffix}->{'timestamp'}[-1];
+						$has_curated_data->{$pub_id}->{DONE_flag} = $timestamp_to_get;
+
+					}
+				}
+			}
+
+		}
+#		print "AFTER\n";
+#		print Dumper ($has_curated_data);
+
+	} else {
+
+		warn "Use flag suffix only: $ATP\n";
+
+	}
+
+
+}
