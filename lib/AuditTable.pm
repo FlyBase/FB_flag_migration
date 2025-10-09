@@ -5,7 +5,7 @@ use warnings;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw(get_relevant_curator get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_pubprop_value);
+our @EXPORT = qw(get_relevant_curator get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_flaglist_with_suffix get_timestamps_for_pubprop_value);
 
 
 =head1 MODULE: AuditTable
@@ -142,7 +142,7 @@ sub get_flag_info_with_audit_data {
 	Title:    get_flag_info_with_audit_data
 	Usage:    get_flag_info_with_audit_data(database_handle,triage_flag_type, triage_flag);
 	Function: Gets all references that are associated with a particular triage flag, returning a hash reference that includes audit_table information.
-	Example:  my $phys_int_data = &get_flag_info_with_audit_data($dbh,'harv_flag','phys_int');
+	Example:  my $phys_int_flags = &get_flag_info_with_audit_data($dbh,'harv_flag','phys_int');
 
 Arguments:
 
@@ -231,6 +231,7 @@ o flag_type is any of cam_flag, harv_flag, dis_flag, onto_flag - this defines th
 
 o flag is the 'plain' flag name (ie. without suffix) e.g. pheno, phys_int, dm_gen, novel_anat
 
+
 To make a hash reference to use as the $flag_mapping argument that contains *all* the available flags of *all* flag_types, first use the get_flag_mapping subroutine from the Mappings module.
 
 
@@ -292,7 +293,99 @@ o $audit_timestamp is a timestamp from the audit_chado table. The $audit_timesta
 
 }
 
+sub get_timestamps_for_flaglist_with_suffix {
 
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    get_timestamps_for_flaglist_with_suffix
+	Usage:    get_timestamps_for_flaglist_with_suffix(database_handle,$flag_type, \@flag_list);
+	Function: Gets timestamp information for flags with suffixes (the suffix is appended to the plain flag name after :: in chado), for the list of flag(s) specified in the \@flag_list reference in the third argument.
+	Example:  my $cell_line_flags_with_suffix = &get_timestamps_for_flaglist_with_suffix($dbh,'harv_flag',\@cell_line_flags);
+
+Arguments:
+
+o $flag_type is the type of pubprop in chado that the list of flags in \@flag_list are stored under (ie. one of cam_flag, harv_flag, dis_flag, onto_flag)
+
+o \@flag_list is an array reference containing the flag(s) to return data for. Each flag in the list must be a 'plain' flag name (ie. without suffix) e.g. pheno, phys_int, dm_gen, novel_anat.
+
+
+
+Returns:
+
+The returned hash reference has the following structure:
+
+
+o $data->{$pub_id}->{$suffix}->{timestamp}
+
+o $data->{$pub_id}->{$suffix}->{flags}
+
+
+Details:
+
+o $pub_id is the pub_id of the reference.
+
+o $suffix is the string that was after the :: for the particular $pub_id+$flag pubprop (this is often relevant for curation status information). 
+
+
+o data->{$pub_id}->{$suffix}->{timestamp}
+
+  o This reference holds an array containing all the timestamp(s) from the audit_chado table for the corresponding suffix.
+
+  o The timestamp values are sorted earliest to latest within the array.
+
+  o It includes timestamps for both 'I' (for insert) or 'U' (for update) audit_transaction, so that timestamps are returned regardless of whether the flag suffix was added directly in a proforma (with or without plingc) - 'I' - or updated direct in chado (e.g. via CHIA) - 'U'.
+
+o $data->{$pub_id}->{$suffix}->{flags}
+
+    o this reference holds a hash containing the flag(s) that have the corresponding $suffix.
+
+
+
+=cut
+
+
+	unless (@_ == 3) {
+
+		die "Wrong number of parameters passed to the get_timestamps_for_flaglist_with_suffix subroutine\n";
+	}
+
+
+	my ($dbh, $flag_type, $flag_list) = @_;
+
+	unless ($flag_type eq 'cam_flag' || $flag_type eq 'harv_flag' || $flag_type eq 'dis_flag' || $flag_type eq 'onto_flag') {
+
+		die "unexpected triage flag type $flag_type (must be one of 'cam_flag', 'harv_flag', 'dis_flag' or 'onto_flag'\n";
+
+	}
+
+
+	my $data = {};
+
+	foreach my $flag (@{$flag_list}) {
+
+
+		my $sql_query = sprintf("select distinct pp.pub_id, pp.value, ac.audit_transaction, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value ~'^%s::' and c.cvterm_id=pp.type_id  and c.name ='%s' and ac.audited_table='pubprop' and ac.audit_transaction in ('I', 'U') and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp",$flag, $flag_type);
+		my $db_query = $dbh->prepare($sql_query);
+		$db_query->execute or die "WARNING: ERROR: Unable to execute get_timestamps_for_flaglist_with_suffix query ($!)\n";
+
+
+
+		while (my ($pub_id, $flag_with_suffix, $audit_type, $audit_timestamp) = $db_query->fetchrow_array) {
+
+			my ($plain_flag, $suffix) = ($flag_with_suffix =~ m/^(.+)::(.+)$/);
+			push @{$data->{$pub_id}->{$suffix}->{timestamp}}, $audit_timestamp;
+			$data->{$pub_id}->{$suffix}->{flags}->{$flag}++;
+		}
+
+	}
+
+	return $data;
+
+}
 
 sub get_timestamps_for_pubprop_value {
 
