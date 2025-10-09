@@ -104,11 +104,6 @@ sub get_flag_mapping {
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 			},
 
-			'pert_exp' => {
-				'ATP_topic' => 'ATP:0000042',
-			},
-
-
 			'merge' => {
 
 				'ATP_topic' => 'ATP:0000340',
