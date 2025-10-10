@@ -5,7 +5,7 @@ use warnings;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw(get_relevant_curator get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_flaglist_with_suffix get_timestamps_for_pubprop_value);
+our @EXPORT = qw(get_relevant_curator get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_flaglist_with_suffix get_timestamps_for_pubprop_value get_relevant_currec_for_datatype);
 
 
 =head1 MODULE: AuditTable
@@ -453,3 +453,74 @@ NOTE: if the $pubprop type is one of the ones that contains triage flags (cam_fl
 	return $data;
 
 }
+
+
+
+sub get_relevant_currec_for_datatype {
+
+
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    get_relevant_currec_for_datatype
+	Usage:    get_relevant_currec_for_datatype(database_handle,datatype);
+	Function: Gets timestamp information for curation records that are expected to contain data of a particular type based on the their filename, for the datatype specified in the second argument.
+	Example:  my $currec_for_cell_line = &get_relevant_currec_for_datatype($dbh,'cell_line');
+
+Arguments:
+
+=cut
+
+
+	unless (@_ == 2) {
+
+		die "Wrong number of parameters passed to the get_relevant_currec_for_datatype subroutine\n";
+	}
+
+	my ($dbh, $datatype) = @_;
+
+	my $datatype_mapping = {
+
+		'cell_line' => '.+?\.(int|int_miRNA)\..+?',
+
+	};
+
+	unless (exists $datatype_mapping->{$datatype}) {
+
+		die "The datatype given as the second argument ($datatype) is not in the \$datatype_mapping hash in this subroutine: cannot process this datatype until the correct regex is added\n";
+
+	}
+	my $data_by_timestamp = {};
+	my $data_by_curator = {};
+
+	my $sql_query=sprintf("select distinct pp.pub_id, pp.value, ac.transaction_timestamp, pp.pubprop_id from  pubprop pp, cvterm c, audit_chado ac where ac.audited_table='pubprop' and ac.audit_transaction='I' and pp.pubprop_id=ac.record_pkey and c.cvterm_id=pp.type_id and c.name = 'curated_by' and pp.value ~'Proforma: %s;timelastmodified'", $datatype_mapping->{$datatype});
+
+	my $db_query = $dbh->prepare($sql_query);
+	$db_query->execute or die "WARNING: ERROR: Unable to execute get_relevant_currec_for_datatype query ($!)\n";
+
+
+	while (my ($pub_id, $curated_by_value, $curated_by_audit_timestamp, $curated_by_pubprop_id) = $db_query->fetchrow_array) {
+
+		if ($curated_by_value =~ m/^Curator: (.+?);Proforma: (.+?);timelastmodified: (.*)$/) {
+
+			my $curator = $1;
+			my $record_number = $2;
+			my $timelastmodified = $3;
+
+
+			$data_by_timestamp->{$pub_id}->{$curated_by_audit_timestamp}->{$curator}->{$record_number}++;
+			$data_by_curator->{$pub_id}->{$curator}->{$curated_by_audit_timestamp}->{$record_number}++;
+
+
+		} else {
+			# not expecting to trip this error
+			print "ERROR: wrong curated_by pubprop format for pub_id: $pub_id, pubprop: $curated_by_value\n";
+		}
+	}
+
+	return ($data_by_timestamp, $data_by_curator);
+}
+
