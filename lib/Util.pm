@@ -149,6 +149,10 @@ o $data_type is the type of curated data. The value must be present as a key in 
 
 		'phys_int' => 'select distinct p.pub_id from pub p, interaction_pub ip, interaction i where p.is_obsolete = \'f\' and p.pub_id = ip.pub_id and ip.interaction_id = i.interaction_id and i.is_obsolete = \'f\'',
 		'cell_line' => 'select distinct p.pub_id from pub p, cell_line_pub cp, cell_line c where p.is_obsolete = \'f\' and p.pub_id = cp.pub_id and cp.cell_line_id = c.cell_line_id',
+		'DO_annotation' => 'select distinct p.pub_id FROM feature f, feature_cvterm fc, cvterm c, pub p, cv where p.is_obsolete = \'f\' and p.pub_id = fc.pub_id and fc.cvterm_id = c.cvterm_id and c.cv_id = cv.cv_id and cv.name = \'disease_ontology\' and c.is_obsolete = \'0\' and fc.feature_id = f.feature_id and f.is_obsolete = \'f\'',
+		'DO_comment' => 'select distinct p.pub_id from feature f, featureprop fp, cvterm cvt, featureprop_pub fpp, pub p where f.feature_id = fp.feature_id and fp.type_id = cvt.cvterm_id and cvt.name = \'hdm_comments\' and f.is_obsolete = \'f\' and fpp.featureprop_id = fp.featureprop_id and fpp.pub_id = p.pub_id and p.is_obsolete = \'f\'',
+
+		'expression_annotation' => 'select distinct p.pub_id from feature f, feature_expression fe, expression e, pub p where p.is_obsolete = \'f\' and p.pub_id = fe.pub_id and fe.expression_id = e.expression_id and f.feature_id = fe.feature_id and f.is_obsolete = \'f\'',
 
 
 	};
