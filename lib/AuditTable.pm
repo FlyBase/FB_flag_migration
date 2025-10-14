@@ -482,15 +482,18 @@ Arguments:
 
 	my ($dbh, $datatype) = @_;
 
+	# only use standard filenames for matching so that can be sure that curation of the datatype is complete
 	my $datatype_mapping = {
 
-		'cell_line' => '.+?\.(int|int_miRNA)\..+?',
+		'cell_line' => '.+?\.(cell|cell_multiple|cell_multi)\..+?',
+		'phys_int' => '.+?\.(int|int_miRNA)\..+?',
+		'DO' => '.+?\.DO\..+?',
 
 	};
 
 	unless (exists $datatype_mapping->{$datatype}) {
 
-		die "The datatype given as the second argument ($datatype) is not in the \$datatype_mapping hash in this subroutine: cannot process this datatype until the correct regex is added\n";
+		die "get_relevant_currec_for_datatype: The datatype given as the second argument ($datatype) is not in the subroutine \$datatype_mapping hash: cannot process this datatype until the correct regex is added\n";
 
 	}
 	my $data_by_timestamp = {};
