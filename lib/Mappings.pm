@@ -134,7 +134,12 @@ sub get_flag_mapping {
 				'ATP_topic' => 'ATP:0000151',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 				'curator_only' => '1',
-				'use_suffix_for_curation_status' => '1',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'DO_annotation',
+					'use_filename' => 'DO',
+				},
+
 			},
 
 			'dm_other' => {
@@ -148,7 +153,10 @@ sub get_flag_mapping {
 
 				'ATP_topic' => 'ATP:0000152',# 'disease model' ATP term - using more specific ATP term for DO curation
 				'species' => 'NCBITaxon:7214', # Drosophilidae
-				'use_suffix_for_curation_status' => '1',
+				'for_curation_status' => {
+					'suffix' => 'use',
+				},
+
 			},
 
 			'diseaseHP' => {
@@ -157,7 +165,10 @@ sub get_flag_mapping {
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 				'data_novelty' => 'ATP:0000229', # new to field
 				'curator_only' => '1',
-				'use_suffix_for_curation_status' => '1',
+				'for_curation_status' => {
+					'suffix' => 'use',
+				},
+
 			},
 
 			'noDOcur' => {
@@ -176,13 +187,23 @@ sub get_flag_mapping {
 			'cell_cult' => {
 				'ATP_topic' => 'ATP:0000008',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
-				'use_suffix_for_curation_status' => '1',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'cell_line',
+					'use_filename' => 'cell_line',
+				},
+
 			},
 
 			'cell_line' => {
 				'ATP_topic' => 'ATP:0000008',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
-				'use_suffix_for_curation_status' => '1',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'cell_line',
+					'use_filename' => 'cell_line',
+				},
+
 			},
 
 
@@ -190,19 +211,34 @@ sub get_flag_mapping {
 				'ATP_topic' => 'ATP:0000008',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 				'note' => 'Commercially purchased cell line', # this is what is on FTYP form
-				'use_suffix_for_curation_status' => '1',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'cell_line',
+					'use_filename' => 'cell_line',
+				},
+
 			},
 
 			'cell_line(stable)' => {
 				'ATP_topic' => 'ATP:0000008',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 				'note' => 'Stable line generated', # this is what is on FTYP form
-				'use_suffix_for_curation_status' => '1',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'cell_line',
+					'use_filename' => 'cell_line',
+				},
+
 			},
 
 			'chemical' => {
 				'ATP_topic' => 'ATP:0000094',
-#				'use_suffix_for_curation_status' => '1',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'chemical',
+					'use_filename' => 'chemical',
+				},
+
 			},
 
 			'cis_reg' => {
@@ -231,43 +267,77 @@ sub get_flag_mapping {
 
 			'gene_model' => {
 				'ATP_topic' => 'ATP:0000054',
+				'for_curation_status' => {
+					'suffix' => 'only',
+				},
 			},
 
 			'genom_feat' => {
 				'ATP_topic' => 'ATP:0000056',
-				'use_suffix_for_curation_status' => '1',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'use_filename' => 'args',
+					'get_curated_data' => 'genom_feat',
+				},
+
 			},
 
 			'genome_feat' => {
 				'ATP_topic' => 'ATP:0000056',
-				'use_suffix_for_curation_status' => '1',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'use_filename' => 'args',
+					'get_curated_data' => 'genom_feat',
+				},
+
 			},
 
 			'pert_exp' => {
 				'ATP_topic' => 'ATP:0000042',
 				# not curator only - was in original version of FTYP
+
 			},
 
 			'phys_int' => {
 				'ATP_topic' => 'ATP:0000069',
-				'use_suffix_for_curation_status' => '1',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'phys_int',
+					'use_filename' => 'phys_int',
+				},
+
 			},
 
 			'wt_cell_line' => {
 				'ATP_topic' => 'ATP:0000008',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
-				'use_suffix_for_curation_status' => '1',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'cell_line',
+					'use_filename' => 'cell_line',
+				},
+
 			},
 
 			'wt_exp' => {
 				'ATP_topic' => 'ATP:0000041',
-				'use_suffix_for_curation_status' => '1',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'expression_annotation',
+					'use_filename' => 'wt_exp',
+				},
+
 			},
 
 			'neur_exp' => {
 				'ATP_topic' => 'ATP:0000338',
 				'curator_only' => '1',
-				'use_suffix_for_curation_status' => '1',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'expression_annotation',
+					'use_filename' => 'neur_exp',
+				},
+
 			},
 		},
 
@@ -278,8 +348,10 @@ sub get_flag_mapping {
 				'ATP_topic' => 'ATP:0000031',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 				'data_novelty' => 'ATP:0000229', # new to field
-				'use_suffix_for_curation_status' => '1',
 
+				'for_curation_status' => {
+					'suffix' => 'only',
+				},
 			},
 
 		},

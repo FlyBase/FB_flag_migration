@@ -5,7 +5,7 @@ use warnings;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw(get_relevant_curator get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_flaglist_with_suffix get_timestamps_for_pubprop_value get_relevant_currec_for_datatype);
+our @EXPORT = qw(get_relevant_curator get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_flaglist_with_suffix get_timestamps_for_pubprop_value get_relevant_currec_for_datatype get_matching_pubprop_value_with_timestamps);
 
 
 =head1 MODULE: AuditTable
@@ -419,10 +419,6 @@ o $pub_id is the pub_id of the reference.
 
 o $audit_timestamp is the 'I' timestamp(s) from the audit_chado table for matching pubprops (contain $string) of the specified $pubprop_type. The $audit_timestamp values are sorted earliest to latest within the array.
 
-NOTE: if the $pubprop type is one of the ones that contains triage flags (cam_flag, harv_flag, dis_flag, onto_flag), the script prints a warning to the terminal suggesting that it may be more appropriate to use either the get_flag_info_with_audit_data or get_timestamps_for_flag_with_suffix subroutine.
-
-
-
 
 =cut
 
@@ -434,6 +430,7 @@ NOTE: if the $pubprop type is one of the ones that contains triage flags (cam_fl
 
 
 	my ($dbh, $pubprop_type, $string) = @_;
+
 
 	my $data = {};
 
@@ -488,6 +485,11 @@ Arguments:
 		'cell_line' => '.+?\.(cell|cell_multiple|cell_multi)\..+?',
 		'phys_int' => '.+?\.(int|int_miRNA)\..+?',
 		'DO' => '.+?\.DO\..+?',
+		'neur_exp' => '.+?\.vfb\..+?',
+		'wt_exp' => '.+?\.(exp|fex)\..+?',
+		'chemical' => '.+?\.chem\..+?',
+		'args' => '.+?\.args\..+?',
+
 
 	};
 
@@ -499,7 +501,7 @@ Arguments:
 	my $data_by_timestamp = {};
 	my $data_by_curator = {};
 
-	my $sql_query=sprintf("select distinct pp.pub_id, pp.value, ac.transaction_timestamp, pp.pubprop_id from  pubprop pp, cvterm c, audit_chado ac where ac.audited_table='pubprop' and ac.audit_transaction='I' and pp.pubprop_id=ac.record_pkey and c.cvterm_id=pp.type_id and c.name = 'curated_by' and pp.value ~'Proforma: %s;timelastmodified'", $datatype_mapping->{$datatype});
+	my $sql_query=sprintf("select distinct pp.pub_id, pp.value, ac.transaction_timestamp, pp.pubprop_id from  pubprop pp, cvterm c, audit_chado ac where ac.audited_table='pubprop' and ac.audit_transaction='I' and pp.pubprop_id=ac.record_pkey and c.cvterm_id=pp.type_id and c.name = 'curated_by' and pp.value ~'Proforma: %s;timelastmodified' order by ac.transaction_timestamp", $datatype_mapping->{$datatype});
 
 	my $db_query = $dbh->prepare($sql_query);
 	$db_query->execute or die "WARNING: ERROR: Unable to execute get_relevant_currec_for_datatype query ($!)\n";
@@ -507,16 +509,32 @@ Arguments:
 
 	while (my ($pub_id, $curated_by_value, $curated_by_audit_timestamp, $curated_by_pubprop_id) = $db_query->fetchrow_array) {
 
+
 		if ($curated_by_value =~ m/^Curator: (.+?);Proforma: (.+?);timelastmodified: (.*)$/) {
 
 			my $curator = $1;
 			my $record_number = $2;
 			my $timelastmodified = $3;
+			my $exclude_switch = 0;
+
+			# exclude edit records as this is by definition partial curation
+			if ($record_number =~ m/edit/) {
+				$exclude_switch++;
+			}
+
+			# for records corresponding to wt_exp datatype, exclude vfb records as those correspond to the more specific neur_exp datatype
+			if ($datatype eq 'wt_exp') {
+				if ($record_number =~ m/vfb/) {
+					$exclude_switch++;
+				}
+			}
 
 
-			$data_by_timestamp->{$pub_id}->{$curated_by_audit_timestamp}->{$curator}->{$record_number}++;
-			$data_by_curator->{$pub_id}->{$curator}->{$curated_by_audit_timestamp}->{$record_number}++;
+			unless ($exclude_switch) {
 
+				push @{$data_by_timestamp->{$pub_id}}, $curated_by_audit_timestamp;
+				$data_by_curator->{$pub_id}->{$curator}->{$curated_by_audit_timestamp}->{$record_number}++;
+			}
 
 		} else {
 			# not expecting to trip this error
@@ -527,3 +545,76 @@ Arguments:
 	return ($data_by_timestamp, $data_by_curator);
 }
 
+
+sub get_matching_pubprop_value_with_timestamps {
+
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    get_matching_pubprop_value_with_timestamps
+	Usage:    get_matching_pubprop_value_with_timestamps(database_handle,$pubprop_type,$string);
+	Function: Gets pubprop information of the type given in the second argument with a value that contains the string given in the third argument; returns the pubprop value(s) and timestamps.
+	Example:  my $phys_int_internal_notes = &get_matching_pubprop_value_with_timestamps($dbh,'internalnotes','phys_int not curated');
+
+Arguments:
+
+o $pubprop_type - the pubprop type you are interested in.
+
+o $string - the string that you want the pubprops to contain. The search will find this string anywhere in the pubprop value and it may be all or part of the value.
+
+
+
+Returns:
+
+The returned hash reference has the following structure:
+
+@{$data->{$pub_id}->{$line}}, $audit_timestamp;
+
+
+o $pub_id is the pub_id of the reference.
+
+o $line is the value of any single line from the pubprop of the type you are interested in that contains the string you are interested in. If the pubprop contains multiple lines that is separated by returns (e.g. this is common for internalnotes), the pubprop is first split into separate lines, and only those lines that contain the string are stored.
+
+o $audit_timestamp is the 'I' timestamp(s) from the audit_chado table for the matching $line. The $audit_timestamp values are sorted earliest to latest within the array.
+
+
+=cut
+
+
+	unless (@_ == 3) {
+
+		die "Wrong number of parameters passed to the get_matching_pubprop_value_with_timestamps subroutine\n";
+	}
+
+
+	my ($dbh, $pubprop_type, $string) = @_;
+
+	my $data = {};
+
+
+
+	my $sql_query = sprintf("select distinct pp.pub_id, pp.value, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value ~'%s' and c.cvterm_id=pp.type_id  and c.name ='%s' and ac.audited_table='pubprop' and ac.audit_transaction = 'I' and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp",$string, $pubprop_type);
+	my $db_query = $dbh->prepare($sql_query);
+	$db_query->execute or die "WARNING: ERROR: Unable to execute get_timestamps_for_pubprop_value query ($!)\n";
+
+
+	while (my ($pub_id, $value, $audit_timestamp) = $db_query->fetchrow_array) {
+
+		my @lines = split /\n/m, $value;
+
+		foreach my $line (@lines) {
+			if ($line =~ m/$string/) {
+				push @{$data->{$pub_id}->{$line}}, $audit_timestamp;
+
+			}
+
+		}
+
+	}
+
+	return $data;
+
+}

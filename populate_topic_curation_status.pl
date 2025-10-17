@@ -47,11 +47,7 @@ USAGE: perl populate_topic_curation_status.pl pg_server db_name pg_username pg_p
 
 Mapping hashes: 
 
-
-o $flag_mapping - standard mapping hash obtained from &get_flag_mapping, contains relevant mapping information and metadata for triage flags that we DO want to submit to the Alliance. This hash is structured from the point of view of the FB triage flags, and is used to build the $curation_status_topics hash detailed below.
-
-
-o $curation_status_topics - mapping hash of topics that we want to submit curation status information for to the Alliance. This hash is structured from the point of view of the relevant ATP topics, to make processing easier. This hash is built using the information in the $flag_mapping hash, and more than one FB triage flag can collapse down to a single ATP topic for curation status tracking.
+o $curation_status_topics - mapping hash of topics that we want to submit curation status information for to the Alliance. This hash is structured from the point of view of the relevant ATP topics, to make processing easier. This hash is built using the information in the standard $flag_mapping mapping hash obtained from the &get_flag_mapping subroutine; more than one FB triage flag in the $flag_mapping mapping hash can collapse down to a single ATP topic for curation status tracking.
 
 
 o $flag_suffix_mapping - mapping of FB triage flag suffixes to:
@@ -59,23 +55,21 @@ o $flag_suffix_mapping - mapping of FB triage flag suffixes to:
   o either the appropriate ATP term describing curation status; terms are children of the 'curation' (ATP:0000230) - workflow tag.
   o or 'undef' if the suffix is not relevant to curation status (so that these irrelevant suffixes can be ignored later on in the script).
 
-1. Uses mapping information 
-
 
 
 Script logic:
 
-1. Builds the $curation_status_topics hash to build a list of the ATP topics topics for which we want to export curation status information to the Alliance.
+1. Builds the $curation_status_topics hash to build a list of the ATP topics for which we want to export curation status information to the Alliance.
 
-2. For each ATP topic in the $curation_status_topics hash:
+2. For each ATP topic in the $curation_status_topics hash the following data is then gathered:
 
-2a. makes a list ($flags_with_suffix) of all pub_id that have any of the relevant FB triage flags for that ATP topic, where the FB triage flag has a suffix. The list stores the FB suffix(es) along with timestamp information for each pub_id.
+2a. If relevant for the topic (when the ATP topic has a 'suffix' key in $curation_status_topics), makes a list ($flags_with_suffix) of all pub_id that have any of the relevant FB triage flags for that ATP topic, where the FB triage flag has a suffix. The list stores the ATP curation status and timestamp information for each pub_id+ATP topic combination.
 
 2b. If relevant for the topic (when the ATP topic has a 'get_curated_data' key in $curation_status_topics), makes a list ($has_curated_data) of all pub_id that have curated data corresponding to the ATP topic (this allows QA/QC later).
 
 2c. If relevant for the topic (when the ATP topic has a 'use_filename' key in $curation_status_topics), makes a list ($currecs_by_timestamp) of all pub_id that are *expected* to contain curated data corresponding to the ATP topic because they have a curation record with the standard filename format for that topic (this allows QA/QC later, and also allows additional information to be exported to the Alliance for those publications that were curated *before* we started using triage flags in FB).
 
-3. Goes through the $flags_with_suffix list of publications made in 2a. and for those suffixes that we want to map to an ATP curation status, stores the ATP curation status and timestamp information for each pub_id.
+3. If appropriate for the ATP topic, goes through the $flags_with_suffix list of publications made in 2a. and for those suffixes that we want to map to an ATP curation status, stores the ATP curation status and timestamp information for each pub_id+ATP topic combination.
 
 3a. As part of this process, for those FB suffixes that we want to map to ATP 'curated' (i.e. the curation has been 'done'), additional QA/QC is done where possible to check that the publication DOES have the relevant kind of curated data before storing the ATP curation status and timestamp information for each pub_id. This is done using either the list made in 2b. of pulications that have the relevant curated data, and/or the list in 2c. of publications that have a curation record with the standard filename format for that topic. This is necessary because for some FB triage flags, the suffix '::DONE' has been used in the past to mean two different things:
 
@@ -84,7 +78,7 @@ o there is data for that triage flag and the relevant curation has been 'done' -
 o the FB triage flag was incorrect and that there is therefore nothing to curate for that particular triage flag - the information for this type is NOT stored in this script as it is not relevant to curation status. Note that no error message is printed in this script for this case as it will instead be dealt with in the separate ticket_scrum-3147-topic-entity-tag.pl script that adds topics to the Alliance, where it will be submitted as an incorrect flag [this is not yet implemented].
 
 
-4. If appropriate for the ATP topic, goes though the $currecs_by_timestamp list made in 2c. of publications that have a curation record with the standard filename format, and for those publications that have not already been taken care of in 3., for those suffixes that we want to map to an ATP curation status, stores the ATP curation status and timestamp information for each pub_id. This is needed to add curation status for publications where the curation topic was done in FB before we started using triage flags. [this is not yet implemented]
+4. If appropriate for the ATP topic, goes though the $currecs_by_timestamp list made in 2c. of publications that have a curation record with the standard filename format for that topic, and for those publications that have not already been taken care of in 3., stores the ATP curation status and timestamp information for each pub_id+ATP topic combination. This is needed to add curation status for publications where the curation was done in FB before we started using triage flags.
 
 
 5. Converts the stored list ATP curation status and timestamp information for each pub_id into json format for submission to the ABC. [this is not yet implemented]
@@ -142,13 +136,21 @@ my $flag_suffix_mapping = {
 
 	'No response to author query' => {
 
-		'curation_status' => 'ATP:0000236', # 'curation blocked' - not sure this is the right status
+		'curation_status' => 'ATP:0000236', # 'curation blocked'
 		'note' => 'No response to author query.',
 	},
 
-# suffixes that do not add information about the curation status of the topic to which the suffix is attached
-	'Inappropriate use of flag' => undef, # this suffix is not related to *curation status* of the topic - will instead need to be used (in different script) to prevent adding the relevant topic
-	'Needs cam curation' => undef, # this suffix is not related to curation status of the topic it is attached to - will instead need to be used to flag that a paper needs manual indexing
+	'Needs cam curation' => {
+
+		'curation_status' => 'ATP:0000236', # 'curation blocked'
+		'note' => 'Needs manual indexing.', # should also add a needs curating status to the manual indexing part in the Alliance
+	},
+
+# suffix that does not add information about the curation status of the topic to which the suffix is attached
+# the information that the topic is incorrect will need to be used (in different script) to prevent adding the relevant topic
+# need to use it here to suppress false-positive WARNING messages 
+	'Inappropriate use of flag' => undef,
+
 
 #	'untouched' => undef, # not sure how to deal with this yes, so commented out to find all the cases
 };
@@ -181,7 +183,7 @@ foreach my $flag_type (sort keys %{$flag_mapping}) {
 
 	foreach my $flag (sort keys %{$flag_mapping->{$flag_type}}) {
 
-		if (exists $flag_mapping->{$flag_type}->{$flag}->{'use_suffix_for_curation_status'}) {
+		if (exists $flag_mapping->{$flag_type}->{$flag}->{'for_curation_status'}) {
 
 			my $ATP = $flag_mapping->{$flag_type}->{$flag}->{ATP_topic};
 
@@ -189,79 +191,62 @@ foreach my $flag_type (sort keys %{$flag_mapping}) {
 
 			push @{$curation_status_topics->{$ATP}->{'flags'}}, $flag;
 
+# assign information from $flag_mapping that was originally under for_curation_status for the flag to a hash where the key has '_list' appended to the end.
+# this allows for QC in 1b. below, to make sure that when multiple FB flags map to a single ATP topic all the curation_status related data for each flag is consistent
+			foreach my $key (sort keys %{$flag_mapping->{$flag_type}->{$flag}->{'for_curation_status'}}) {
 
+
+				my $value = $flag_mapping->{$flag_type}->{$flag}->{'for_curation_status'}->{$key};
+
+				my $list_key = "$key" . "_list";
+				
+				$curation_status_topics->{$ATP}->{$list_key}->{$value}++;
+
+			}
 		}
 	}
 
 }
 
-# 1b. check that each ATP term maps to FB triage flags that are in a single flag_type slot (e.g. harv_flag) in chado
+# 1b. check for data conflicts after populating $curation_status_topics and warn if needed.
+# this checks that when multiple FB triage flags map to a single ATP topic, the curation_status related data coming from each FB triage flag is consistent.
 foreach my $ATP (sort keys %{$curation_status_topics}) {
 
-	if (exists $curation_status_topics->{$ATP}->{flag_type_list}) {
+	foreach my $key (sort keys %{$curation_status_topics->{$ATP}}) {
 
-		if (scalar keys %{$curation_status_topics->{$ATP}->{flag_type_list}} == 1) {
+		if ($key =~ m/_list$/) {
 
-			my $flag_type = join '', keys %{$curation_status_topics->{$ATP}->{flag_type_list}};
+			if (scalar keys %{$curation_status_topics->{$ATP}->{$key}} == 1) {
 
-			$curation_status_topics->{$ATP}->{'flag_type'} = $flag_type;
+				my $key_minus_list = "$key";
+				$key_minus_list =~ s/_list$//;
+				my $value = join '', keys %{$curation_status_topics->{$ATP}->{$key}};
+				$curation_status_topics->{$ATP}->{$key_minus_list} = $value;
+				delete $curation_status_topics->{$ATP}->{$key}; # remove unecessary '_list' branch if passes checks
 
-		} else {
+			} else {
 
-			warn "the ATP term: $ATP is being used for triage flags in different flag_type slots in chado - cannot process this.\n";
+				my $key_minus_list = "$key";
+				$key_minus_list =~ s/_list$//;
 
+				if ($key eq 'flag_type_list') {
+					warn "\$curation_status_topics: The ATP term: $ATP is being used for triage flags in different flag_type slots in chado - cannot process this.\n";
+
+				} else {
+					warn "\$curation_status_topics: $ATP has multiple values in the '$key' slot - cannot process this as it indicates a data conflict.\nValues were: " . (join ' ', (sort keys %{$curation_status_topics->{$ATP}->{$key}})). "\nFix values of the '$key_minus_list' key for flags that map to $ATP in the get_flag_mapping of Mappings.pm to remove the conflict.\n";
+				}
+			}
 		}
+
+
 	}
 }
+
+
+
 
 #print Dumper ($curation_status_topics);
-
-
-# add mapping that will be used to get lists of papers containing the curated datatype for that topic, where appropriate
-# 'get_curated_data' - queries the database directly for the datatype
-# 'use_filename' - gets curation record filenames that are expected to contain the datatype, based on the filename
-my $get_curated_data_mapping = {
-
-	'ATP:0000008' => {
-		'get_curated_data' => 'cell_line',
-		'use_filename' => 'cell_line',
-
-	},
-	'ATP:0000069' => {
-		'get_curated_data' => 'phys_int',
-		'use_filename' => 'phys_int',
-
-	},
-
-	'ATP:0000151' => {
-		'get_curated_data' => 'DO_annotation',
-		'use_filename' => 'DO',
-
-	},
-
-
-};
-
-# add the additional information in $get_curated_data_mapping
-foreach my $ATP (sort keys %{$get_curated_data_mapping}) {
-
-	if (exists $curation_status_topics->{$ATP}) {
-
-		foreach my $key (keys %{$get_curated_data_mapping->{$ATP}}) {
-
-			my $value = $get_curated_data_mapping->{$ATP}->{$key};
-
-			$curation_status_topics->{$ATP}->{$key} = "$get_curated_data_mapping->{$ATP}->{$key}";
-		}
-	} else {
-
-		warn "the ATP term: $ATP is in the \$get_curated_data_mapping hash, but not in the \$curation_status_topics hash.\n";
-
-	}
-
-}
-
-
+#die;
 
 # 2. go through each topic in the $curation_status_topics hash, determine and store curation status, using relevant information for that flag (this is specified in the $curation_status_topics hash).
 
@@ -272,9 +257,10 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 	# get relevant info for the topic
 	# get references with triage flag(s) with suffixes for the flag(s) that correspond to the ATP topic
-	my $flags_with_suffix = &get_timestamps_for_flaglist_with_suffix($dbh,$curation_status_topics->{$ATP}->{'flag_type'},$curation_status_topics->{$ATP}->{'flags'});
-#	print Dumper ($flags_with_suffix);
-
+	my $flags_with_suffix = undef;
+	if (exists $curation_status_topics->{$ATP}->{'suffix'}) {
+		$flags_with_suffix = &get_timestamps_for_flaglist_with_suffix($dbh,$curation_status_topics->{$ATP}->{'flag_type'},$curation_status_topics->{$ATP}->{'flags'});
+	}
 	# if appropriate, get references that have curated data corresponding to the ATP topic (identified from direct db query for references containing the datatype)
 	my $has_curated_data = undef;
 	if (exists $curation_status_topics->{$ATP}->{'get_curated_data'}) {
@@ -288,55 +274,138 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 	}
 
 
-	# assign curation status based on flag suffixes, double-checking that there is curated data of the relevant type, if that is appropriate for the particular flag
-	foreach my $pub_id (sort keys %{$flags_with_suffix}) {
+	# first assign curation status based on flag suffixes, double-checking that there is curated data of the relevant type, if that is appropriate for the particular flag
+	if (defined $flags_with_suffix) {
+		foreach my $pub_id (sort keys %{$flags_with_suffix}) {
 
-		if (scalar keys %{$flags_with_suffix->{$pub_id}} == 1) {
+			if (scalar keys %{$flags_with_suffix->{$pub_id}} == 1) {
 
-			my $suffix = join '', keys %{$flags_with_suffix->{$pub_id}};
+				my $suffix = join '', keys %{$flags_with_suffix->{$pub_id}};
 
-			if (exists $flag_suffix_mapping->{$suffix}) {
+				if (exists $flag_suffix_mapping->{$suffix}) {
 
-				# only consider suffixes that are relevant to curation status
-				if (defined $flag_suffix_mapping->{$suffix}) {
+					# only consider suffixes that are relevant to curation status
+					if (defined $flag_suffix_mapping->{$suffix}) {
 
-					my $flag_timestamp = $flags_with_suffix->{$pub_id}->{$suffix}->{'timestamp'}[-1];
+						my $curation_status = $flag_suffix_mapping->{$suffix}->{curation_status};
+						my $note = exists $flag_suffix_mapping->{$suffix}->{note} ? $flag_suffix_mapping->{$suffix}->{note} : '';
 
-					# DESCRIPTION, Script logic: 3a
-					if (defined $has_curated_data) {
-						if (exists $has_curated_data->{$pub_id}) {
+						my $flag_timestamp = $flags_with_suffix->{$pub_id}->{$suffix}->{'timestamp'}[-1];
 
-							$curation_status_data->{$pub_id}->{$suffix} = $flag_timestamp;
+						my $store_status = 0;
+
+						# flag suffix can be used by itself to store curation status, so store curation status
+						if (exists $curation_status_topics->{$ATP}->{'suffix'} && $curation_status_topics->{$ATP}->{'suffix'} eq 'only') {
+							$store_status++;
+
 						} else {
 
-							# only add curation status for FB triage flags that map to 'curated' when there is curation of the corresponding datatype in the db
+							# always safe to store curation status when it is something other than 'curated' regardless of whether or not FB db contains relevant data
 							unless (exists $flag_suffix_mapping->{$suffix}->{'curation_status'} && $flag_suffix_mapping->{$suffix}->{'curation_status'} eq 'ATP:0000239') {
-
-								$curation_status_data->{$pub_id}->{$suffix} = $flag_timestamp;
-
+								$store_status++;
 							} else {
-								# this represents '::DONE' flags where a curator checked the paper but the flag was incorrect
-								# this is not dealt with here as not relevant to curation status - will be dealt with in ticket_scrum-3147-topic-entity-tag.pl script
-								# print "WARNING: no data despite curated flag suffix: topic: $ATP, pub_id: $pub_id, suffix: $suffix\n";
 
+								# when curation status is 'curated' do additional QA/QC where possible to check that database has curated data of the relevant type
+								# DESCRIPTION, Script logic: 3a - first check for curated data of the appropriate type in the database
+								if (defined $has_curated_data) {
+									if (exists $has_curated_data->{$pub_id}) {
+
+										$store_status++;
+
+									} else {
+
+										# this represents '::DONE' flags where a curator checked the paper but the flag was incorrect
+										# this is not dealt with here as not relevant to curation status - will be dealt with in ticket_scrum-3147-topic-entity-tag.pl script
+										# print "WARNING: no data despite curated flag suffix: topic: $ATP, pub_id: $pub_id, suffix: $suffix\n";
+
+									}
+
+								} else {
+
+									# second, in the absence of a check for curated data, use presence of curation record with expected filename
+									# if there is a curation record with the expected 
+									if (defined $currecs_by_timestamp) {
+
+										if (exists $currecs_by_timestamp->{$pub_id}) {
+
+											my $currec_timestamp = $currecs_by_timestamp->{$pub_id}[-1];
+											$note = $note . "'curated' flag suffix confirmed by presence of currec with expected filename format.";
+											$store_status++;
+										} else {
+											print "WARNING: DONE style flag but no corresponding currec: topic: $ATP, pub_id: $pub_id, suffix: $suffix\n";
+
+
+										}
+
+
+									}
+
+								}
 							}
+						}
+
+						if ($store_status) {
+
+							$curation_status_data->{$pub_id}->{$ATP}->{'curation_status'} = $curation_status;
+							$curation_status_data->{$pub_id}->{$ATP}->{'date_created'} = $flag_timestamp;
+							if ($note) {
+								$curation_status_data->{$pub_id}->{$ATP}->{'note'} = $note;
+							}
+
 						}
 
 					} else {
 
-						$curation_status_data->{$pub_id}->{$suffix} = $flag_timestamp;
+						# this loop adds an undefined 'curation_status' when the suffix is 'Inappropriate use of flag', which prevents any incorrect 'curated' status being added in the 'DESCRIPTION, Script logic: 4' loop below for these cases.
+						if ($suffix eq 'Inappropriate use of flag') {
+							$curation_status_data->{$pub_id}->{$ATP}->{'curation_status'} = undef;
+
+						}
 
 					}
+
+				} else {
+
+					print "ERROR: unknown suffix type: topic: $ATP, pub_id: $pub_id, suffix: $suffix\n";
 				}
 			} else {
-
-				print "ERROR: unknown suffix type: topic: $ATP, pub_id: $pub_id, suffix: $suffix\n";
+				print "ERROR: more than one suffix type for single topic: topic: $ATP, pub_id: $pub_id\n";
 			}
-		} else {
-			print "ERROR: more than one suffix type for single topic: topic: $ATP, pub_id: $pub_id\n";
-		}
 
+		}
 	}
+
+
+
+	#second, assign curation status based on standard record filenames, if not already assigned above (this gets data for papers curated before triage flags were used in FB).
+	# DESCRIPTION, Script logic: 4
+	if (defined $currecs_by_timestamp) {
+
+		foreach my $pub_id (sort keys %{$currecs_by_timestamp}) {
+
+			unless (exists $curation_status_data->{$pub_id} && exists $curation_status_data->{$pub_id}->{$ATP}) {
+
+				my $currec_timestamp = $currecs_by_timestamp->{$pub_id}[-1];
+
+				if (defined $has_curated_data) {
+
+					if (exists $has_curated_data->{$pub_id}) {
+
+						$curation_status_data->{$pub_id}->{$ATP}->{'curation_status'} = 'ATP:0000239';
+						$curation_status_data->{$pub_id}->{$ATP}->{'date_created'} = $currec_timestamp;
+						$curation_status_data->{$pub_id}->{$ATP}->{'note'} = "'curated' status inferred from presence of data plus currec with expected filename format.";
+					} else {
+						print "WARNING: no data despite standard filename: topic: $ATP, pub_id: $pub_id, $currec_timestamp\n";
+					}
+
+				}
+
+
+			}
+
+		}
+	}
+
 	print "$ATP\n";
 	print Dumper ($curation_status_data);
 

@@ -147,13 +147,33 @@ o $data_type is the type of curated data. The value must be present as a key in 
 	# in each case, the sql query requires both the publication AND the curated data to be current.
 	my $mapping = {
 
-		'phys_int' => 'select distinct p.pub_id from pub p, interaction_pub ip, interaction i where p.is_obsolete = \'f\' and p.pub_id = ip.pub_id and ip.interaction_id = i.interaction_id and i.is_obsolete = \'f\'',
-		'cell_line' => 'select distinct p.pub_id from pub p, cell_line_pub cp, cell_line c where p.is_obsolete = \'f\' and p.pub_id = cp.pub_id and cp.cell_line_id = c.cell_line_id',
-		'DO_annotation' => 'select distinct p.pub_id FROM feature f, feature_cvterm fc, cvterm c, pub p, cv where p.is_obsolete = \'f\' and p.pub_id = fc.pub_id and fc.cvterm_id = c.cvterm_id and c.cv_id = cv.cv_id and cv.name = \'disease_ontology\' and c.is_obsolete = \'0\' and fc.feature_id = f.feature_id and f.is_obsolete = \'f\'',
-		'DO_comment' => 'select distinct p.pub_id from feature f, featureprop fp, cvterm cvt, featureprop_pub fpp, pub p where f.feature_id = fp.feature_id and fp.type_id = cvt.cvterm_id and cvt.name = \'hdm_comments\' and f.is_obsolete = \'f\' and fpp.featureprop_id = fp.featureprop_id and fpp.pub_id = p.pub_id and p.is_obsolete = \'f\'',
+		'phys_int' => ['select distinct p.pub_id from pub p, interaction_pub ip, interaction i where p.is_obsolete = \'f\' and p.pub_id = ip.pub_id and ip.interaction_id = i.interaction_id and i.is_obsolete = \'f\''],
+		'cell_line' => ['select distinct p.pub_id from pub p, cell_line_pub cp, cell_line c where p.is_obsolete = \'f\' and p.pub_id = cp.pub_id and cp.cell_line_id = c.cell_line_id'],
 
-		'expression_annotation' => 'select distinct p.pub_id from feature f, feature_expression fe, expression e, pub p where p.is_obsolete = \'f\' and p.pub_id = fe.pub_id and fe.expression_id = e.expression_id and f.feature_id = fe.feature_id and f.is_obsolete = \'f\'',
 
+		'chemical' => ['select distinct p.pub_id from pub p, feature f, feature_pub fp where p.is_obsolete = \'f\' and p.pub_id = fp.pub_id and f.feature_id = fp.feature_id and f.is_obsolete = \'f\' and f.uniquename ~\'^FBch\''],
+
+		'DO_annotation' => ['select distinct p.pub_id FROM feature f, feature_cvterm fc, cvterm c, pub p, cv where p.is_obsolete = \'f\' and p.pub_id = fc.pub_id and fc.cvterm_id = c.cvterm_id and c.cv_id = cv.cv_id and cv.name = \'disease_ontology\' and c.is_obsolete = \'0\' and fc.feature_id = f.feature_id and f.is_obsolete = \'f\''],
+		'DO_comment' => ['select distinct p.pub_id from feature f, featureprop fp, cvterm cvt, featureprop_pub fpp, pub p where f.feature_id = fp.feature_id and fp.type_id = cvt.cvterm_id and cvt.name = \'hdm_comments\' and f.is_obsolete = \'f\' and fpp.featureprop_id = fp.featureprop_id and fpp.pub_id = p.pub_id and p.is_obsolete = \'f\''],
+
+# two different queries are needed to get publications with expression data
+# the first gets publications with curated controlled expression (TAP) statements
+# the second gets publications where a polypeptide/transcript/ reporter was used as a marker for an anatomical structure
+		'expression_annotation' => ['select distinct p.pub_id from feature f, feature_expression fe, expression e, pub p where p.is_obsolete = \'f\' and p.pub_id = fe.pub_id and fe.expression_id = e.expression_id and f.feature_id = fe.feature_id and f.is_obsolete = \'f\'',
+		'select distinct p.pub_id, f.name FROM feature f, feature_cvterm fc, feature_cvtermprop fcp, cvterm cvt, pub p where p.is_obsolete = \'f\' and p.pub_id = fc.pub_id and fc.feature_cvterm_id = fcp.feature_cvterm_id and fcp.type_id = cvt.cvterm_id and cvt.name = \'bodypart_expression_marker\' and fc.feature_id = f.feature_id and f.is_obsolete = \'f\''
+
+
+],
+
+# two different queries are needed to get publications with genom_feat data
+# the first gets publications which contain features representing variations that are mapped to the genome - the cvterms used in this query are based on those in the 'variation' feature_subtypes information in alliance-linkml-flybase code, with the addition of 'rescue_region'.
+# the second gets publications where there is sequence location information for transgenic insertions
+		'genom_feat' => ['select distinct p.pub_id from pub p, feature f, feature_pub fp, cvterm cvt where p.is_obsolete = \'f\' and p.pub_id = fp.pub_id and f.feature_id = fp.feature_id and f.is_obsolete = \'f\' and f.type_id = cvt.cvterm_id and cvt.name in (\'MNV\', \'complex_substitution\', \'deletion\', \'delins\', \'insertion\', \'point_mutation\', \'sequence_alteration\', \'sequence_variant\', \'rescue_region\') and cvt.is_obsolete = \'0\'',
+
+				'select distinct p.pub_id from feature f, pub p, featureloc_pub flp, featureloc fl where p.pub_id = flp.pub_id and flp.featureloc_id = fl.featureloc_id and fl.feature_id = f.feature_id and f.is_obsolete = \'f\' and p.is_obsolete = \'f\' and f.uniquename ~\'^FBti\''
+
+
+],
 
 	};
 
@@ -165,16 +185,17 @@ o $data_type is the type of curated data. The value must be present as a key in 
 
 	my $data = {};
 
-	my $sql_query = sprintf("$mapping->{$data_type}");
-	my $db_query = $dbh->prepare($sql_query);
-	$db_query->execute or die "WARNING: ERROR: Unable to execute pub_has_curated_data query ($!)\n";
+	foreach my $query_text (@{$mapping->{$data_type}}) {
+		my $sql_query = sprintf("$query_text");
+		my $db_query = $dbh->prepare($sql_query);
+		$db_query->execute or die "WARNING: ERROR: Unable to execute pub_has_curated_data query ($!)\n";
 
-	while (my ($pub_id) = $db_query->fetchrow_array) {
+		while (my ($pub_id) = $db_query->fetchrow_array) {
 
 
-		$data->{$pub_id} = undef;
+			$data->{$pub_id} = undef;
+		}
 	}
-
 	return $data;
 
 
