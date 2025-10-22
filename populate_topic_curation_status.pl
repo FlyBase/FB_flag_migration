@@ -168,13 +168,17 @@ my $flag_suffix_mapping = {
 		'note' => 'Needs manual indexing.', # should also add a needs curating status to the manual indexing part in the Alliance
 	},
 
+	'untouched' => {
+
+		'curation_status' => 'ATP:0000239', # set to 'curated' so that the relevant topic goes through the QA/QC that resets status depending on curated data and/or curation record filename.
+	},
+
 # suffix that does not add information about the curation status of the topic to which the suffix is attached
 # the information that the topic is incorrect will need to be used (in different script) to prevent adding the relevant topic
 # need to use it here to suppress false-positive WARNING messages 
 	'Inappropriate use of flag' => undef,
 
 
-#	'untouched' => undef, # not sure how to deal with this yes, so commented out to find all the cases
 };
 
 
