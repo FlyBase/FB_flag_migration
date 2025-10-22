@@ -103,6 +103,12 @@ Again, the curation status is stored along with any relevant 'controlled_tag' an
 
 NOTE: The script uses the above more complicated logic rather than only using the list made in 2b. of publications that that have curated data corresponding to the ATP topic data because the presence of data in the database does not give any indication of how *complete* the curation is for a given topic, but that detail can be mapped from the FB flag suffixes and standard curation record filename information.
 
+NOTE on timestamps:
+
+o For timestamps determined from the FB triage flag suffix, the *latest* timestamp for the pub+triage flag combination in FB is used, because this should correspond to the timestamp of when the curation of the datatype occurred (the earliest timestamp can indicate the timestamp when the triage flag (without suffix) was added to the database, rather than the curation of the datatype).
+
+o For timestamps determined from curation record(s) with the standard filename format expected for that datatype, the *earliest* timestamp for any matching records for the pub+topic combination in FB is used, because this should correspond to the first (main) curation record containing the curation for that datatype (rather than any subsequent edits).
+
 =cut
 
 
@@ -289,6 +295,12 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 		($currecs_by_timestamp, undef) = &get_relevant_currec_for_datatype($dbh,$curation_status_topics->{$ATP}->{'use_filename'});
 	}
 
+	#additional 'cam_full' curation record filename info - needed for pheno flag
+	my $cam_full_by_timestamp = undef;
+	if (exists $curation_status_topics->{$ATP}->{'use_cam_full_filename'}) {
+		($cam_full_by_timestamp, undef) = &get_relevant_currec_for_datatype($dbh,'cam_full');
+	}
+
 	# if appropriate, get internal notes relevant to curation status for the flag
 	my $relevant_internal_notes = undef;
 	if (exists $curation_status_topics->{$ATP}->{'relevant_internal_note'}) {
@@ -324,7 +336,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 						$note =~ s/^ //;
 
 
-						my $flag_timestamp = $flags_with_suffix->{$pub_id}->{$suffix}->{'timestamp'}[-1];
+						my $timestamp = $flags_with_suffix->{$pub_id}->{$suffix}->{'timestamp'}[-1];
 
 						my $store_status = 0;
 
@@ -399,8 +411,6 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 									if (defined $currecs_by_timestamp) {
 
 										if (exists $currecs_by_timestamp->{$pub_id}) {
-
-											my $currec_timestamp = $currecs_by_timestamp->{$pub_id}[-1];
 											$note = $note . " 'curated' flag suffix confirmed by presence of currec with expected filename format.";
 											$store_status++;
 										} else {
@@ -422,7 +432,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 						if ($store_status) {
 
 							$curation_status_data->{$pub_id}->{$ATP}->{'curation_status'} = $curation_status;
-							$curation_status_data->{$pub_id}->{$ATP}->{'date_created'} = $flag_timestamp;
+							$curation_status_data->{$pub_id}->{$ATP}->{'date_created'} = $timestamp;
 							
 							if ($note) {
 								$curation_status_data->{$pub_id}->{$ATP}->{'note'} = $note;
@@ -465,7 +475,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 			unless (exists $curation_status_data->{$pub_id} && exists $curation_status_data->{$pub_id}->{$ATP}) {
 
-				my $timestamp = $currecs_by_timestamp->{$pub_id}[-1];
+				# get the timestamp of the *earliest* matching curation record
+				my $timestamp = $currecs_by_timestamp->{$pub_id}[0];
 
 				if (defined $has_curated_data) {
 
@@ -586,6 +597,59 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 		}
 	}
+
+####
+	#for phenotype datatype, additional check for older curation record with older filename format indicating 'full' curation by cam.
+	if (defined $cam_full_by_timestamp) {
+
+		foreach my $pub_id (sort keys %{$cam_full_by_timestamp}) {
+
+			unless (exists $curation_status_data->{$pub_id} && exists $curation_status_data->{$pub_id}->{$ATP}) {
+
+				# get the timestamp of the *earliest* matching curation record, so that get first relevant record and not any subsequent 'plain' format filename that represented edits, before we started using .edit format
+				my $timestamp = $cam_full_by_timestamp->{$pub_id}[0];
+
+				# add curation status if there is phenotypic data - it is expected that many of this kind of curation record will NOT contain phenotype data,
+				# so no need for else loop with warning
+				if (defined $has_curated_data) {
+
+					if (exists $has_curated_data->{$pub_id}) {
+
+						my $curation_status = 'ATP:0000239';
+						my $note = '';
+
+						if (defined $relevant_internal_notes && exists $relevant_internal_notes->{$pub_id}) {
+							$note = $note . (join ' ', sort keys %{$relevant_internal_notes->{$pub_id}});
+
+						}
+
+						unless ($note) {
+							$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
+
+						}
+
+						$note =~ s/^ //;
+						$note =~ s/ $//;
+
+						$curation_status_data->{$pub_id}->{$ATP}->{'curation_status'} = $curation_status;
+						$curation_status_data->{$pub_id}->{$ATP}->{'date_created'} = $timestamp;
+
+						if ($note) {
+							$curation_status_data->{$pub_id}->{$ATP}->{'note'} = $note;
+						}
+
+
+					}
+
+				}
+
+
+			}
+
+		}
+	}
+####
+
 
 	print "$ATP\n";
 	print Dumper ($curation_status_data);

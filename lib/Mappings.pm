@@ -86,6 +86,7 @@ sub get_flag_mapping {
 					'get_curated_data' => 'phenotype',
 					'use_filename' => 'phen',
 					'relevant_internal_note' => 'only pheno_chem data in paper|No phenotypic data in paper|phen_cur: CV annotations only',
+					'use_cam_full_filename' => '1',
 				},
 			},
 
