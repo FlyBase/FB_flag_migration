@@ -153,8 +153,8 @@ o $data_type is the type of curated data. The value must be present as a key in 
 
 		'chemical' => ['select distinct p.pub_id from pub p, feature f, feature_pub fp where p.is_obsolete = \'f\' and p.pub_id = fp.pub_id and f.feature_id = fp.feature_id and f.is_obsolete = \'f\' and f.uniquename ~\'^FBch\''],
 
-		'DO_annotation' => ['select distinct p.pub_id FROM feature f, feature_cvterm fc, cvterm c, pub p, cv where p.is_obsolete = \'f\' and p.pub_id = fc.pub_id and fc.cvterm_id = c.cvterm_id and c.cv_id = cv.cv_id and cv.name = \'disease_ontology\' and c.is_obsolete = \'0\' and fc.feature_id = f.feature_id and f.is_obsolete = \'f\''],
-		'DO_comment' => ['select distinct p.pub_id from feature f, featureprop fp, cvterm cvt, featureprop_pub fpp, pub p where f.feature_id = fp.feature_id and fp.type_id = cvt.cvterm_id and cvt.name = \'hdm_comments\' and f.is_obsolete = \'f\' and fpp.featureprop_id = fp.featureprop_id and fpp.pub_id = p.pub_id and p.is_obsolete = \'f\''],
+		'DO_annotation' => ['select distinct p.pub_id FROM feature f, feature_cvterm fc, cvterm c, pub p, cv where p.is_obsolete = \'f\' and p.pub_id = fc.pub_id and fc.cvterm_id = c.cvterm_id and c.cv_id = cv.cv_id and cv.name = \'disease_ontology\' and c.is_obsolete = \'0\' and fc.feature_id = f.feature_id and f.is_obsolete = \'f\'',
+				'select distinct p.pub_id from feature f, featureprop fp, cvterm cvt, featureprop_pub fpp, pub p where f.feature_id = fp.feature_id and fp.type_id = cvt.cvterm_id and cvt.name = \'hdm_comments\' and f.is_obsolete = \'f\' and fpp.featureprop_id = fp.featureprop_id and fpp.pub_id = p.pub_id and p.is_obsolete = \'f\''],
 
 # two different queries are needed to get publications with expression data
 # the first gets publications with curated controlled expression (TAP) statements
@@ -168,9 +168,12 @@ o $data_type is the type of curated data. The value must be present as a key in 
 # two different queries are needed to get publications with genom_feat data
 # the first gets publications which contain features representing variations that are mapped to the genome - the cvterms used in this query are based on those in the 'variation' feature_subtypes information in alliance-linkml-flybase code, with the addition of 'rescue_region'.
 # the second gets publications where there is sequence location information for transgenic insertions
+# the third gets publications where there is sequence location information for aberration breakpoints
 		'genom_feat' => ['select distinct p.pub_id from pub p, feature f, feature_pub fp, cvterm cvt where p.is_obsolete = \'f\' and p.pub_id = fp.pub_id and f.feature_id = fp.feature_id and f.is_obsolete = \'f\' and f.type_id = cvt.cvterm_id and cvt.name in (\'MNV\', \'complex_substitution\', \'deletion\', \'delins\', \'insertion\', \'point_mutation\', \'sequence_alteration\', \'sequence_variant\', \'rescue_region\') and cvt.is_obsolete = \'0\'',
 
-				'select distinct p.pub_id from feature f, pub p, featureloc_pub flp, featureloc fl where p.pub_id = flp.pub_id and flp.featureloc_id = fl.featureloc_id and fl.feature_id = f.feature_id and f.is_obsolete = \'f\' and p.is_obsolete = \'f\' and f.uniquename ~\'^FBti\''
+				'select distinct p.pub_id from feature f, pub p, featureloc_pub flp, featureloc fl where p.pub_id = flp.pub_id and flp.featureloc_id = fl.featureloc_id and fl.feature_id = f.feature_id and f.is_obsolete = \'f\' and p.is_obsolete = \'f\' and f.uniquename ~\'^FBti\'',
+
+				'select distinct p.pub_id from feature f, pub p, featureloc_pub flp, featureloc fl where p.pub_id = flp.pub_id and flp.featureloc_id = fl.featureloc_id and fl.feature_id = f.feature_id and f.is_obsolete = \'f\' and p.is_obsolete = \'f\' and f.uniquename ~\':bk\''
 
 
 ],
@@ -180,7 +183,7 @@ o $data_type is the type of curated data. The value must be present as a key in 
 		'phenotype' => ['select distinct p.pub_id from phenstatement ps, pub p, genotype g where p.is_obsolete = \'f\' and p.pub_id = ps.pub_id and ps.genotype_id = g.genotype_id and g.is_obsolete = \'f\'',
 				'select distinct p.pub_id from phenotype_comparison pc, pub p, genotype g1, genotype g2 where p.is_obsolete = \'f\' and p.pub_id = pc.pub_id and pc.genotype1_id = g1.genotype_id and g1.is_obsolete = \'f\' and pc.genotype2_id = g2.genotype_id and g2.is_obsolete = \'f\'',
 
-				'select distinct p.pub_id from phendesc pd, pub p, genotype g where p.is_obsolete = \'f\' and p.pub_id = pd.pub_id and pd.genotype_id = g.genotype_id and g.is_obsolete = \'f\'',
+				'select distinct p.pub_id from phendesc pd, pub p, genotype g where p.is_obsolete = \'f\' and p.pub_id = pd.pub_id and pd.genotype_id = g.genotype_id and g.is_obsolete = \'f\''
 
 ],
 

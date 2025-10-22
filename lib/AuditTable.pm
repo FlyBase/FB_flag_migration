@@ -485,7 +485,7 @@ Arguments:
 		'cell_line' => '.+?\.(cell|cell_multiple|cell_multi)\..+?',
 		'phys_int' => '.+?\.(int|int_miRNA)\..+?',
 		'DO' => '.+?\.DO\..+?',
-		'neur_exp' => '.+?\.vfb\..+?',
+		'neur_exp' => '.+?\.vfb\.exp.+?',
 		'wt_exp' => '.+?\.(exp|fex)\..+?',
 		'chemical' => '.+?\.chem\..+?',
 		'args' => '.+?\.args\..+?',

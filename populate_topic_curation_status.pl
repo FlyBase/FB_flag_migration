@@ -389,16 +389,28 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 												}
 											} else {
+												$curation_status = 'ATP:0000299'; # won't curate
+												$curation_tag = 'ATP:0000226'; # no curatable data
 
-												print "WARNING: no data despite curated flag suffix: topic (phys_int loop): $ATP, pub_id: $pub_id, suffix: $suffix, note: $note\n";
+												$note = $note . "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB, so status set to 'won't curate' with a 'no curatable data' tag.";
+												$store_status++;
+
+												#print "WARNING: no data despite curated flag suffix: topic (phys_int loop): $ATP, pub_id: $pub_id, suffix: $suffix, note: $note\n";
 
 											}
 
+										# loop to deal with genom_feat - flag may be on primary paper, while details are in a related pc, so add the curation status as 'done' with a warning note
+										} elsif ($ATP eq 'ATP:0000056') {
+
+											$note = $note . "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB. Despite this, set status to 'curated' as attribution may be to a related personal communication (after author correspondence) instead of the original reference.";
+											$store_status++;
 
 										} else {
+											$curation_status = 'ATP:0000299'; # won't curate
+											$curation_tag = 'ATP:0000226'; # no curatable data
 
-											print "WARNING: no data despite curated flag suffix: topic: $ATP, pub_id: $pub_id, suffix: $suffix, note: $note\n";
-
+											$note = $note . "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB, so status set to 'won't curate' with a 'no curatable data' tag.";
+											$store_status++;
 
 										}
 
@@ -566,7 +578,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 						} else {
 
 
-							print "WARNING: no data despite standard filename: topic: $ATP, pub_id: $pub_id, $timestamp\n";
+							#print "WARNING: no data despite standard filename: topic: $ATP, pub_id: $pub_id, $timestamp\n";
 
 						}
 					}
