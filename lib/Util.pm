@@ -175,6 +175,15 @@ o $data_type is the type of curated data. The value must be present as a key in 
 
 ],
 
+
+# queries needed to get phenotypic data - includes phenstatement (controlled phenotype lines), phenotype_comparison (genetic interactions, complementation, rescue data), phendesc (free text related to phenstatement, phenotype_comparison)
+		'phenotype' => ['select distinct p.pub_id from phenstatement ps, pub p, genotype g where p.is_obsolete = \'f\' and p.pub_id = ps.pub_id and ps.genotype_id = g.genotype_id and g.is_obsolete = \'f\'',
+				'select distinct p.pub_id from phenotype_comparison pc, pub p, genotype g1, genotype g2 where p.is_obsolete = \'f\' and p.pub_id = pc.pub_id and pc.genotype1_id = g1.genotype_id and g1.is_obsolete = \'f\' and pc.genotype2_id = g2.genotype_id and g2.is_obsolete = \'f\'',
+
+				'select distinct p.pub_id from phendesc pd, pub p, genotype g where p.is_obsolete = \'f\' and p.pub_id = pd.pub_id and pd.genotype_id = g.genotype_id and g.is_obsolete = \'f\'',
+
+],
+
 	};
 
 

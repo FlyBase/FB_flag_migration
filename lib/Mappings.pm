@@ -82,6 +82,11 @@ sub get_flag_mapping {
 				'ATP_topic' => 'ATP:0000079',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 				'data_novelty' => 'ATP:0000321', # new data
+				'for_curation_status' => {
+					'get_curated_data' => 'phenotype',
+					'use_filename' => 'phen',
+					'relevant_internal_note' => 'only pheno_chem data in paper|No phenotypic data in paper|phen_cur: CV annotations only',
+				},
 			},
 
 			'pheno_anat' => {
@@ -304,6 +309,7 @@ sub get_flag_mapping {
 					'suffix' => 'use',
 					'get_curated_data' => 'phys_int',
 					'use_filename' => 'phys_int',
+					'relevant_internal_note' => 'phys_int not curated',
 				},
 
 			},
@@ -420,7 +426,7 @@ sub get_flags_to_ignore {
 			'gene_model_nonmel' => '1',
 			'no_flag' => '1', # need to double-check with harvcur
 			'diseaseF' => '1', # need to double-check with harvcur
-			'marker' => '1', # need to double-check with harvcur
+			'marker' => '1',
 	
 		},
 

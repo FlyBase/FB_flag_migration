@@ -489,6 +489,9 @@ Arguments:
 		'wt_exp' => '.+?\.(exp|fex)\..+?',
 		'chemical' => '.+?\.chem\..+?',
 		'args' => '.+?\.args\..+?',
+		'phen' => '[a-z][a-z][0-9]{1,}\.phen',
+		'cam_full' => '(ma|sb|rd|sf|tj|al|sm|cm|pm|gm|ao|cp|lp|sp|sr|rs|ra|ds|ew|cy)[0-9]{1,}(\.(h|hf))?',
+
 
 
 	};
