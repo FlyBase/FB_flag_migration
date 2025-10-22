@@ -360,10 +360,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 									} else {
 
-										# this represents '::DONE' flags where a curator checked the paper but the flag was incorrect
-										# adding a topic with 'no data' is not done here as not relevant to curation status - will be dealt with in ticket_scrum-3147-topic-entity-tag.pl script
-
-										# if there is no curated data but there is a relevant internal note that indicates a curator looked and there was nothing to curate, add here with a status of 'not curatable'
+										# this represents cases where there is a DONE flag suffix but no corresponding curated data
+										# add the appropriate curation status along with a curation_tag/note to explain the situation
 
 										# loop to deal with phys_int
 										if ($ATP eq 'ATP:0000069') {
