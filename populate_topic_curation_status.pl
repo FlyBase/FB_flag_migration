@@ -199,7 +199,7 @@ my $flag_suffix_mapping = {
 my $pub_id_to_FBrf = {};
 
 
-my $sql_query = sprintf("select p.uniquename, p.pub_id, cvt.name from pub p, cvterm cvt where p.is_obsolete = 'f' and p.type_id = cvt.cvterm_id and cvt.is_obsolete = '0'");
+my $sql_query = sprintf("select p.uniquename, p.pub_id, cvt.name from pub p, cvterm cvt where p.is_obsolete = 'f' and p.type_id = cvt.cvterm_id and cvt.is_obsolete = '0' and cvt.name in ('paper', 'erratum', 'letter', 'note', 'teaching note', 'supplementary material', 'retraction', 'personal communication to FlyBase', 'review')");
 my $db_query= $dbh->prepare  ($sql_query);
 $db_query->execute or die" CAN'T GET FBrf FROM CHADO:\n$sql_query)\n";
 while (my ($uniquename, $pub_id, $pub_type) = $db_query->fetchrow_array()) {
@@ -582,7 +582,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 								}
 							} else {
 
-
+								# keep this warning - will identify any papers with missing 'No phenotypic data in paper' internal note
 								print "WARNING: no data despite standard filename (pheno loop): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
 
 							}
@@ -704,9 +704,6 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 				}
 			}
-		} else {
-
-			print "WARNING: data for obosolete pub_id: $pub_id\n";
 		}
 
 	}
