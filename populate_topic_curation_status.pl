@@ -196,6 +196,16 @@ my $flag_suffix_mapping = {
 #  "curation_tag": # this is for the 'controlled_note' - most are negative 
 #}
 
+my $pub_id_to_FBrf = {};
+
+
+my $sql_query = sprintf("select p.uniquename, p.pub_id, cvt.name from pub p, cvterm cvt where p.is_obsolete = 'f' and p.type_id = cvt.cvterm_id and cvt.is_obsolete = '0'");
+my $db_query= $dbh->prepare  ($sql_query);
+$db_query->execute or die" CAN'T GET FBrf FROM CHADO:\n$sql_query)\n";
+while (my ($uniquename, $pub_id, $pub_type) = $db_query->fetchrow_array()) {
+  $pub_id_to_FBrf->{$pub_id}->{'FBrf'} = $uniquename;
+  $pub_id_to_FBrf->{$pub_id}->{'type'} = $pub_type;
+}
 
 
 # 1. Use the mapping information obtained from &get_flag_mapping to make a $curation_status_topics mapping hash
@@ -546,7 +556,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 								}
 							} else {
 
-								print "no data despite standard filename (phys_int loop): topic: $ATP, pub_id: $pub_id, $timestamp\n";
+								print "WARNING: no data despite standard filename (phys_int loop): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
 
 							}
 
@@ -572,7 +582,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 								}
 							} else {
 
-								print "no data despite standard filename (pheno loop): topic: $ATP, pub_id: $pub_id, $timestamp\n";
+
+								print "WARNING: no data despite standard filename (pheno loop): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
 
 							}
 
@@ -665,7 +676,40 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 ####
 
 
-	print "$ATP\n";
-	print Dumper ($curation_status_data);
+
+
+#	print "$ATP\n";
+#	print Dumper ($curation_status_data);
+
+	foreach my $pub_id (sort keys %{$curation_status_data}) {
+
+		if (exists $pub_id_to_FBrf->{$pub_id}) {
+
+			my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
+			my $pub_type = $pub_id_to_FBrf->{$pub_id}->{'type'};
+
+			foreach my $topic (sort keys %{$curation_status_data->{$pub_id}}) {
+
+
+				if (defined $curation_status_data->{$pub_id}->{$topic}->{'curation_status'}) {
+
+					my $flag = $curation_status_topics->{$ATP}->{'flags'}[0];
+					my $curation_status = exists $curation_status_data->{$pub_id}->{$topic}->{'curation_status'} ? $curation_status_data->{$pub_id}->{$topic}->{'curation_status'} : '';
+					my $date_created = exists $curation_status_data->{$pub_id}->{$topic}->{'date_created'} ? $curation_status_data->{$pub_id}->{$topic}->{'date_created'} : '';
+					my $curation_tag = exists $curation_status_data->{$pub_id}->{$topic}->{'curation_tag'} ? $curation_status_data->{$pub_id}->{$topic}->{'curation_tag'} : '';
+					my $note = exists $curation_status_data->{$pub_id}->{$topic}->{'note'} ? $curation_status_data->{$pub_id}->{$topic}->{'note'} : '';
+
+
+					print "DATA:$pub_id\t$FBrf\t$pub_type\t$ATP\t$flag\t$curation_status\t$date_created\t$curation_tag\t$note\n";
+
+				}
+			}
+		} else {
+
+			print "WARNING: data for obosolete pub_id: $pub_id\n";
+		}
+
+	}
+
 
 }
