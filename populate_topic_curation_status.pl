@@ -196,6 +196,10 @@ my $flag_suffix_mapping = {
 #  "curation_tag": # this is for the 'controlled_note' - most are negative 
 #}
 
+print "##Starting processing: " . (scalar localtime) . "\n";
+
+
+
 my $pub_id_to_FBrf = {};
 
 
@@ -206,7 +210,6 @@ while (my ($uniquename, $pub_id, $pub_type) = $db_query->fetchrow_array()) {
   $pub_id_to_FBrf->{$pub_id}->{'FBrf'} = $uniquename;
   $pub_id_to_FBrf->{$pub_id}->{'type'} = $pub_type;
 }
-
 
 # 1. Use the mapping information obtained from &get_flag_mapping to make a $curation_status_topics mapping hash
 # from the point of view of the ATP topic term that will be used to submit curation_status info into the ABC.
@@ -326,166 +329,173 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 	if (defined $flags_with_suffix) {
 		foreach my $pub_id (sort keys %{$flags_with_suffix}) {
 
-			if (scalar keys %{$flags_with_suffix->{$pub_id}} == 1) {
+			if (exists $pub_id_to_FBrf->{$pub_id}) {
 
-				my $suffix = join '', keys %{$flags_with_suffix->{$pub_id}};
+				unless ($curation_status_topics->{$ATP}->{'flag_type'} eq 'cam_flag' && $pub_id_to_FBrf->{$pub_id}->{'type'} eq 'review') {
 
-				if (exists $flag_suffix_mapping->{$suffix}) {
+					if (scalar keys %{$flags_with_suffix->{$pub_id}} == 1) {
 
-					# only consider suffixes that are relevant to curation status
-					if (defined $flag_suffix_mapping->{$suffix}) {
+						my $suffix = join '', keys %{$flags_with_suffix->{$pub_id}};
 
-						my $curation_status = $flag_suffix_mapping->{$suffix}->{curation_status};
+						if (exists $flag_suffix_mapping->{$suffix}) {
 
-						my $curation_tag = '';
-						my $note = '';
+							# only consider suffixes that are relevant to curation status
+							if (defined $flag_suffix_mapping->{$suffix}) {
 
-						if (defined $relevant_internal_notes && exists $relevant_internal_notes->{$pub_id}) {
-							$note = $note . (join ' ', sort keys %{$relevant_internal_notes->{$pub_id}});
-						}
+								my $curation_status = $flag_suffix_mapping->{$suffix}->{curation_status};
 
-						if (exists $flag_suffix_mapping->{$suffix}->{note}) {
-							$note = $note . " $flag_suffix_mapping->{$suffix}->{note}";
-						}
-						$note =~ s/^ //;
+								my $curation_tag = '';
+								my $note = '';
 
+								if (defined $relevant_internal_notes && exists $relevant_internal_notes->{$pub_id}) {
+									$note = $note . (join ' ', sort keys %{$relevant_internal_notes->{$pub_id}});
+								}
 
-						my $timestamp = $flags_with_suffix->{$pub_id}->{$suffix}->{'timestamp'}[-1];
-
-						my $store_status = 0;
-
-						# flag suffix can be used by itself to store curation status. DESCRIPTION, Script logic: 3a.
-						if (exists $curation_status_topics->{$ATP}->{'suffix'} && $curation_status_topics->{$ATP}->{'suffix'} eq 'only') {
-							$store_status++;
-
-						} else {
-
-							# always safe to store curation status when it is something other than 'curated' regardless of whether or not FB db contains relevant data
-							unless (exists $flag_suffix_mapping->{$suffix}->{'curation_status'} && $flag_suffix_mapping->{$suffix}->{'curation_status'} eq 'ATP:0000239') {
-								$store_status++;
-							} else {
-
-								# when curation status is 'curated' do additional QA/QC where possible to check that database does have curated data of the relevant type
-								# DESCRIPTION, Script logic: 3b.
-								if (defined $has_curated_data) {
-									if (exists $has_curated_data->{$pub_id}) {
-
-										$store_status++;
-
-									} else {
-
-										# this represents cases where there is a DONE flag suffix but no corresponding curated data
-										# add the appropriate curation status along with a curation_tag/note to explain the situation
-
-										# loop to deal with phys_int
-										if ($ATP eq 'ATP:0000069') {
-
-											if ($note) {
-												if ($note =~ m/phys_int not curated; bad flag/ || $note =~ m/phys_int not curated; bad SVM flag/) {
-
-													$curation_status = 'ATP:0000299'; # won't curate
-													$curation_tag = 'ATP:0000226'; # no curatable data
-													$store_status++;
+								if (exists $flag_suffix_mapping->{$suffix}->{note}) {
+									$note = $note . " $flag_suffix_mapping->{$suffix}->{note}";
+								}
+								$note =~ s/^ //;
 
 
-												} elsif ($note =~ m/already curated by/) {
+								my $timestamp = $flags_with_suffix->{$pub_id}->{$suffix}->{'timestamp'}[-1];
 
-													$curation_status = 'ATP:0000299'; # won't curate
-													$store_status++;
+								my $store_status = 0;
 
-												} else {
-
-													$curation_status = 'ATP:0000299'; # won't curate
-													$curation_tag = 'ATP:0000208'; # not curatable
-													$store_status++;
-
-												}
-											} else {
-												$curation_status = 'ATP:0000299'; # won't curate
-												$curation_tag = 'ATP:0000226'; # no curatable data
-
-												$note = $note . "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB, so status set to 'won't curate' with a 'no curatable data' tag.";
-												$store_status++;
-
-												#print "WARNING: no data despite curated flag suffix: topic (phys_int loop): $ATP, pub_id: $pub_id, suffix: $suffix, note: $note\n";
-
-											}
-
-										# loop to deal with genom_feat - flag may be on primary paper, while details are in a related pc, so add the curation status as 'done' with a warning note
-										} elsif ($ATP eq 'ATP:0000056') {
-
-											$note = $note . "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB. Despite this, set status to 'curated' as attribution may be to a related personal communication (after author correspondence) instead of the original reference.";
-											$store_status++;
-
-										} else {
-											$curation_status = 'ATP:0000299'; # won't curate
-											$curation_tag = 'ATP:0000226'; # no curatable data
-
-											$note = $note . "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB, so status set to 'won't curate' with a 'no curatable data' tag.";
-											$store_status++;
-
-										}
-
-
-									}
+								# flag suffix can be used by itself to store curation status. DESCRIPTION, Script logic: 3a.
+								if (exists $curation_status_topics->{$ATP}->{'suffix'} && $curation_status_topics->{$ATP}->{'suffix'} eq 'only') {
+									$store_status++;
 
 								} else {
 
-									# in the absence of a check for curated data of the expected type, use presence of curation record with expected filename
-									if (defined $currecs_by_timestamp) {
+									# always safe to store curation status when it is something other than 'curated' regardless of whether or not FB db contains relevant data
+									unless (exists $flag_suffix_mapping->{$suffix}->{'curation_status'} && $flag_suffix_mapping->{$suffix}->{'curation_status'} eq 'ATP:0000239') {
+										$store_status++;
+									} else {
 
-										if (exists $currecs_by_timestamp->{$pub_id}) {
-											$note = $note . " 'curated' flag suffix confirmed by presence of currec with expected filename format.";
-											$store_status++;
+										# when curation status is 'curated' do additional QA/QC where possible to check that database does have curated data of the relevant type
+										# DESCRIPTION, Script logic: 3b.
+										if (defined $has_curated_data) {
+											if (exists $has_curated_data->{$pub_id}) {
+
+												$store_status++;
+
+											} else {
+
+												# this represents cases where there is a DONE flag suffix but no corresponding curated data
+												# add the appropriate curation status along with a curation_tag/note to explain the situation
+
+												# loop to deal with phys_int
+												if ($ATP eq 'ATP:0000069') {
+
+													if ($note) {
+														if ($note =~ m/phys_int not curated; bad flag/ || $note =~ m/phys_int not curated; bad SVM flag/) {
+
+															$curation_status = 'ATP:0000299'; # won't curate
+															$curation_tag = 'ATP:0000226'; # no curatable data
+															$store_status++;
+
+
+														} elsif ($note =~ m/already curated by/) {
+
+															$curation_status = 'ATP:0000299'; # won't curate
+															$store_status++;
+
+														} else {
+
+															$curation_status = 'ATP:0000299'; # won't curate
+															$curation_tag = 'ATP:0000208'; # not curatable
+															$store_status++;
+
+														}
+													} else {
+														$curation_status = 'ATP:0000299'; # won't curate
+														$curation_tag = 'ATP:0000226'; # no curatable data
+
+														$note = $note . "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB, so status set to 'won't curate' with a 'no curatable data' tag.";
+														$store_status++;
+
+														#print "WARNING: no data despite curated flag suffix: topic (phys_int loop): $ATP, pub_id: $pub_id, suffix: $suffix, note: $note\n";
+
+													}
+
+												# loop to deal with genom_feat - flag may be on primary paper, while details are in a related pc, so add the curation status as 'done' with a warning note
+												} elsif ($ATP eq 'ATP:0000056') {
+
+													$note = $note . "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB. Despite this, set status to 'curated' as attribution may be to a related personal communication (after author correspondence) instead of the original reference.";
+													$store_status++;
+
+												} else {
+													$curation_status = 'ATP:0000299'; # won't curate
+													$curation_tag = 'ATP:0000226'; # no curatable data
+
+													$note = $note . "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB, so status set to 'won't curate' with a 'no curatable data' tag.";
+													$store_status++;
+
+												}
+
+
+											}
+
 										} else {
-											print "WARNING: DONE style flag but no corresponding currec: topic: $ATP, pub_id: $pub_id, suffix: $suffix, note: $note\n";
 
+											# in the absence of a check for curated data of the expected type, use presence of curation record with expected filename
+											if (defined $currecs_by_timestamp) {
+
+												if (exists $currecs_by_timestamp->{$pub_id}) {
+													$note = $note . " 'curated' flag suffix confirmed by presence of currec with expected filename format.";
+													$store_status++;
+												} else {
+													print "WARNING: DONE style flag but no corresponding currec: topic: $ATP, pub_id: $pub_id, suffix: $suffix, note: $note\n";
+
+
+												}
+
+
+											}
 
 										}
+									}
+								}
 
+								$note =~ s/^ //;
+								$note =~ s/ $//;
 
+								if ($store_status) {
+
+									$curation_status_data->{$pub_id}->{$ATP}->{'curation_status'} = $curation_status;
+									$curation_status_data->{$pub_id}->{$ATP}->{'date_created'} = $timestamp;
+
+									if ($note) {
+										$curation_status_data->{$pub_id}->{$ATP}->{'note'} = $note;
+									}
+
+									if ($curation_tag) {
+										$curation_status_data->{$pub_id}->{$ATP}->{'curation_tag'} = $curation_tag;
 									}
 
 								}
-							}
-						}
 
-						$note =~ s/^ //;
-						$note =~ s/ $//;
+							} else {
 
-						if ($store_status) {
+								# this loop adds an undefined 'curation_status' when the suffix is 'Inappropriate use of flag', which prevents any incorrect 'curated' status being added in the 'DESCRIPTION, Script logic: 4' loop below for these cases.
+								if ($suffix eq 'Inappropriate use of flag') {
+									$curation_status_data->{$pub_id}->{$ATP}->{'curation_status'} = undef;
 
-							$curation_status_data->{$pub_id}->{$ATP}->{'curation_status'} = $curation_status;
-							$curation_status_data->{$pub_id}->{$ATP}->{'date_created'} = $timestamp;
-							
-							if ($note) {
-								$curation_status_data->{$pub_id}->{$ATP}->{'note'} = $note;
+								}
+
 							}
 
-							if ($curation_tag) {
-								$curation_status_data->{$pub_id}->{$ATP}->{'curation_tag'} = $curation_tag;
+							} else {
+
+								print "ERROR: unknown suffix type: topic: $ATP, pub_id: $pub_id, suffix: $suffix\n";
 							}
-
-						}
-
 					} else {
-
-						# this loop adds an undefined 'curation_status' when the suffix is 'Inappropriate use of flag', which prevents any incorrect 'curated' status being added in the 'DESCRIPTION, Script logic: 4' loop below for these cases.
-						if ($suffix eq 'Inappropriate use of flag') {
-							$curation_status_data->{$pub_id}->{$ATP}->{'curation_status'} = undef;
-
-						}
-
+						print "ERROR: more than one suffix type for single topic: topic: $ATP, pub_id: $pub_id\n";
 					}
 
-				} else {
-
-					print "ERROR: unknown suffix type: topic: $ATP, pub_id: $pub_id, suffix: $suffix\n";
 				}
-			} else {
-				print "ERROR: more than one suffix type for single topic: topic: $ATP, pub_id: $pub_id\n";
-			}
 
+			}
 		}
 	}
 
@@ -497,129 +507,135 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 		foreach my $pub_id (sort keys %{$currecs_by_timestamp}) {
 
-			unless (exists $curation_status_data->{$pub_id} && exists $curation_status_data->{$pub_id}->{$ATP}) {
+##
+			if (exists $pub_id_to_FBrf->{$pub_id}) {
 
-				# get the timestamp of the *earliest* matching curation record
-				my $timestamp = $currecs_by_timestamp->{$pub_id}[0];
+				unless ($curation_status_topics->{$ATP}->{'flag_type'} eq 'cam_flag' && $pub_id_to_FBrf->{$pub_id}->{'type'} eq 'review') {
 
-				if (defined $has_curated_data) {
+					unless (exists $curation_status_data->{$pub_id} && exists $curation_status_data->{$pub_id}->{$ATP}) {
 
+						# get the timestamp of the *earliest* matching curation record
+						my $timestamp = $currecs_by_timestamp->{$pub_id}[0];
 
-					my $curation_status = '';
-					my $note = '';
-
-
-					if (defined $relevant_internal_notes && exists $relevant_internal_notes->{$pub_id}) {
-						$note = $note . (join ' ', sort keys %{$relevant_internal_notes->{$pub_id}});
-
-					}
-
-					my $curation_tag = '';
-
-					my $store_status = 0;
-
-					if (exists $has_curated_data->{$pub_id}) {
-
-						$curation_status = 'ATP:0000239';
-
-						unless ($note) {
-							$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
-
-						}
-						$store_status++;
-
-					} else {
-
-						# loop to deal with phys_int
-						if ($ATP eq 'ATP:0000069') {
-
-							if ($note) {
-
-								if ($note =~ m/phys_int not curated; bad flag/ || $note =~ m/phys_int not curated; bad SVM flag/) {
-
-									$curation_status = 'ATP:0000299'; # won't curate
-									$curation_tag = 'ATP:0000226'; # no curatable data
-									$store_status++;
+						if (defined $has_curated_data) {
 
 
-								} elsif ($note =~ m/already curated by/) {
+							my $curation_status = '';
+							my $note = '';
 
-									$curation_status = 'ATP:0000299'; # won't curate !! need to check this is OK !!
-									$store_status++;
 
-								} else {
-
-									$curation_status = 'ATP:0000299'; # won't curate
-									$curation_tag = 'ATP:0000208'; # not curatable
-									$store_status++;
-
-								}
-							} else {
-
-								print "WARNING: no data despite standard filename (phys_int loop): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
+							if (defined $relevant_internal_notes && exists $relevant_internal_notes->{$pub_id}) {
+								$note = $note . (join ' ', sort keys %{$relevant_internal_notes->{$pub_id}});
 
 							}
 
+							my $curation_tag = '';
 
-						# loop to deal with pheno - change $store_status switch and curation_status based on text
-						} elsif ($ATP eq 'ATP:0000079') {
+							my $store_status = 0;
 
-							if ($note) {
+							if (exists $has_curated_data->{$pub_id}) {
 
-								if ($note =~ m/only pheno_chem data in paper/ || $note =~ m/No phenotypic data in paper/) {
+								$curation_status = 'ATP:0000239';
 
-									# this loop is needed to remove an incorrect 'phen_cur: CV annotations only' tag that was added automatically to some records with no phenotypic information
-									if ($note =~m/phen_cur: CV annotations only. [a-z]{2}[0-9]{6}./) {
-										$note =~ s/phen_cur: CV annotations only. [a-z]{2}[0-9]{6}.//;
+								unless ($note) {
+									$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
+
+								}
+								$store_status++;
+
+							} else {
+
+								# loop to deal with phys_int
+								if ($ATP eq 'ATP:0000069') {
+
+									if ($note) {
+
+										if ($note =~ m/phys_int not curated; bad flag/ || $note =~ m/phys_int not curated; bad SVM flag/) {
+
+											$curation_status = 'ATP:0000299'; # won't curate
+											$curation_tag = 'ATP:0000226'; # no curatable data
+											$store_status++;
+
+
+										} elsif ($note =~ m/already curated by/) {
+
+											$curation_status = 'ATP:0000299'; # won't curate !! need to check this is OK !!
+											$store_status++;
+
+										} else {
+
+											$curation_status = 'ATP:0000299'; # won't curate
+											$curation_tag = 'ATP:0000208'; # not curatable
+											$store_status++;
+
+										}
+									} else {
+
+										print "WARNING: no data despite standard filename (phys_int loop): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
 
 									}
 
-									$curation_status = 'ATP:0000299'; # won't curate
-									$curation_tag = 'ATP:0000226'; # no curatable data
-									$store_status++;
 
+								# loop to deal with pheno - change $store_status switch and curation_status based on text
+								} elsif ($ATP eq 'ATP:0000079') {
+
+									if ($note) {
+
+										if ($note =~ m/only pheno_chem data in paper/ || $note =~ m/No phenotypic data in paper/) {
+
+											# this loop is needed to remove an incorrect 'phen_cur: CV annotations only' tag that was added automatically to some records with no phenotypic information
+											if ($note =~m/phen_cur: CV annotations only. [a-z]{2}[0-9]{6}./) {
+												$note =~ s/phen_cur: CV annotations only. [a-z]{2}[0-9]{6}.//;
+
+											}
+
+											$curation_status = 'ATP:0000299'; # won't curate
+											$curation_tag = 'ATP:0000226'; # no curatable data
+											$store_status++;
+
+
+										}
+									} else {
+
+										# keep this warning - will identify any papers with missing 'No phenotypic data in paper' internal note
+										print "WARNING: no data despite standard filename (pheno loop): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
+
+									}
+
+
+								} else {
+
+
+									#print "WARNING: no data despite standard filename: topic: $ATP, pub_id: $pub_id, $timestamp\n";
 
 								}
-							} else {
+							}
 
-								# keep this warning - will identify any papers with missing 'No phenotypic data in paper' internal note
-								print "WARNING: no data despite standard filename (pheno loop): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
+							$note =~ s/^ //;
+							$note =~ s/ $//;
+
+							if ($store_status) {
+
+								$curation_status_data->{$pub_id}->{$ATP}->{'curation_status'} = $curation_status;
+								$curation_status_data->{$pub_id}->{$ATP}->{'date_created'} = $timestamp;
+
+								if ($note) {
+									$curation_status_data->{$pub_id}->{$ATP}->{'note'} = $note;
+								}
+
+								if ($curation_tag) {
+									$curation_status_data->{$pub_id}->{$ATP}->{'curation_tag'} = $curation_tag;
+								}
 
 							}
 
 
-						} else {
-
-
-							#print "WARNING: no data despite standard filename: topic: $ATP, pub_id: $pub_id, $timestamp\n";
-
-						}
-					}
-
-					$note =~ s/^ //;
-					$note =~ s/ $//;
-
-					if ($store_status) {
-
-						$curation_status_data->{$pub_id}->{$ATP}->{'curation_status'} = $curation_status;
-						$curation_status_data->{$pub_id}->{$ATP}->{'date_created'} = $timestamp;
-
-						if ($note) {
-							$curation_status_data->{$pub_id}->{$ATP}->{'note'} = $note;
-						}
-
-						if ($curation_tag) {
-							$curation_status_data->{$pub_id}->{$ATP}->{'curation_tag'} = $curation_tag;
 						}
 
 					}
-
-
 				}
-
-
 			}
-
+##
 		}
 	}
 
@@ -629,45 +645,47 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 		foreach my $pub_id (sort keys %{$cam_full_by_timestamp}) {
 
-			unless (exists $curation_status_data->{$pub_id} && exists $curation_status_data->{$pub_id}->{$ATP}) {
+			if (exists $pub_id_to_FBrf->{$pub_id} && $pub_id_to_FBrf->{$pub_id}->{'type'} ne 'review') {
 
-				# get the timestamp of the *earliest* matching curation record, so that get first relevant record and not any subsequent 'plain' format filename that represented edits, before we started using .edit format
-				my $timestamp = $cam_full_by_timestamp->{$pub_id}[0];
+				unless (exists $curation_status_data->{$pub_id} && exists $curation_status_data->{$pub_id}->{$ATP}) {
 
-				# add curation status if there is phenotypic data - it is expected that many of this kind of curation record will NOT contain phenotype data,
-				# so no need for else loop with warning
-				if (defined $has_curated_data) {
+					# get the timestamp of the *earliest* matching curation record, so that get first relevant record and not any subsequent 'plain' format filename that represented edits, before we started using .edit format
+					my $timestamp = $cam_full_by_timestamp->{$pub_id}[0];
 
-					if (exists $has_curated_data->{$pub_id}) {
+					# add curation status if there is phenotypic data - it is expected that many of this kind of curation record will NOT contain phenotype data,
+					# so no need for else loop with warning
+					if (defined $has_curated_data) {
 
-						my $curation_status = 'ATP:0000239';
-						my $note = '';
+						if (exists $has_curated_data->{$pub_id}) {
 
-						if (defined $relevant_internal_notes && exists $relevant_internal_notes->{$pub_id}) {
-							$note = $note . (join ' ', sort keys %{$relevant_internal_notes->{$pub_id}});
+							my $curation_status = 'ATP:0000239';
+							my $note = '';
+
+							if (defined $relevant_internal_notes && exists $relevant_internal_notes->{$pub_id}) {
+								$note = $note . (join ' ', sort keys %{$relevant_internal_notes->{$pub_id}});
+
+							}
+
+							unless ($note) {
+								$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
+
+							}
+
+							$note =~ s/^ //;
+							$note =~ s/ $//;
+
+							$curation_status_data->{$pub_id}->{$ATP}->{'curation_status'} = $curation_status;
+							$curation_status_data->{$pub_id}->{$ATP}->{'date_created'} = $timestamp;
+
+							if ($note) {
+								$curation_status_data->{$pub_id}->{$ATP}->{'note'} = $note;
+							}
+
 
 						}
-
-						unless ($note) {
-							$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
-
-						}
-
-						$note =~ s/^ //;
-						$note =~ s/ $//;
-
-						$curation_status_data->{$pub_id}->{$ATP}->{'curation_status'} = $curation_status;
-						$curation_status_data->{$pub_id}->{$ATP}->{'date_created'} = $timestamp;
-
-						if ($note) {
-							$curation_status_data->{$pub_id}->{$ATP}->{'note'} = $note;
-						}
-
 
 					}
-
 				}
-
 
 			}
 
@@ -710,3 +728,6 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 
 }
+
+
+print "##Finished processing: " . (scalar localtime) . "\n";
