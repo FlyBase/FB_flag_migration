@@ -308,14 +308,25 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 	# if appropriate, get references that are *expected* to contain curated data corresponding to the ATP topic, based on curation record filename.
 	my $currecs_by_timestamp = undef;
+	my $currecs_by_curator = undef;
 	if (exists $curation_status_topics->{$ATP}->{'use_filename'}) {
-		($currecs_by_timestamp, undef) = &get_relevant_currec_for_datatype($dbh,$curation_status_topics->{$ATP}->{'use_filename'});
+
+		if ($curation_status_topics->{$ATP}->{'flag_type'} eq 'cam_flag') {
+
+			($currecs_by_timestamp, $currecs_by_curator) = &get_relevant_currec_for_datatype($dbh,$curation_status_topics->{$ATP}->{'use_filename'});
+
+		} else {
+
+			($currecs_by_timestamp, undef) = &get_relevant_currec_for_datatype($dbh,$curation_status_topics->{$ATP}->{'use_filename'});
+
+		}
 	}
 
 	#additional 'cam_full' curation record filename info - needed for pheno flag
 	my $cam_full_by_timestamp = undef;
+	my $cam_full_by_curator = undef;
 	if (exists $curation_status_topics->{$ATP}->{'use_cam_full_filename'}) {
-		($cam_full_by_timestamp, undef) = &get_relevant_currec_for_datatype($dbh,'cam_full');
+		($cam_full_by_timestamp, $cam_full_by_curator) = &get_relevant_currec_for_datatype($dbh,'cam_full');
 	}
 
 	# if appropriate, get internal notes relevant to curation status for the flag
@@ -517,6 +528,55 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 						# get the timestamp of the *earliest* matching curation record
 						my $timestamp = $currecs_by_timestamp->{$pub_id}[0];
 
+						# try to determine the relevant curator if appropriate for the topic
+						my $relevant_curator = '';
+						my $relevant_currecs = '';
+						my $curated_by = '';
+
+						if (defined $currecs_by_curator) {
+
+							if (exists $currecs_by_curator->{$pub_id}) {
+
+								if (scalar keys %{$currecs_by_curator->{$pub_id}} == 1) {
+									my $curator_candidate = join '', keys %{$currecs_by_curator->{$pub_id}};
+
+									if (exists $currecs_by_curator->{$pub_id}->{$curator_candidate}->{$timestamp}) {
+										$relevant_curator = $curator_candidate;
+										$relevant_currecs = join ' ', sort keys %{$currecs_by_curator->{$pub_id}->{$curator_candidate}->{$timestamp}};
+
+									}
+								} else {
+
+									my $count = 0;
+									foreach my $curator_candidate (sort keys %{$currecs_by_curator->{$pub_id}}) {
+
+										foreach my $candidate_timestamp (sort keys %{$currecs_by_curator->{$pub_id}->{$curator_candidate}}) {
+
+											if ($candidate_timestamp eq $timestamp) {
+
+												$relevant_curator = $curator_candidate;
+												$relevant_currecs = join ' ', sort keys %{$currecs_by_curator->{$pub_id}->{$curator_candidate}->{$candidate_timestamp}};
+												$count++;
+
+											}
+										}
+									}
+
+									unless ($count == 1) {
+										$relevant_curator = '';
+										$relevant_currecs = '';
+									}
+								}
+							}
+						}
+
+						if ($relevant_curator) {
+
+							$curated_by = "$relevant_curator: $relevant_currecs";
+
+						}
+
+
 						if (defined $has_curated_data) {
 
 
@@ -627,6 +687,11 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 									$curation_status_data->{$pub_id}->{$ATP}->{'curation_tag'} = $curation_tag;
 								}
 
+								if ($curated_by) {
+									$curation_status_data->{$pub_id}->{$ATP}->{'curated_by'} = $curated_by;
+
+								}
+
 							}
 
 
@@ -652,8 +717,87 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 					# get the timestamp of the *earliest* matching curation record, so that get first relevant record and not any subsequent 'plain' format filename that represented edits, before we started using .edit format
 					my $timestamp = $cam_full_by_timestamp->{$pub_id}[0];
 
+					# try to determine the relevant curator if appropriate for the topic
+					my $relevant_curator = '';
+					my $relevant_currecs = '';
+					my $curated_by = '';
+
+					if (defined $cam_full_by_curator) {
+
+
+						if (exists $cam_full_by_curator->{$pub_id}) {
+
+
+							if (scalar keys %{$cam_full_by_curator->{$pub_id}} == 1) {
+								my $curator_candidate = join '', keys %{$cam_full_by_curator->{$pub_id}};
+
+								if (exists $cam_full_by_curator->{$pub_id}->{$curator_candidate}->{$timestamp}) {
+									$relevant_curator = $curator_candidate;
+									$relevant_currecs = join ' ', sort keys %{$cam_full_by_curator->{$pub_id}->{$curator_candidate}->{$timestamp}};
+
+								}
+							} else {
+
+								my $timestamp_count = 0;
+								my $full_curator = {};
+								foreach my $curator_candidate (sort keys %{$cam_full_by_curator->{$pub_id}}) {
+
+									foreach my $candidate_timestamp (sort keys %{$cam_full_by_curator->{$pub_id}->{$curator_candidate}}) {
+
+										my $full_switch = 0;
+										foreach my $currec (keys %{$cam_full_by_curator->{$pub_id}->{$curator_candidate}->{$candidate_timestamp}}) {
+											if ($currec =~ m/\.h$/ || $currec =~ m/\.hf$/) {
+												$full_curator->{$curator_candidate}->{$candidate_timestamp}->{$currec}++;
+												$full_switch++;
+											}
+										}
+
+										if ($candidate_timestamp eq $timestamp) {
+
+											if ($full_switch) {
+
+												$relevant_curator = $curator_candidate;
+												$relevant_currecs = join ' ', sort keys %{$cam_full_by_curator->{$pub_id}->{$curator_candidate}->{$candidate_timestamp}};
+
+											}
+
+										}
+
+
+									}
+								}
+
+
+
+								if ($relevant_curator) {
+									# if there is more than one curator with a .h/.hf record, reset relevant_curator to nothing, so that FB_curator will be submitted to the Alliance
+									if (scalar keys %{$full_curator} > 1) {
+										$relevant_curator = '';
+										$relevant_currecs = '';
+
+									}
+
+								}
+								# if there is more than one curation record with the same timestamp, reset relevant_curator to nothing, so that FB_curator will be submitted to the Alliance
+								if ($timestamp_count > 1) {
+
+									$relevant_curator = '';
+									$relevant_currecs = '';
+
+								}
+
+
+							}
+						}
+					}
+
+					if ($relevant_curator) {
+
+						$curated_by = "$relevant_curator: $relevant_currecs";
+					}
+
 					# add curation status if there is phenotypic data - it is expected that many of this kind of curation record will NOT contain phenotype data,
-					# so no need for else loop with warning
+					# so no need for else loop for those without phenotypic data
 					if (defined $has_curated_data) {
 
 						if (exists $has_curated_data->{$pub_id}) {
@@ -681,6 +825,10 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 								$curation_status_data->{$pub_id}->{$ATP}->{'note'} = $note;
 							}
 
+							if ($curated_by) {
+								$curation_status_data->{$pub_id}->{$ATP}->{'curated_by'} = $curated_by;
+
+							}
 
 						}
 
@@ -701,7 +849,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 	foreach my $pub_id (sort keys %{$curation_status_data}) {
 
-		if (exists $pub_id_to_FBrf->{$pub_id}) {
+# do not need this loop as already done this test everywhere have assigned a pub_id to curation_status_data hash
+#		if (exists $pub_id_to_FBrf->{$pub_id}) {
 
 			my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
 			my $pub_type = $pub_id_to_FBrf->{$pub_id}->{'type'};
@@ -712,17 +861,18 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 				if (defined $curation_status_data->{$pub_id}->{$topic}->{'curation_status'}) {
 
 					my $flag = $curation_status_topics->{$ATP}->{'flags'}[0];
+					my $curated_by = exists $curation_status_data->{$pub_id}->{$topic}->{'curated_by'} ? "\t$curation_status_data->{$pub_id}->{$topic}->{'curated_by'}" : '';
 					my $curation_status = exists $curation_status_data->{$pub_id}->{$topic}->{'curation_status'} ? $curation_status_data->{$pub_id}->{$topic}->{'curation_status'} : '';
 					my $date_created = exists $curation_status_data->{$pub_id}->{$topic}->{'date_created'} ? $curation_status_data->{$pub_id}->{$topic}->{'date_created'} : '';
 					my $curation_tag = exists $curation_status_data->{$pub_id}->{$topic}->{'curation_tag'} ? $curation_status_data->{$pub_id}->{$topic}->{'curation_tag'} : '';
 					my $note = exists $curation_status_data->{$pub_id}->{$topic}->{'note'} ? $curation_status_data->{$pub_id}->{$topic}->{'note'} : '';
 
 
-					print "DATA:$pub_id\t$FBrf\t$pub_type\t$ATP\t$flag\t$curation_status\t$date_created\t$curation_tag\t$note\n";
+					print "DATA:$pub_id\t$FBrf\t$pub_type\t$ATP\t$flag\t$curation_status\t$date_created\t$curation_tag\t$note$curated_by\n";
 
 				}
 			}
-		}
+#		}
 
 	}
 
