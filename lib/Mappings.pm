@@ -159,9 +159,7 @@ sub get_flag_mapping {
 
 				'ATP_topic' => 'ATP:0000152',# 'disease model' ATP term - using more specific ATP term for DO curation
 				'species' => 'NCBITaxon:7214', # Drosophilidae
-				'for_curation_status' => {
-					'suffix' => 'use',
-				},
+				# do not use 'for_curation_status' to mark curated papers - flag is turned into more specific dm_gen::DONE flag on curation being done.
 
 			},
 
@@ -169,11 +167,8 @@ sub get_flag_mapping {
 
 				'ATP_topic' => 'ATP:0000152',# disease model ATP term - using more specific ATP term for DO curation
 				'species' => 'NCBITaxon:7214', # Drosophilidae
-				'data_novelty' => 'ATP:0000229', # new to field
 				'curator_only' => '1',
-				'for_curation_status' => {
-					'suffix' => 'use',
-				},
+				# do not use 'for_curation_status' to mark curated papers - flag is turned into more specific dm_gen::DONE flag on curation being done.
 
 			},
 
@@ -268,7 +263,6 @@ sub get_flag_mapping {
 
 				'ATP_topic' => 'ATP:0000011',# 'disease' ATP term - using more general ATP term for FBhh curation
 				'species' => 'NCBITaxon:7214', # Drosophilidae
-				'data_novelty' => 'ATP:0000321', # new data
 			},
 
 			'gene_model' => {
