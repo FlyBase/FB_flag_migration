@@ -1010,6 +1010,65 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 }
 
+## add 'curation_needed' information for diseaseHP dis_flag
+my $diseaseHP_flags = &get_matching_pubprop_value_with_timestamps($dbh,'dis_flag','diseaseHP');
+
+foreach my $pub_id (sort keys %{$diseaseHP_flags}) {
+
+
+	if (scalar keys %{$diseaseHP_flags->{$pub_id}} == 1) {
+
+
+		my $flag = join '', keys %{$diseaseHP_flags->{$pub_id}};
+
+		if ($flag eq 'diseaseHP') {
+
+			my $timestamp = $diseaseHP_flags->{$pub_id}->{$flag}[0];
+
+			if (exists $pub_id_to_FBrf->{$pub_id}) {
+
+				my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
+				my $pub_type = $pub_id_to_FBrf->{$pub_id}->{'type'};
+
+				my $element = {};
+
+				$element->{'date_created'} = $timestamp;
+				$element->{'date_updated'} = $timestamp;
+
+				$element->{'created_by'} = "FB_curation";
+				$element->{'updated_by'} = "FB_curation";
+
+				$element->{'mod_abbreviation'} = "FB";
+				$element->{'reference_curie'} = "FB:$FBrf";
+				$element->{'topic'} = "ATP:0000152";
+				$element->{'curation_status'} = "ATP:0000238"; # curation_needed
+				$element->{'curation_tag'} = "high priority data"; # placeholder until new ATP term is created
+
+				my $note = exists $element->{'note'} ? $element->{'note'} : '';
+
+				push @{$complete_data->{data}}, $element;
+
+				unless ($ENV_STATE eq 'production') {
+					print $plain_output_file "DATA:$pub_id\t$FBrf\t$pub_type\t$element->{'topic'}\t$flag\t$element->{'curation_status'}\t$element->{'date_created'}\t$element->{'curation_tag'}\t$note\t$element->{'created_by'}\n";
+			}
+			}
+
+
+		} else {
+			print $data_error_file "ERROR: flag '$flag' is unexpected: pub_id: $pub_id\n";
+
+		}
+
+
+	} else {
+
+
+		print $data_error_file "ERROR: more than one 'diseaseHP' style flag for single publication: pub_id: $pub_id\n";
+
+	}
+}
+
+
 #print Dumper ($complete_data);
 
 # convert stored data into json for submitting to the Alliance
