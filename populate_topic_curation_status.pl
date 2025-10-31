@@ -44,6 +44,48 @@ USAGE: perl populate_topic_curation_status.pl pg_server db_name pg_username pg_p
 
 =head1 DESCRIPTION
 
+Script has three modes:
+
+o dev mode
+
+  o makes data for all relevant FBrfs in chado.
+
+  o Data is printed to both the json output and 'plain' output files.
+
+  o makes error files (see below) to record any errors.
+
+
+o test mode
+
+  o single FBrf mode: asks user for FBrf number (must be a single FBrf number).
+
+  o uses curl to try to POST data to the Alliance ABC stage server (so asks user for okta token for Alliance ABC stage server).
+
+  o Data (including a record of successful curl POST events) is printed to the 'plain' output file.
+
+  o makes error files (see below) to record any errors.
+
+
+o production mode
+
+  o makes data for all relevant FBrfs in chado.
+
+  o Data is printed to the json output file.
+
+  o makes error files (see below) to record any errors.
+
+
+o Output files
+
+
+  o json output file (FB_curation_status_data.json) containing a single json structure for all the data (curation status data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source). Data is printed to this file in all modes except 'test'.
+
+ o 'plain' output file (FB_curation_status_data.txt) to aid in debugging - prints the same data as in the json file, but with a single 'DATA:' tsv row for each FBrf+topic combination. Data is printed to this file in all modes except 'production'. In 'test' mode
+
+  o FB_curation_status_data_errors.err - errors in mapping FlyBase data to appropriate Alliance json are printed in this file. Data is printed to this file in all modes.
+
+  o FB_curation_status_process_errors.err - processing errors - if a curl POST fails in test mode, the failed json element and the reason for the failure are printed in this file. Expected to be empty for all other modes.
+
 
 Mapping hashes: 
 
@@ -114,8 +156,8 @@ o For timestamps determined from curation record(s) with the standard filename f
 
 if (@ARGV != 5) {
     warn "Wrong number of arguments, should be 5!\n";
-    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production\n\n";
-    warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production\n\n";
+    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|production\n\n";
+    warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|production\n\n";
     exit;
 }
 
@@ -126,6 +168,49 @@ my $pwd = shift(@ARGV);
 my $ENV_STATE = shift(@ARGV);
 
 
+unless ($ENV_STATE eq 'dev'|| $ENV_STATE eq 'test'|| $ENV_STATE eq 'production') {
+
+	warn "Unknown state '$ENV_STATE': must be 'dev', 'test' or 'production'\n\n";
+	exit;
+
+}
+
+my $test_FBrf = '';
+my $okta_token = '';
+my $json_encoder;
+
+if ($ENV_STATE eq "test") {
+
+	print STDERR "You are about to write data to the stage Alliance literature server\n";
+	print STDERR "Type y to continue else anything else to stop:\n";
+
+	my $continue = <STDIN>;
+	chomp $continue;
+	if (($continue eq 'y') || ($continue eq 'Y')) {
+		print STDERR "Processing will continue.\n";
+	} else {
+		die "Processing has been cancelled.\n";
+
+	}
+
+	print STDERR "okta token:";
+	$okta_token = <STDIN>;
+	chomp $okta_token;
+
+	print STDERR "FBrf to test:";
+	$test_FBrf = <STDIN>;
+	chomp $test_FBrf;
+
+	unless ($test_FBrf =~ m/^FBrf[0-9]{7}$/) {
+		die "Only a single FBrf is allowed in test mode.\n";
+	}
+	$json_encoder = JSON::PP->new()->canonical(1);
+
+} else {
+
+	$json_encoder = JSON::PP->new()->pretty(1)->canonical(1);
+
+}
 
 my $dsource = sprintf("dbi:Pg:dbname=%s;host=%s;port=5432",$db,$server);
 my $dbh = DBI->connect($dsource,$user,$pwd) or die "cannot connect to $dsource\n";
@@ -195,14 +280,43 @@ my $flag_suffix_mapping = {
 #  "curation_tag": # this is for the 'controlled_note' - most are negative 
 #}
 
-print "##Starting processing: " . (scalar localtime) . "\n";
+
+# open output and error logging files
+
+open my $json_output_file, '>', "FB_curation_status_data.json"
+	or die "Can't open json output file ($!)\n";
+
+open my $data_error_file, '>', "FB_curation_status_data_errors.err"
+	or die "Can't open data error logging file ($!)\n";
+
+open my $process_error_file, '>', "FB_curation_status_process_errors.err"
+	or die "Can't open processing error logging file ($!)\n";
+
+
+open my $plain_output_file, '>', "FB_curation_status_data.txt"
+	or die "Can't open plain output file ($!)\n";
+
+
+print STDERR "##Starting processing: " . (scalar localtime) . "\n";
 
 
 
 my $pub_id_to_FBrf = {};
 
+my $sql_query;
 
-my $sql_query = sprintf("select p.uniquename, p.pub_id, cvt.name from pub p, cvterm cvt where p.is_obsolete = 'f' and p.type_id = cvt.cvterm_id and cvt.is_obsolete = '0' and cvt.name in ('paper', 'erratum', 'letter', 'note', 'teaching note', 'supplementary material', 'retraction', 'personal communication to FlyBase', 'review')");
+unless ($ENV_STATE eq 'test') {
+
+	$sql_query = sprintf("select p.uniquename, p.pub_id, cvt.name from pub p, cvterm cvt where p.is_obsolete = 'f' and p.type_id = cvt.cvterm_id and cvt.is_obsolete = '0' and cvt.name in ('paper', 'erratum', 'letter', 'note', 'teaching note', 'supplementary material', 'retraction', 'personal communication to FlyBase', 'review')");
+
+
+} else {
+
+
+	$sql_query = sprintf("select p.uniquename, p.pub_id, cvt.name from pub p, cvterm cvt where p.is_obsolete = 'f' and p.type_id = cvt.cvterm_id and cvt.is_obsolete = '0' and cvt.name in ('paper', 'erratum', 'letter', 'note', 'teaching note', 'supplementary material', 'retraction', 'personal communication to FlyBase', 'review') and p.uniquename = '$test_FBrf'");
+
+
+}
 my $db_query= $dbh->prepare  ($sql_query);
 $db_query->execute or die" CAN'T GET FBrf FROM CHADO:\n$sql_query)\n";
 while (my ($uniquename, $pub_id, $pub_type) = $db_query->fetchrow_array()) {
@@ -426,7 +540,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 														$note = $note . "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB, so status set to 'won't curate' with a 'no curatable data' tag.";
 														$store_status++;
 
-														#print "WARNING: no data despite curated flag suffix: topic (phys_int loop): $ATP, pub_id: $pub_id, suffix: $suffix, note: $note\n";
+														#print $data_error_file "WARNING: no data despite curated flag suffix: topic (phys_int loop): $ATP, pub_id: $pub_id, suffix: $suffix, note: $note\n";
 
 													}
 
@@ -457,7 +571,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 													$note = $note . " 'curated' flag suffix confirmed by presence of currec with expected filename format.";
 													$store_status++;
 												} else {
-													print "WARNING: DONE style flag but no corresponding currec: topic: $ATP, pub_id: $pub_id, suffix: $suffix, note: $note\n";
+													print $data_error_file "WARNING: DONE style flag but no corresponding currec: topic: $ATP, pub_id: $pub_id, suffix: $suffix, note: $note\n";
 
 
 												}
@@ -508,10 +622,10 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 							} else {
 
-								print "ERROR: unknown suffix type: topic: $ATP, pub_id: $pub_id, suffix: $suffix\n";
+								print $data_error_file "ERROR: unknown suffix type: topic: $ATP, pub_id: $pub_id, suffix: $suffix\n";
 							}
 					} else {
-						print "ERROR: more than one suffix type for single topic: topic: $ATP, pub_id: $pub_id\n";
+						print $data_error_file "ERROR: more than one suffix type for single topic: topic: $ATP, pub_id: $pub_id\n";
 					}
 
 				}
@@ -641,7 +755,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 										}
 									} else {
 
-										print "WARNING: no data despite standard filename (phys_int loop): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
+										print $data_error_file "WARNING: no data despite standard filename (phys_int loop): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
 
 									}
 
@@ -668,7 +782,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 									} else {
 
 										# keep this warning - will identify any papers with missing 'No phenotypic data in paper' internal note
-										print "WARNING: no data despite standard filename (pheno loop): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
+										print $data_error_file "WARNING: no data despite standard filename (pheno loop): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
 
 									}
 
@@ -676,7 +790,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 								} else {
 
 
-									#print "WARNING: no data despite standard filename: topic: $ATP, pub_id: $pub_id, $timestamp\n";
+									#print $data_error_file "WARNING: no data despite standard filename: topic: $ATP, pub_id: $pub_id, $timestamp\n";
 
 								}
 							}
@@ -886,9 +1000,9 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 			my $curation_tag = exists $curation_status_data->{$pub_id}->{'curation_tag'} ? $curation_status_data->{$pub_id}->{'curation_tag'} : '';
 			my $note = exists $curation_status_data->{$pub_id}->{'note'} ? $curation_status_data->{$pub_id}->{'note'} : '';
 
-
-			print "DATA:$pub_id\t$FBrf\t$pub_type\t$ATP\t$flag\t$curation_status\t$date_created\t$curation_tag\t$note\t$curated_by\n";
-
+			unless ($ENV_STATE eq 'production') {
+				print $plain_output_file "DATA:$pub_id\t$FBrf\t$pub_type\t$ATP\t$flag\t$curation_status\t$date_created\t$curation_tag\t$note\t$curated_by\n";
+			}
 		}
 
 	}
@@ -900,13 +1014,54 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 # convert stored data into json for submitting to the Alliance
 
-my $json_encoder = JSON::PP->new()->pretty(1)->canonical(1);
 
-my $json_metadata = &make_abc_json_metadata($db);
 
-$complete_data->{"metaData"} = $json_metadata;
-my $complete_json_data = $json_encoder->encode($complete_data);
 
-print $complete_json_data;
+unless ($ENV_STATE eq "test") {
 
-print "##Finished processing: " . (scalar localtime) . "\n";
+	my $json_metadata = &make_abc_json_metadata($db);
+
+	$complete_data->{"metaData"} = $json_metadata;
+	my $complete_json_data = $json_encoder->encode($complete_data);
+
+	print $json_output_file $complete_json_data;
+
+
+} else {
+
+
+	foreach my $element (@{$complete_data->{"data"}}) {
+
+		my $json_element = $json_encoder->encode($element);
+
+
+		my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/curation_status/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_element'";
+		my $raw_result = `$cmd`;
+		my $result = $json_encoder->decode($raw_result);
+
+		if (exists $result->{'status'} && $result->{'status'} eq 'success') {
+
+			print $plain_output_file "json post success\nJSON:\n$json_element\n\n";
+
+		} else {
+
+			print $process_error_file "json post failed\nJSON:\n$json_element\nREASON:\n$raw_result\n#################################\n\n";
+
+		}
+
+
+	}
+
+
+
+
+}
+
+print STDERR "##Finished processing: " . (scalar localtime) . "\n";
+
+
+close $json_output_file;
+close $data_error_file;
+close $process_error_file;
+close $plain_output_file;
+
