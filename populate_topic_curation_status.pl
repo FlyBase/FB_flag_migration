@@ -590,8 +590,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 									$curation_status_data->{$pub_id}->{'date_created'} = $timestamp;
 									$curation_status_data->{$pub_id}->{'date_updated'} = $timestamp;
-									$curation_status_data->{$pub_id}->{'created_by'} = "FB_curation";
-									$curation_status_data->{$pub_id}->{'updated_by'} = "FB_curation";
+									$curation_status_data->{$pub_id}->{'created_by'} = "FB_curator";
+									$curation_status_data->{$pub_id}->{'updated_by'} = "FB_curator";
 
 									$curation_status_data->{$pub_id}->{'mod_abbreviation'} = "FB";
 									my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
@@ -805,8 +805,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 								$curation_status_data->{$pub_id}->{'curation_status'} = $curation_status;
 
 
-								$curation_status_data->{$pub_id}->{'created_by'} = $curated_by ? $curated_by : "FB_curation";
-								$curation_status_data->{$pub_id}->{'updated_by'} = $curated_by ? $curated_by : "FB_curation";
+								$curation_status_data->{$pub_id}->{'created_by'} = $curated_by ? $curated_by : "FB_curator";
+								$curation_status_data->{$pub_id}->{'updated_by'} = $curated_by ? $curated_by : "FB_curator";
 								$curation_status_data->{$pub_id}->{'mod_abbreviation'} = "FB";
 								my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
 								$curation_status_data->{$pub_id}->{'reference_curie'} = "FB:$FBrf";
@@ -948,8 +948,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 							$curation_status_data->{$pub_id}->{'date_created'} = $timestamp;
 							$curation_status_data->{$pub_id}->{'date_updated'} = $timestamp;
 								
-							$curation_status_data->{$pub_id}->{'created_by'} = $curated_by ? $curated_by : "FB_curation";
-							$curation_status_data->{$pub_id}->{'updated_by'} = $curated_by ? $curated_by : "FB_curation";
+							$curation_status_data->{$pub_id}->{'created_by'} = $curated_by ? $curated_by : "FB_curator";
+							$curation_status_data->{$pub_id}->{'updated_by'} = $curated_by ? $curated_by : "FB_curator";
 
 							$curation_status_data->{$pub_id}->{'mod_abbreviation'} = "FB";
 							my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
@@ -1035,8 +1035,8 @@ foreach my $pub_id (sort keys %{$diseaseHP_flags}) {
 				$element->{'date_created'} = $timestamp;
 				$element->{'date_updated'} = $timestamp;
 
-				$element->{'created_by'} = "FB_curation";
-				$element->{'updated_by'} = "FB_curation";
+				$element->{'created_by'} = "FB_curator";
+				$element->{'updated_by'} = "FB_curator";
 
 				$element->{'mod_abbreviation'} = "FB";
 				$element->{'reference_curie'} = "FB:$FBrf";
