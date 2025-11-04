@@ -52,9 +52,9 @@ sub get_flag_mapping {
 			},
 
 			'new_allele' => {
-			'ATP_topic' => 'ATP:0000006',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
-			'data_novelty' => 'ATP:0000229', # new to field
+				'ATP_topic' => 'ATP:0000006',
+				'species' => 'NCBITaxon:7214', # Drosophilidae
+				'data_novelty' => 'ATP:0000229', # new to field
 			},
 
 			'new_transg' => {
@@ -82,6 +82,12 @@ sub get_flag_mapping {
 				'ATP_topic' => 'ATP:0000079',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 				'data_novelty' => 'ATP:0000321', # new data
+				'for_curation_status' => {
+					'get_curated_data' => 'phenotype',
+					'use_filename' => 'phen',
+					'relevant_internal_note' => 'only pheno_chem data in paper|No phenotypic data in paper|phen_cur: CV annotations only',
+					'use_cam_full_filename' => '1',
+				},
 			},
 
 			'pheno_anat' => {
@@ -104,11 +110,6 @@ sub get_flag_mapping {
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 			},
 
-			'pert_exp' => {
-				'ATP_topic' => 'ATP:0000042',
-			},
-
-
 			'merge' => {
 
 				'ATP_topic' => 'ATP:0000340',
@@ -125,7 +126,7 @@ sub get_flag_mapping {
 			'new_char' => {
 
 				'ATP_topic' => 'ATP:0000339',
-			'species' => 'NCBITaxon:7214', # Drosophilidae
+				'species' => 'NCBITaxon:7214', # Drosophilidae
 			},
 
 		},
@@ -139,6 +140,12 @@ sub get_flag_mapping {
 				'ATP_topic' => 'ATP:0000151',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 				'curator_only' => '1',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'DO_annotation',
+					'use_filename' => 'DO',
+				},
+
 			},
 
 			'dm_other' => {
@@ -152,14 +159,17 @@ sub get_flag_mapping {
 
 				'ATP_topic' => 'ATP:0000152',# 'disease model' ATP term - using more specific ATP term for DO curation
 				'species' => 'NCBITaxon:7214', # Drosophilidae
+				# do not use 'for_curation_status' to mark curated papers - flag is turned into more specific dm_gen::DONE flag on curation being done.
+
 			},
 
 			'diseaseHP' => {
 
 				'ATP_topic' => 'ATP:0000152',# disease model ATP term - using more specific ATP term for DO curation
 				'species' => 'NCBITaxon:7214', # Drosophilidae
-				'data_novelty' => 'ATP:0000229', # new to field
 				'curator_only' => '1',
+				# do not use 'for_curation_status' to mark curated papers - flag is turned into more specific dm_gen::DONE flag on curation being done.
+
 			},
 
 			'noDOcur' => {
@@ -178,11 +188,23 @@ sub get_flag_mapping {
 			'cell_cult' => {
 				'ATP_topic' => 'ATP:0000008',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'cell_line',
+					'use_filename' => 'cell_line',
+				},
+
 			},
 
 			'cell_line' => {
 				'ATP_topic' => 'ATP:0000008',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'cell_line',
+					'use_filename' => 'cell_line',
+				},
+
 			},
 
 
@@ -190,16 +212,34 @@ sub get_flag_mapping {
 				'ATP_topic' => 'ATP:0000008',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 				'note' => 'Commercially purchased cell line', # this is what is on FTYP form
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'cell_line',
+					'use_filename' => 'cell_line',
+				},
+
 			},
 
 			'cell_line(stable)' => {
 				'ATP_topic' => 'ATP:0000008',
-					'species' => 'NCBITaxon:7214', # Drosophilidae
+				'species' => 'NCBITaxon:7214', # Drosophilidae
 				'note' => 'Stable line generated', # this is what is on FTYP form
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'cell_line',
+					'use_filename' => 'cell_line',
+				},
+
 			},
 
 			'chemical' => {
 				'ATP_topic' => 'ATP:0000094',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'chemical',
+					'use_filename' => 'chemical',
+				},
+
 			},
 
 			'cis_reg' => {
@@ -223,42 +263,82 @@ sub get_flag_mapping {
 
 				'ATP_topic' => 'ATP:0000011',# 'disease' ATP term - using more general ATP term for FBhh curation
 				'species' => 'NCBITaxon:7214', # Drosophilidae
-				'data_novelty' => 'ATP:0000321', # new data
 			},
 
 			'gene_model' => {
 				'ATP_topic' => 'ATP:0000054',
+				'for_curation_status' => {
+					'suffix' => 'only',
+				},
 			},
 
 			'genom_feat' => {
 				'ATP_topic' => 'ATP:0000056',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'use_filename' => 'args',
+					'get_curated_data' => 'genom_feat',
+				},
+
 			},
 
 			'genome_feat' => {
 				'ATP_topic' => 'ATP:0000056',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'use_filename' => 'args',
+					'get_curated_data' => 'genom_feat',
+				},
+
 			},
 
 			'pert_exp' => {
 				'ATP_topic' => 'ATP:0000042',
 				# not curator only - was in original version of FTYP
+
 			},
 
 			'phys_int' => {
 				'ATP_topic' => 'ATP:0000069',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'phys_int',
+					'use_filename' => 'phys_int',
+					'relevant_internal_note' => 'phys_int not curated',
+				},
+
 			},
 
 			'wt_cell_line' => {
 				'ATP_topic' => 'ATP:0000008',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'cell_line',
+					'use_filename' => 'cell_line',
+				},
+
 			},
 
 			'wt_exp' => {
 				'ATP_topic' => 'ATP:0000041',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'expression_annotation',
+					'use_filename' => 'wt_exp',
+				},
+
 			},
 
 			'neur_exp' => {
 				'ATP_topic' => 'ATP:0000338',
 				'curator_only' => '1',
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'expression_annotation',
+					'use_filename' => 'neur_exp',
+				},
+
 			},
 		},
 
@@ -269,6 +349,10 @@ sub get_flag_mapping {
 				'ATP_topic' => 'ATP:0000031',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 				'data_novelty' => 'ATP:0000229', # new to field
+
+				'for_curation_status' => {
+					'suffix' => 'only',
+				},
 			},
 
 		},
@@ -337,7 +421,7 @@ sub get_flags_to_ignore {
 			'gene_model_nonmel' => '1',
 			'no_flag' => '1', # need to double-check with harvcur
 			'diseaseF' => '1', # need to double-check with harvcur
-			'marker' => '1', # need to double-check with harvcur
+			'marker' => '1',
 	
 		},
 
