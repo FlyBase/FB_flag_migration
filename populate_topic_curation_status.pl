@@ -696,7 +696,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 						if ($relevant_curator) {
 
-							$curated_by = "$relevant_curator: $relevant_currecs";
+							#$curated_by = "$relevant_curator: $relevant_currecs"; # debugging
+							$curated_by = "$relevant_curator";
 
 						}
 
@@ -921,7 +922,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 					if ($relevant_curator) {
 
-						$curated_by = "$relevant_curator: $relevant_currecs";
+						#$curated_by = "$relevant_curator: $relevant_currecs"; # debugging
+						$curated_by = "$relevant_curator";
 					}
 
 					# add curation status if there is phenotypic data - it is expected that many of this kind of curation record will NOT contain phenotype data,
