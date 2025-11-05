@@ -337,7 +337,7 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 					}
 
 					# convert all unknown style curators to the same 'FB_curator' name that is used for persistent store submissions
-					if ($curator eq 'Unknown Curator' || $curator eq 'Generic Curator' || $curator eq 'P. Leyland') {
+					if ($curator eq 'Unknown' || $curator eq 'Unknown Curator' || $curator eq 'Generic Curator' || $curator eq 'P. Leyland') {
 						$curator = 'FB_curator';
 					}
 
