@@ -156,7 +156,7 @@ The returned hash reference has the following structure:
 
 o $pub_id is the pub_id of the reference.
 
-o $matching_triage_flag is triage flag(s) that *start with* the triage_flag argument - so this subroutine returns both the 'plain' flag (without any :: suffix) matching the triage_flag argument and also the corresponding flag *with* a :: suffix (which can be relevant for curation status information).
+o $matching_triage_flag can be either an exact match to the triage_flag argument (i.e. the 'plain' flag without any :: suffix) or also the triage_flag argument  *with* a :: suffix (which can be relevant for curation status information).
 
 o $audit_type is either 'I' (for insert) or 'U' (for update)
 
@@ -186,7 +186,7 @@ Note
 	my $data = {};
 
 
-	my $sql_query = sprintf("select distinct pp.pub_id, pp.value, ac.audit_transaction, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value ~'^%s' and c.cvterm_id=pp.type_id  and c.name ='%s' and ac.audited_table='pubprop' and ac.audit_transaction in ('I', 'U')  and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp",$triage_flag, $triage_flag_type);
+	my $sql_query = sprintf("select distinct pp.pub_id, pp.value, ac.audit_transaction, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value ~'^%s(::.*)?$' and c.cvterm_id=pp.type_id  and c.name ='%s' and ac.audited_table='pubprop' and ac.audit_transaction in ('I', 'U')  and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp",$triage_flag, $triage_flag_type);
 	my $db_query = $dbh->prepare($sql_query);
 	$db_query->execute or die "WARNING: ERROR: Unable to execute get_flag_info_with_audit_data query ($!)\n";
 
