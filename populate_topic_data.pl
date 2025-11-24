@@ -404,13 +404,6 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 								}
 
 
-
-								if ($ENV_STATE eq "test" || $ENV_STATE eq "dev") {
-
-									$data->{note} = "gm testing adding topics for $FBrf (for SCRUM-5145)";
-
-								}
-
 								my $json_data = $json_encoder->encode($data);
 
 
