@@ -457,11 +457,6 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 	}
 }
 
-## change of logic
-## go through a flag_type at a time, by going through $flag_mapping (flag_type key, then flag key)
-## could maybe use get_flag_info_with_audit_data to get flag info - would then need to check that returned info is either eq the flag key or matches ^flag key:: - hmm, no that wouldn't work as then need to get timestamp info below
-## then get earliest timestamp from I audit type
-## get matching curator
 
 
 unless ($ENV_STATE eq "test") {
