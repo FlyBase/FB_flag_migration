@@ -5,7 +5,7 @@ use warnings;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw(get_relevant_curator get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_flaglist_with_suffix get_timestamps_for_pubprop_value get_relevant_currec_for_datatype get_matching_pubprop_value_with_timestamps);
+our @EXPORT = qw(get_relevant_curator get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_flaglist_with_suffix get_timestamps_for_pubprop_value get_relevant_currec_for_datatype get_matching_pubprop_value_with_timestamps get_all_flag_info_with_timestamps);
 
 
 =head1 MODULE: AuditTable
@@ -156,7 +156,7 @@ The returned hash reference has the following structure:
 
 o $pub_id is the pub_id of the reference.
 
-o $matching_triage_flag is triage flag(s) that *start with* the triage_flag argument - so this subroutine returns both the 'plain' flag (without any :: suffix) matching the triage_flag argument and also the corresponding flag *with* a :: suffix (which can be relevant for curation status information).
+o $matching_triage_flag can be either an exact match to the triage_flag argument (i.e. the 'plain' flag without any :: suffix) or also the triage_flag argument  *with* a :: suffix (which can be relevant for curation status information).
 
 o $audit_type is either 'I' (for insert) or 'U' (for update)
 
@@ -186,7 +186,7 @@ Note
 	my $data = {};
 
 
-	my $sql_query = sprintf("select distinct pp.pub_id, pp.value, ac.audit_transaction, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value ~'^%s' and c.cvterm_id=pp.type_id  and c.name ='%s' and ac.audited_table='pubprop' and ac.audit_transaction in ('I', 'U')  and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp",$triage_flag, $triage_flag_type);
+	my $sql_query = sprintf("select distinct pp.pub_id, pp.value, ac.audit_transaction, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value ~'^%s(::.*)?$' and c.cvterm_id=pp.type_id  and c.name ='%s' and ac.audited_table='pubprop' and ac.audit_transaction in ('I', 'U')  and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp",$triage_flag, $triage_flag_type);
 	my $db_query = $dbh->prepare($sql_query);
 	$db_query->execute or die "WARNING: ERROR: Unable to execute get_flag_info_with_audit_data query ($!)\n";
 
@@ -618,6 +618,97 @@ o $audit_timestamp is the 'I' timestamp(s) from the audit_chado table for the ma
 
 	}
 
+	return $data;
+
+}
+
+
+
+sub get_all_flag_info_with_timestamps {
+
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    get_all_flag_info_with_timestamps
+	Usage:    get_all_flag_info_with_timestamps(database_handle);
+	Function: Gets triage flag and timestamp information for all triage flags.
+	Example:  my $flag_info = &get_all_flag_info_with_timestamps($dbh);
+
+
+
+Returns:
+
+The returned hash reference has the following structure:
+
+   @{$data->{$pub_id}->{$flag_type}->{$plain_flag}->{$suffix}->{$audit_transaction_type}, $audit_timestamp;
+
+
+o $pub_id is the pub_id of the reference.
+
+o $flag_type is one of cam_flag, harv_flag, dis_flag, onto_flag - the type of the pubprop in chado that the corresponding child 'flag' keys are stored under.
+
+o $plain_flag is the plain flag name (without suffix) e.g. pheno, phys_int, dm_gen, novel_anat
+
+o $suffix is either the string that was after :: in the original flag in chado, or 'NO_SUFFIX' if the flag in chado had no suffix.
+
+
+o $audit_transaction_type is either 'I' (for insert) of 'U' (for update) - from the audit_transaction entry in chado.
+
+o $audit_timestamp is a timestamp from the audit_chado table. The $audit_timestamp values are sorted earliest to latest within the array.
+
+
+=cut
+
+
+	unless (@_ == 1) {
+
+		die "Wrong number of parameters passed to the get_all_flag_info_with_timestamps subroutine\n";
+	}
+
+
+	my ($dbh) = @_;
+
+	my @flag_types = ('cam_flag', 'harv_flag', 'dis_flag', 'onto_flag');
+
+
+
+	my $data = {};
+
+
+	foreach my $flag_type (@flag_types) {
+
+		my $sql_query = sprintf("select distinct pp.pub_id, pp.value, ac.audit_transaction, ac.transaction_timestamp, ac.audit_transaction from pubprop pp, cvterm c, audit_chado ac where c.name ='%s' and c.cvterm_id=pp.type_id and ac.audited_table='pubprop' and ac.audit_transaction in ('I', 'U') and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp",$flag_type);
+		my $db_query = $dbh->prepare($sql_query);
+		$db_query->execute or die "WARNING: ERROR: Unable to execute get_all_flag_info_with_timestamps query ($!)\n";
+
+
+		while (my ($pub_id, $raw_flag, $audit_type, $audit_timestamp, $audit_transaction) = $db_query->fetchrow_array) {
+
+
+			my $plain_flag = '';
+			my $suffix = '';
+
+			if ($raw_flag =~ m/^(.+)::(.+)$/) {
+
+				$plain_flag = $1;
+				$suffix = $2;	
+
+			} else {
+
+				$plain_flag = $raw_flag;
+				$suffix = 'NO_SUFFIX';
+
+			}
+
+		
+			push @{$data->{$pub_id}->{$flag_type}->{$plain_flag}->{$suffix}->{$audit_transaction}}, $audit_timestamp;
+
+		}
+
+	}
 	return $data;
 
 }

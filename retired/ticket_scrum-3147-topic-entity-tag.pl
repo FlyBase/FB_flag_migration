@@ -170,26 +170,20 @@ my $dbh = DBI->connect($dsource,$user,$pwd) or die "cannot connect to $dsource\n
 
 my $FBrf_like='^FBrf[0-9]+$';
 
+my $json_encoder = JSON::PP->new()->pretty(1)->canonical(1);
+
 
 # information that depends on the $ENV_STATE chosen
-# json encoder is just for styling so easier to read in dev mode
-my $json_encoder;
 # topic_entity_tag_source from relevant ABC database - this is not always in sync between production vs stage ABC databases, so get the current correct data using an API call when run script, rather than hard-coding 
 my $author_source_data = {};
 my $curator_source_data = {};
 
-
-# set the json output format to be slightly different for dev and test mode - pretty separates the name/value pairs by return so its easier to read
 if ($ENV_STATE eq "dev" || $ENV_STATE eq "test") {
-
-	$json_encoder = JSON::PP->new()->pretty(1)->canonical(1);
-
 
 	$author_source_data = &get_topic_entity_tag_source_data('stage', 'author');
 	$curator_source_data = &get_topic_entity_tag_source_data('stage', 'curator');
 
 } else {
-	$json_encoder = JSON::PP->new()->canonical(1);
 
 	$author_source_data = &get_topic_entity_tag_source_data($ENV_STATE, 'author');
 	$curator_source_data = &get_topic_entity_tag_source_data($ENV_STATE, 'curator');
@@ -337,7 +331,7 @@ foreach my $FBrf (sort keys %FBrf_pubid){
 					}
 
 					# convert all unknown style curators to the same 'FB_curator' name that is used for persistent store submissions
-					if ($curator eq 'Unknown Curator' || $curator eq 'Generic Curator' || $curator eq 'P. Leyland') {
+					if ($curator eq 'Unknown' || $curator eq 'Unknown Curator' || $curator eq 'Generic Curator' || $curator eq 'P. Leyland') {
 						$curator = 'FB_curator';
 					}
 
