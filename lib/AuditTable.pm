@@ -119,6 +119,12 @@ sub get_relevant_curator {
 					$data->{FB_curator_count}++;
 				}
 
+				if ($curator eq 'Author Submission' || $curator eq 'User Submission') {
+
+					$data->{community_curation_count}++;
+
+				}
+
 			}
 		} else {
 			# not expecting to trip this error

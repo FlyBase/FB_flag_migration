@@ -337,7 +337,7 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 									} else {
 
 										# flag info must have been submitted/looked at by a curator rather than just multiple user curation, so set curator to the generic 'FB_curator'
-										if (exists $flag_mapping->{$flag_type}->{$flag}->{curator_only} || $flag_suffix ne '' || exists $curator_data->{FB_curator_count} ) {
+										if (exists $flag_mapping->{$flag_type}->{$flag}->{curator_only} || $flag_suffix ne '' || (exists $curator_data->{FB_curator_count} && !exists $curator_data->{community_curation_count})) {
 											$curator = 'FB_curator';
 
 										} else {
@@ -457,7 +457,236 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 	}
 }
 
+# add data for 'Dataset: pheno' topic
+my $dataset_pheno_flag = 'Dataset: pheno';
+my $dataset_pheno_note = &get_matching_pubprop_value_with_timestamps($dbh,'internalnotes',$dataset_pheno_flag);
 
+
+# get relevant data for 'Dataset: pheno'
+my $dataset_pheno_data = {};
+
+foreach my $pub_id (sort keys %{$dataset_pheno_note}) {
+
+
+	# loop to ensure
+	# 1. that when in test/dev mode, only get the 'Dataset: pheno' data for the FBrf(s) being tested ($test_FBrf)
+	# 2. if NOT in test/dev mode, add any missing pub_id/FBrf mapping (for current publications) to the $pub_id_to_FBrf hash so can be used later when the json data is printed
+	unless (exists $pub_id_to_FBrf->{$pub_id}) {
+
+		if ($test_FBrf) {
+			next;
+		} else {
+
+			my $sql_query = sprintf("select p.uniquename from pub p where p.pub_id='%s' and p.is_obsolete='false'", $pub_id);
+			my $db_query= $dbh->prepare($sql_query);
+			$db_query->execute or die "CAN'T GET missing 'Dataset: pheno' FBrf FROM CHADO:\n$sql_query)\n";
+			while (my ($uniquename) = $db_query->fetchrow_array()) {
+				$pub_id_to_FBrf->{$pub_id}->{'FBrf'} = $uniquename;
+			}
+
+			# skip if the missing pub_id was not a valid publication
+			unless (exists $pub_id_to_FBrf->{$pub_id}) {
+				next;
+			}
+
+		}
+
+	}
+
+	my $flag_count = 0; # count of whether there has been a plain 'Dataset: pheno' flag (with a datestamp if it exists) for this publication
+
+
+	foreach my $line (sort keys %{$dataset_pheno_note->{$pub_id}}) {
+
+		my $line_timestamp = $dataset_pheno_note->{$pub_id}->{$line}[0];
+		my $curator_data = &get_relevant_curator($dbh, $pub_id, $line_timestamp);
+		my $curator = ''; # this will be the relevant curator with a matching timestamp.
+		my $file = ''; # this will be the relevant curation record. Not submitted to the Alliance, but useful for plain text output (DATA: lines) when testing.
+
+		my $note = $line;
+		$note =~ s/(Author|User): .*? \<.*?\>\. ?//; # get rid of any author details that have crept in in error
+		# get rid of notes that are just the Dataset: pheno flag (and a datestamp if it exists), so that only end up with anything to add to note if there is additional info
+		$note =~ s/^$dataset_pheno_flag\.?$//;
+		$note =~ s/^$dataset_pheno_flag\. ?-?[a-z]{1,} ?[0-9]{6}(\.)?$//;
+		$note =~ s/^$dataset_pheno_flag\. [0-9]{6}[a-z]{1,}\.$//;
+		$note =~ s/^ +//;
+
+
+		if (defined $curator_data) {
+
+			# simple case, only one matching curated_by pubprop
+			if ($curator_data->{count} == 1) {
+
+				$curator = $curator_data->{relevant_curator};
+				$file = $curator_data->{relevant_record};
+
+			} else {
+
+				# multiple records for same FBrf submitted in same week by same curator
+				if (scalar keys %{$curator_data->{curator}} == 1) {
+
+					$curator = join '', keys %{$curator_data->{curator}};
+					$file = join ', ', sort keys %{$curator_data->{curator}->{$curator}};
+
+				} else {
+
+					# flag info must have been submitted/looked at by a curator rather than just multiple user curation, so set curator to the generic 'FB_curator'
+					if (exists $curator_data->{FB_curator_count} && !exists $curator_data->{community_curation_count}) {
+						$curator = 'FB_curator';
+
+					} else {
+						print $data_error_file "ERROR: multiple different curators that cannot reconcile, not adding: $pub_id\t$line\t" . (join ', ', keys %{$curator_data->{curator}}) . "\t" . (join ', ', keys %{$curator_data->{curator}->{$curator}}) . "\t$line_timestamp\n";
+
+					}
+
+				}
+
+			}
+
+			# convert all unknown style curators to the same 'FB_curator' name that is used for persistent store submissions
+			if ($curator eq 'Unknown' || $curator eq 'Unknown Curator' || $curator eq 'Generic Curator' || $curator eq 'P. Leyland') {
+				$curator = 'FB_curator';
+			}
+
+		} else {
+
+
+			print $data_error_file "ERROR: unable to find who curated for $pub_id: $line\n";
+		}
+
+		if ($curator ne '') {
+
+			unless (exists $dataset_pheno_data->{$pub_id}) {
+
+				$dataset_pheno_data->{$pub_id}->{created_by} = $curator;
+				$dataset_pheno_data->{$pub_id}->{date_created} = $line_timestamp;
+				$dataset_pheno_data->{$pub_id}->{date_updated} = $line_timestamp;
+
+				if ($note ne '') {
+					$dataset_pheno_data->{$pub_id}->{note} = $note;
+				}
+
+			} else {
+
+
+				my $existing_note = exists $dataset_pheno_data->{$pub_id}->{note} ? $dataset_pheno_data->{$pub_id}->{note} : '';
+
+				# not had an internal note that just added 'Dataset: pheno' yet, but have had some other comment
+				# in this case, change the created info to the current datestamp as it should be earlier than the other comment
+				# also add any additional note text
+				if ($flag_count == 0) {
+
+					$dataset_pheno_data->{$pub_id}->{date_updated} = "$dataset_pheno_data->{$pub_id}->{created_by}";
+					$dataset_pheno_data->{$pub_id}->{created_by} = $curator;
+					$dataset_pheno_data->{$pub_id}->{date_updated} = "$dataset_pheno_data->{$pub_id}->{date_created}";
+					$dataset_pheno_data->{$pub_id}->{date_created} = $line_timestamp;
+
+					if ($note ne '') {
+
+						$dataset_pheno_data->{$pub_id}->{note} = ($existing_note) ? ($existing_note . " " . $note) : $note;
+
+					}
+
+				# have already had an internal note that just added 'Dataset: pheno' with no additional info.
+				# in this case, only want to change the updated info (plus add note text) if there is additional note text to add
+				} else {
+
+					if ($note ne '') {
+
+						$dataset_pheno_data->{$pub_id}->{updated_by} = $curator;
+						$dataset_pheno_data->{$pub_id}->{date_updated} = $line_timestamp;
+						$dataset_pheno_data->{$pub_id}->{note} = ($existing_note) ? ($existing_note . " " . $note) : $note;
+
+					}
+
+				}
+
+			}
+		}
+
+
+		# add to the count if the internal note was a plain 'Dataset: pheno' flag
+		if ($note eq '') {
+
+			$flag_count++;
+		}
+
+
+
+	}
+
+
+}
+
+# add Dataset: pheno info to the $complete_data hash
+
+foreach my $pub_id (sort keys %{$dataset_pheno_data}) {
+
+
+
+	if (exists $pub_id_to_FBrf->{$pub_id}) {
+
+		# build reference with information for this publication
+		my $data = {};
+
+		# set basic information for this particular flag and FBrf combination
+		my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
+		my $FBrf_with_prefix="FB:".$FBrf;
+		$data->{reference_curie} = $FBrf_with_prefix;
+		$data->{topic} = "ATP:0000085";
+		$data->{species} = 'NCBITaxon:7214', # Drosophilidae
+		$data->{data_novelty} = 'ATP:0000335'; # if the mapping hash has no specific data novelty term set, the parent term (ATP:0000335 = 'data novelty') must be added for ABC validation purposes
+		$data->{negated} = FALSE;
+
+		foreach my $key (keys %{$dataset_pheno_data->{$pub_id}}) {
+
+			$data->{$key} = $dataset_pheno_data->{$pub_id}->{$key};
+
+		}
+		if ($data->{created_by} eq "Author Submission" || $data->{created_by} eq "User Submission"){
+			$data->{topic_entity_tag_source_id} = $author_source_data->{topic_entity_tag_source_id};
+		} else {
+			$data->{topic_entity_tag_source_id} = $curator_source_data->{topic_entity_tag_source_id};
+		}
+
+		unless ($ENV_STATE eq "test") {
+			push @{$complete_data->{data}}, $data;
+
+		} else {
+
+
+			my $json_data = $json_encoder->encode($data);
+
+			my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
+			my $raw_result = `$cmd`;
+			my $result = $json_encoder->decode($raw_result);
+
+			# plain text output useful for testing
+			print $output_file "DATA: $FBrf\tDataset: pheno information\n";
+
+			if (exists $result->{'status'} && $result->{'status'} eq 'success') {
+
+				print $output_file "json post success\nJSON:\n$json_data\n\n";
+
+			} else {
+
+				print $process_error_file "json post failed\nJSON:\n$json_data\nREASON:\n$raw_result\n#################################\n\n";
+
+			}
+
+
+		}
+
+
+
+	} else {
+
+		print $process_error_file "ERROR: 'Dataset: pheno '$pub_id with no FBrf in final mapping\n";
+
+	}
+}
+
+###
 
 unless ($ENV_STATE eq "test") {
 
