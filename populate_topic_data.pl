@@ -107,7 +107,7 @@ Script logic:
 
 2b. splits the 'raw' triage flag into the flag part and the suffix part (splits on ::) (e.g. disease::DONE -> flag = disease, suffix = DONE).
 
-3. For each flag,
+3. For each triage flag,
 
 3a. the flag is ignored if it is in the $flags_to_ignore hash or it has a suffix and the suffix is 'Inappropriate use of flag' (which indicates the flag is incorrect).
 
@@ -121,14 +121,11 @@ Script logic:
 
 3c. If a matching curator was successfully identified, a data structure with the relevant information is made for that flag+FBrf combination, using the flag timestamp from audit_chado and mapping information in the $flag_mapping hash to fill out the data structure.
 
-3d. the data structure is then converted to json, and either printed (dev mode) or submitted to the appropriate ABC server using POST (all other modes).
 
+4. gets internal notes that contain 'Dataset: pheno' information, tries to identify the relevant curator (using same logic as for triage flags in 3.) and if a matching curator is successfully identified, adds the relevant information for each flag+FBrf combination to the same data structure used to store triage flag information in 3.
 
-=cut
+5. the data structure containing triage flag and 'Dataset: pheno' information is then converted to json, and either submitted to the appropriate ABC server using POST (test mode) or printed (all other modes).
 
-=head1 STILL TO DO
-
-1. The system call to actually run the $cmd to POST the data to a server is currently commented out. In addition, need to add a test to check that the system call completes successfully and to print an error if not.
 
 =cut
 
@@ -681,7 +678,7 @@ foreach my $pub_id (sort keys %{$dataset_pheno_data}) {
 
 	} else {
 
-		print $process_error_file "ERROR: 'Dataset: pheno '$pub_id with no FBrf in final mapping\n";
+		print $data_error_file "ERROR: 'Dataset: pheno '$pub_id with no FBrf in final mapping\n";
 
 	}
 }
