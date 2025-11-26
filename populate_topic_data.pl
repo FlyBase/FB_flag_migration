@@ -266,6 +266,32 @@ open my $process_error_file, '>', "FB_topic_process_errors.${destination}.err"
 my $flag_mapping = &get_flag_mapping();
 my $flags_to_ignore = &get_flags_to_ignore();
 
+#get list of negative flags for each flag type
+my $negative_flags = {};
+
+
+# store the negative flag for a given flag_type (there must only be one)
+foreach my $flag_type (keys %{$flag_mapping}) {
+
+	foreach my $flag (keys %{$flag_mapping->{$flag_type}}) {
+
+		if (exists $flag_mapping->{$flag_type}->{$flag}->{'negated'}) {
+
+			$negative_flags->{$flag_type}->{count}++;
+			$negative_flags->{$flag_type}->{flag} = $flag;
+
+		}
+
+	}
+}
+
+foreach my $flag_type (keys %{$negative_flags}) {
+
+	unless ($negative_flags->{$flag_type}->{count} == 1) {
+		delete $negative_flags->{$flag_type}->{flag}
+	}
+}
+
 
 # get all triage flag info
 my $flag_info = &get_all_flag_info_with_timestamps($dbh);
@@ -283,12 +309,43 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 
 		foreach my $flag_type (sort keys %{$flag_info->{$pub_id}}) {
 
+
+			my $negative_flag = '';
+
+			if (exists $negative_flags->{$flag_type}) {
+
+				$negative_flag = $negative_flags->{$flag_type}->{flag};
+			}
+
+
 			foreach my $flag (sort keys %{$flag_info->{$pub_id}->{$flag_type}}) {
 
 				# 1. only process flags that we want to submit the FB flag to the Alliance
 				unless (exists $flags_to_ignore->{$flag_type} && exists $flags_to_ignore->{$flag_type}->{$flag}) {
 
 					if (exists $flag_mapping->{$flag_type} && exists $flag_mapping->{$flag_type}->{$flag}) {
+
+						if ($negative_flag ne '') {
+
+							if ($flag eq $negative_flag) {
+
+								unless (scalar keys %{$flag_info->{$pub_id}->{$flag_type}} == 1) {
+
+									print $data_error_file "ERROR: publication has negative flag in combination with other flags, not adding: $FBrf\t$flag_type\t$flag\n";
+									next;
+
+								}
+
+							} else {
+
+								if (exists $flag_info->{$pub_id}->{$flag_type}->{$negative_flag}) {
+
+									print $data_error_file "ERROR: publication has negative flag in combination with other flags, not adding: $FBrf\t$flag_type\t$flag\n";
+									next;
+								}
+							}
+						}
+
 
 
 						if (exists $flag_info->{$pub_id}->{$flag_type}->{$flag}->{'Inappropriate use of flag'}) {
