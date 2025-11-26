@@ -291,14 +291,26 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 					if (exists $flag_mapping->{$flag_type} && exists $flag_mapping->{$flag_type}->{$flag}) {
 
 
+						if (exists $flag_info->{$pub_id}->{$flag_type}->{$flag}->{'Inappropriate use of flag'}) {
+							next;
+						}
+
+
+						my $flag_audit_timestamp;
+						my $flag_suffix = '';
 						if (scalar keys %{$flag_info->{$pub_id}->{$flag_type}->{$flag}} == 1) {
 
-							my $flag_suffix = join '', keys %{$flag_info->{$pub_id}->{$flag_type}->{$flag}};
+							$flag_suffix = join '', keys %{$flag_info->{$pub_id}->{$flag_type}->{$flag}};
+						} else {
 
+							if (exists $flag_info->{$pub_id}->{$flag_type}->{$flag}->{'NO_SUFFIX'}) {
+								$flag_suffix = 'NO_SUFFIX';
 
-							if ($flag_suffix eq 'Inappropriate use of flag') {
-								next;
 							}
+						}
+
+						if ($flag_suffix ne '') {
+
 
 
 							# get the earliest timestamp for when the flag was inserted into chado
@@ -307,6 +319,8 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 
 							# 2. try to find the relevant curator (from curated_by pubprop) using audit table timestamp information
 							my $curator_data = &get_relevant_curator($dbh, $pub_id, $flag_audit_timestamp);
+
+
 							my $curator = ''; # this will be the relevant curator with a matching timestamp.
 							my $file = ''; # this will be the relevant curation record. Not submitted to the Alliance, but useful for plain text output (DATA: lines) when testing.
 
@@ -434,7 +448,7 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 
 						} else {
 
-							print $data_error_file "ERROR: more than one suffix type for single flag: $pub_id, $flag_type\n";
+							print $data_error_file "ERROR: more than one suffix type and no 'NO_SUFFIX' for single flag: $pub_id, $flag_type\n";
 
 
 						}
