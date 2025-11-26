@@ -2,10 +2,7 @@
 
 use strict;
 use warnings;
-#use XML::DOM;
 use DBI;
-use Digest::MD5  qw(md5 md5_hex md5_base64);
-use Time::Piece;
 
 use JSON::PP;
 
