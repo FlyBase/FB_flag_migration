@@ -229,7 +229,7 @@ my $flag_suffix_mapping = {
 		'note' => 'Partial curation.',
 	},
 
-	'in progress' => {
+	'In progress' => {
 
 		'curation_status' => 'ATP:0000237', # 'curation in progress'
 	},
@@ -550,6 +550,19 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 													$note = $note . "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB. Despite this, set status to 'curated' as attribution may be to a related personal communication (after author correspondence) instead of the original reference.";
 													$store_status++;
 
+												# loop to deal with humanhealth flags (harv_flag disease flags)
+												} elsif ($ATP eq 'ATP:0000011') {
+
+													$curation_status = 'ATP:0000299'; # won't curate
+													$curation_tag = 'ATP:0000226'; # no curatable data
+													$store_status++;
+
+													unless ($note) {
+
+														$note = "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB, so status set to 'won't curate' with a 'no curatable data' tag.";
+													}
+
+
 												} else {
 													$curation_status = 'ATP:0000299'; # won't curate
 													$curation_tag = 'ATP:0000226'; # no curatable data
@@ -620,10 +633,10 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 							}
 
-							} else {
+						} else {
 
-								print $data_error_file "ERROR: unknown suffix type: topic: $ATP, pub_id: $pub_id, suffix: $suffix\n";
-							}
+							print $data_error_file "ERROR: unknown suffix type: topic: $ATP, pub_id: $pub_id, suffix: $suffix\n";
+						}
 					} else {
 						print $data_error_file "ERROR: more than one suffix type for single topic: topic: $ATP, pub_id: $pub_id\n";
 					}
@@ -757,6 +770,17 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 									} else {
 
 										print $data_error_file "WARNING: no data despite standard filename (phys_int loop): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
+
+									}
+
+
+								# loop to deal with humanhealth flags (harv_flag disease flags)
+								} elsif ($ATP eq 'ATP:0000011') {
+
+									if ($note) {
+										$curation_status = 'ATP:0000299'; # won't curate
+										$curation_tag = 'ATP:0000226'; # no curatable data
+										$store_status++;
 
 									}
 
@@ -1052,7 +1076,7 @@ foreach my $pub_id (sort keys %{$diseaseHP_flags}) {
 
 				unless ($ENV_STATE eq 'production') {
 					print $plain_output_file "DATA:$pub_id\t$FBrf\t$pub_type\t$element->{'topic'}\t$flag\t$element->{'curation_status'}\t$element->{'date_created'}\t$element->{'curation_tag'}\t$note\t$element->{'created_by'}\n";
-			}
+				}
 			}
 
 
