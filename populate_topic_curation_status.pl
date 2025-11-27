@@ -814,7 +814,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 									} else {
 
 										# keep this warning - will identify any papers with missing 'No phenotypic data in paper' internal note
-										print $data_error_file "WARNING: no data despite standard filename (pheno loop): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
+										print $data_error_file "WARNING: no data despite standard filename (pheno loop) (check whether need to add a 'No phenotypic data in paper' internal note): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
 
 									}
 
