@@ -48,7 +48,7 @@ Script has three modes:
 
 o dev mode
 
-  o makes data for all relevant FBrfs in chado.
+  o single FBrf mode: asks user for FBrf number (can also use a regular expression to test multiple FBrfs in this mode).
 
   o Data is printed to both the json output and 'plain' output files.
 
@@ -177,7 +177,7 @@ unless ($ENV_STATE eq 'dev'|| $ENV_STATE eq 'test'|| $ENV_STATE eq 'production')
 
 my $test_FBrf = '';
 my $okta_token = '';
-my $json_encoder;
+
 
 if ($ENV_STATE eq "test") {
 
@@ -197,23 +197,26 @@ if ($ENV_STATE eq "test") {
 	$okta_token = <STDIN>;
 	chomp $okta_token;
 
+}
+
+if ($ENV_STATE eq "dev" || $ENV_STATE eq "test") {
+
 	print STDERR "FBrf to test:";
 	$test_FBrf = <STDIN>;
 	chomp $test_FBrf;
 
-	unless ($test_FBrf =~ m/^FBrf[0-9]{7}$/) {
-		die "Only a single FBrf is allowed in test mode.\n";
+	if ($ENV_STATE eq "test") {
+
+		unless ($test_FBrf =~ m/^FBrf[0-9]{7}$/) {
+			die "Only a single FBrf is allowed in test mode.\n";
+		}
 	}
-	$json_encoder = JSON::PP->new()->canonical(1);
-
-} else {
-
-	$json_encoder = JSON::PP->new()->pretty(1)->canonical(1);
-
 }
 
 my $dsource = sprintf("dbi:Pg:dbname=%s;host=%s;port=5432",$db,$server);
 my $dbh = DBI->connect($dsource,$user,$pwd) or die "cannot connect to $dsource\n";
+
+my $json_encoder = JSON::PP->new()->pretty(1)->canonical(1);
 
 
 # map bit after :: when present in flag according to the type of information it adds wrt curation status
@@ -305,15 +308,15 @@ my $pub_id_to_FBrf = {};
 
 my $sql_query;
 
-unless ($ENV_STATE eq 'test') {
+unless ($ENV_STATE eq 'dev' || $ENV_STATE eq 'test') {
 
-	$sql_query = sprintf("select p.uniquename, p.pub_id, cvt.name from pub p, cvterm cvt where p.is_obsolete = 'f' and p.type_id = cvt.cvterm_id and cvt.is_obsolete = '0' and cvt.name in ('paper', 'erratum', 'letter', 'note', 'teaching note', 'supplementary material', 'retraction', 'personal communication to FlyBase', 'review')");
+	$sql_query = sprintf("select p.uniquename, p.pub_id, cvt.name from pub p, cvterm cvt where p.is_obsolete = 'f' and p.type_id = cvt.cvterm_id and cvt.is_obsolete = '0' and cvt.name in ('paper', 'erratum', 'letter', 'note', 'teaching note', 'supplementary material', 'retraction', 'personal communication to FlyBase', 'review') and p.uniquename ~'%s'", '^FBrf[0-9]+$');
 
 
 } else {
 
 
-	$sql_query = sprintf("select p.uniquename, p.pub_id, cvt.name from pub p, cvterm cvt where p.is_obsolete = 'f' and p.type_id = cvt.cvterm_id and cvt.is_obsolete = '0' and cvt.name in ('paper', 'erratum', 'letter', 'note', 'teaching note', 'supplementary material', 'retraction', 'personal communication to FlyBase', 'review') and p.uniquename = '$test_FBrf'");
+	$sql_query = sprintf("select p.uniquename, p.pub_id, cvt.name from pub p, cvterm cvt where p.is_obsolete = 'f' and p.type_id = cvt.cvterm_id and cvt.is_obsolete = '0' and cvt.name in ('paper', 'erratum', 'letter', 'note', 'teaching note', 'supplementary material', 'retraction', 'personal communication to FlyBase', 'review') and p.uniquename ~'%s'", $test_FBrf);
 
 
 }
