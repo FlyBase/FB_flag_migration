@@ -328,12 +328,17 @@ while (my ($uniquename, $pub_id, $pub_type) = $db_query->fetchrow_array()) {
 # from the point of view of the ATP topic term that will be used to submit curation_status info into the ABC.
 my $flag_mapping = &get_flag_mapping();
 my $curation_status_topics = {};
-
+my $diseaseHP_types = {};
 
 # 1a. First fill in the relevant information for FB triage flags which can have a suffix that is relevant to curation status.
 foreach my $flag_type (sort keys %{$flag_mapping}) {
 
 	foreach my $flag (sort keys %{$flag_mapping->{$flag_type}}) {
+
+		if ($flag eq 'diseaseHP') {
+			$diseaseHP_types->{$flag_type} = "$flag_mapping->{$flag_type}->{$flag}->{ATP_topic}";
+
+		}
 
 		if (exists $flag_mapping->{$flag_type}->{$flag}->{'for_curation_status'}) {
 
@@ -355,6 +360,7 @@ foreach my $flag_type (sort keys %{$flag_mapping}) {
 				$curation_status_topics->{$ATP}->{$list_key}->{$value}++;
 
 			}
+
 		}
 	}
 
@@ -398,6 +404,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 
 #print Dumper ($curation_status_topics);
+#print Dumper ($diseaseHP_types);
 #die;
 
 my $complete_data = {};
@@ -1036,62 +1043,71 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 }
 
-## add 'curation_needed' information for diseaseHP dis_flag
-my $diseaseHP_flags = &get_matching_pubprop_value_with_timestamps($dbh,'dis_flag','diseaseHP');
+## add 'curation_needed' information for 'plain' (no suffix) diseaseHP flags (both harv_flag and dis_flag), i.e. those that still need curating
+foreach my $flag_type (keys %{$diseaseHP_types}) {
 
-foreach my $pub_id (sort keys %{$diseaseHP_flags}) {
-
-
-	if (scalar keys %{$diseaseHP_flags->{$pub_id}} == 1) {
+	my $diseaseHP_flags = &get_matching_pubprop_value_with_timestamps($dbh,$flag_type,'^diseaseHP$');
 
 
-		my $flag = join '', keys %{$diseaseHP_flags->{$pub_id}};
+	foreach my $pub_id (sort keys %{$diseaseHP_flags}) {
 
-		if ($flag eq 'diseaseHP') {
 
-			my $timestamp = $diseaseHP_flags->{$pub_id}->{$flag}[0];
+		if (scalar keys %{$diseaseHP_flags->{$pub_id}} == 1) {
 
-			if (exists $pub_id_to_FBrf->{$pub_id}) {
+			my $flag = join '', keys %{$diseaseHP_flags->{$pub_id}};
 
-				my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
-				my $pub_type = $pub_id_to_FBrf->{$pub_id}->{'type'};
+			if ($flag eq 'diseaseHP') {
 
-				my $element = {};
+				my $timestamp = $diseaseHP_flags->{$pub_id}->{$flag}[0];
 
-				$element->{'date_created'} = $timestamp;
-				$element->{'date_updated'} = $timestamp;
+				if (exists $pub_id_to_FBrf->{$pub_id}) {
 
-				$element->{'created_by'} = "FB_curator";
-				$element->{'updated_by'} = "FB_curator";
+					my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
+					my $pub_type = $pub_id_to_FBrf->{$pub_id}->{'type'};
 
-				$element->{'mod_abbreviation'} = "FB";
-				$element->{'reference_curie'} = "FB:$FBrf";
-				$element->{'topic'} = "ATP:0000152";
-				$element->{'curation_status'} = "ATP:0000238"; # curation_needed
-				$element->{'curation_tag'} = "high priority data"; # placeholder until new ATP term is created
+					my $element = {};
 
-				my $note = exists $element->{'note'} ? $element->{'note'} : '';
+					$element->{'date_created'} = $timestamp;
+					$element->{'date_updated'} = $timestamp;
 
-				push @{$complete_data->{data}}, $element;
+					$element->{'created_by'} = "FB_curator";
+					$element->{'updated_by'} = "FB_curator";
 
-				unless ($ENV_STATE eq 'production') {
-					print $plain_output_file "DATA:$pub_id\t$FBrf\t$pub_type\t$element->{'topic'}\t$flag\t$element->{'curation_status'}\t$element->{'date_created'}\t$element->{'curation_tag'}\t$note\t$element->{'created_by'}\n";
+					$element->{'mod_abbreviation'} = "FB";
+					$element->{'reference_curie'} = "FB:$FBrf";
+					$element->{'topic'} = "$diseaseHP_types->{$flag_type}";
+					$element->{'curation_status'} = "ATP:0000238"; # curation_needed
+					$element->{'curation_tag'} = "ATP:0000353"; # high priority data
+
+					my $note = '';
+
+					push @{$complete_data->{data}}, $element;
+
+					unless ($ENV_STATE eq 'production') {
+						print $plain_output_file "DATA:$pub_id\t$FBrf\t$pub_type\t$element->{'topic'}\t$flag\t$element->{'curation_status'}\t$element->{'date_created'}\t$element->{'curation_tag'}\t$note\t$element->{'created_by'}\n";
+					}
 				}
+
+
+			} else {
+
+				if ($flag_type eq 'dis_flag') {
+					print $data_error_file "ERROR: $flag_type flag '$flag' is unexpected (should be converted to more specific flag, not have a suffix): pub_id: $pub_id\n";
+
+
+				}
+
 			}
 
 
 		} else {
-			print $data_error_file "ERROR: flag '$flag' is unexpected: pub_id: $pub_id\n";
+
+
+			print $data_error_file "ERROR: more than one $flag_type 'diseaseHP' style flag for single publication: pub_id: $pub_id\n";
 
 		}
-
-
-	} else {
-
-
-		print $data_error_file "ERROR: more than one 'diseaseHP' style flag for single publication: pub_id: $pub_id\n";
-
 	}
+
 }
 
 
