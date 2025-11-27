@@ -256,6 +256,12 @@ sub get_flag_mapping {
 
 				'ATP_topic' => 'ATP:0000011',# 'disease' ATP term - using more general ATP term for FBhh curation
 				'species' => 'NCBITaxon:7214', # Drosophilidae
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'humanhealth',
+					'use_filename' => 'humanhealth',
+					'relevant_internal_note' => 'HDM flag not applicable',
+				},
 			},
 
 			# may decide not to submit this flag depending on whether FBhh curation will be done in Alliance (so may need deleting here and adding to ignore hash)
@@ -263,6 +269,12 @@ sub get_flag_mapping {
 
 				'ATP_topic' => 'ATP:0000011',# 'disease' ATP term - using more general ATP term for FBhh curation
 				'species' => 'NCBITaxon:7214', # Drosophilidae
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'humanhealth',
+					'use_filename' => 'humanhealth',
+					'relevant_internal_note' => 'HDM flag not applicable',
+				},
 			},
 
 			'gene_model' => {
