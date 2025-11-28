@@ -515,6 +515,10 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 												$store_status++;
 
+												if ($ATP eq 'ATP:0000011') {
+													$note = ''; # set 'HDM flag not applicable' note to empty for the small number of cases where added in error to publications with humanhealth data
+												}
+
 											} else {
 
 												# this represents cases where there is a DONE flag suffix but no corresponding curated data
@@ -570,6 +574,10 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 													unless ($note) {
 
 														$note = "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB, so status set to 'won't curate' with a 'no curatable data' tag.";
+													} else {
+
+														$note = ''; # set 'HDM flag not applicable' note to empty as the information is captured in the curation status
+
 													}
 
 
@@ -744,12 +752,17 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 							if (exists $has_curated_data->{$pub_id}) {
 
 								$curation_status = 'ATP:0000239';
-
-								unless ($note) {
-									$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
-
-								}
 								$store_status++;
+
+								if ($ATP eq 'ATP:0000011') {
+									$note = ''; # set 'HDM flag not applicable' note to empty for the small number of cases where added in error to publications with humanhealth data
+								}
+
+								# suppress following loop as was for debugging
+								#unless ($note) {
+								#	$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
+								#}
+
 
 							} else {
 
@@ -767,7 +780,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 										} elsif ($note =~ m/already curated by/) {
 
-											$curation_status = 'ATP:0000299'; # won't curate !! need to check this is OK !!
+											$curation_status = 'ATP:0000299'; # won't curate
 											$store_status++;
 
 										} else {
@@ -790,6 +803,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 									if ($note) {
 										$curation_status = 'ATP:0000299'; # won't curate
 										$curation_tag = 'ATP:0000226'; # no curatable data
+										$note = ''; # set 'HDM flag not applicable' note to empty as the information is captured in the curation status
 										$store_status++;
 
 									}
@@ -802,14 +816,9 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 										if ($note =~ m/only pheno_chem data in paper/ || $note =~ m/No phenotypic data in paper/) {
 
-											# this loop is needed to remove an incorrect 'phen_cur: CV annotations only' tag that was added automatically to some records with no phenotypic information
-											if ($note =~m/phen_cur: CV annotations only. [a-z]{2}[0-9]{6}./) {
-												$note =~ s/phen_cur: CV annotations only. [a-z]{2}[0-9]{6}.//;
-
-											}
-
 											$curation_status = 'ATP:0000299'; # won't curate
 											$curation_tag = 'ATP:0000226'; # no curatable data
+											$note = ''; # set note to empty as the information is captured in the curation status
 											$store_status++;
 
 
@@ -973,10 +982,10 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 							}
 
-							unless ($note) {
-								$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
-
-							}
+							# suppress following loop as was for debugging
+							#unless ($note) {
+							#	$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
+							#}
 
 							$note =~ s/^ //;
 							$note =~ s/ $//;
