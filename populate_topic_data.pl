@@ -641,7 +641,7 @@ foreach my $pub_id (sort keys %{$dataset_pheno_note}) {
 				# also add any additional note text
 				if ($flag_count == 0) {
 
-					$dataset_pheno_data->{$pub_id}->{date_updated} = "$dataset_pheno_data->{$pub_id}->{created_by}";
+					$dataset_pheno_data->{$pub_id}->{updated_by} = "$dataset_pheno_data->{$pub_id}->{created_by}";
 					$dataset_pheno_data->{$pub_id}->{created_by} = $curator;
 					$dataset_pheno_data->{$pub_id}->{date_updated} = "$dataset_pheno_data->{$pub_id}->{date_created}";
 					$dataset_pheno_data->{$pub_id}->{date_created} = $line_timestamp;
