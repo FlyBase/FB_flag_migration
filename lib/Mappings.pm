@@ -64,10 +64,6 @@ sub get_flag_mapping {
 				'data_novelty' => 'ATP:0000229', # new to field
 			},
 
-			'pathway' => {
-				'ATP_topic' => 'ATP:0000113',
-			},
-
 			'pert_exp' => {
 				'ATP_topic' => 'ATP:0000042',
 			},
@@ -415,6 +411,7 @@ sub get_flags_to_ignore {
 			'GOcur' => '1',
 			'noGOcur' => '1',
 			'gene_group' => '1',
+			'pathway' => '1',
 
 			'nocur' => '1', # nocur will not be added as a topic, but will instead be added to the curation status information in the workflow editor in the Alliance
 		},
