@@ -48,7 +48,7 @@ Script has three modes:
 
 o dev mode
 
-  o makes data for all relevant FBrfs in chado.
+  o single FBrf mode: asks user for FBrf number (can also use a regular expression to test multiple FBrfs in this mode).
 
   o Data is printed to both the json output and 'plain' output files.
 
@@ -177,7 +177,7 @@ unless ($ENV_STATE eq 'dev'|| $ENV_STATE eq 'test'|| $ENV_STATE eq 'production')
 
 my $test_FBrf = '';
 my $okta_token = '';
-my $json_encoder;
+
 
 if ($ENV_STATE eq "test") {
 
@@ -197,23 +197,26 @@ if ($ENV_STATE eq "test") {
 	$okta_token = <STDIN>;
 	chomp $okta_token;
 
+}
+
+if ($ENV_STATE eq "dev" || $ENV_STATE eq "test") {
+
 	print STDERR "FBrf to test:";
 	$test_FBrf = <STDIN>;
 	chomp $test_FBrf;
 
-	unless ($test_FBrf =~ m/^FBrf[0-9]{7}$/) {
-		die "Only a single FBrf is allowed in test mode.\n";
+	if ($ENV_STATE eq "test") {
+
+		unless ($test_FBrf =~ m/^FBrf[0-9]{7}$/) {
+			die "Only a single FBrf is allowed in test mode.\n";
+		}
 	}
-	$json_encoder = JSON::PP->new()->canonical(1);
-
-} else {
-
-	$json_encoder = JSON::PP->new()->pretty(1)->canonical(1);
-
 }
 
 my $dsource = sprintf("dbi:Pg:dbname=%s;host=%s;port=5432",$db,$server);
 my $dbh = DBI->connect($dsource,$user,$pwd) or die "cannot connect to $dsource\n";
+
+my $json_encoder = JSON::PP->new()->pretty(1)->canonical(1);
 
 
 # map bit after :: when present in flag according to the type of information it adds wrt curation status
@@ -229,7 +232,7 @@ my $flag_suffix_mapping = {
 		'note' => 'Partial curation.',
 	},
 
-	'in progress' => {
+	'In progress' => {
 
 		'curation_status' => 'ATP:0000237', # 'curation in progress'
 	},
@@ -305,15 +308,15 @@ my $pub_id_to_FBrf = {};
 
 my $sql_query;
 
-unless ($ENV_STATE eq 'test') {
+unless ($ENV_STATE eq 'dev' || $ENV_STATE eq 'test') {
 
-	$sql_query = sprintf("select p.uniquename, p.pub_id, cvt.name from pub p, cvterm cvt where p.is_obsolete = 'f' and p.type_id = cvt.cvterm_id and cvt.is_obsolete = '0' and cvt.name in ('paper', 'erratum', 'letter', 'note', 'teaching note', 'supplementary material', 'retraction', 'personal communication to FlyBase', 'review')");
+	$sql_query = sprintf("select p.uniquename, p.pub_id, cvt.name from pub p, cvterm cvt where p.is_obsolete = 'f' and p.type_id = cvt.cvterm_id and cvt.is_obsolete = '0' and cvt.name in ('paper', 'erratum', 'letter', 'note', 'teaching note', 'supplementary material', 'retraction', 'personal communication to FlyBase', 'review') and p.uniquename ~'%s'", '^FBrf[0-9]+$');
 
 
 } else {
 
 
-	$sql_query = sprintf("select p.uniquename, p.pub_id, cvt.name from pub p, cvterm cvt where p.is_obsolete = 'f' and p.type_id = cvt.cvterm_id and cvt.is_obsolete = '0' and cvt.name in ('paper', 'erratum', 'letter', 'note', 'teaching note', 'supplementary material', 'retraction', 'personal communication to FlyBase', 'review') and p.uniquename = '$test_FBrf'");
+	$sql_query = sprintf("select p.uniquename, p.pub_id, cvt.name from pub p, cvterm cvt where p.is_obsolete = 'f' and p.type_id = cvt.cvterm_id and cvt.is_obsolete = '0' and cvt.name in ('paper', 'erratum', 'letter', 'note', 'teaching note', 'supplementary material', 'retraction', 'personal communication to FlyBase', 'review') and p.uniquename ~'%s'", $test_FBrf);
 
 
 }
@@ -328,12 +331,17 @@ while (my ($uniquename, $pub_id, $pub_type) = $db_query->fetchrow_array()) {
 # from the point of view of the ATP topic term that will be used to submit curation_status info into the ABC.
 my $flag_mapping = &get_flag_mapping();
 my $curation_status_topics = {};
-
+my $diseaseHP_types = {};
 
 # 1a. First fill in the relevant information for FB triage flags which can have a suffix that is relevant to curation status.
 foreach my $flag_type (sort keys %{$flag_mapping}) {
 
 	foreach my $flag (sort keys %{$flag_mapping->{$flag_type}}) {
+
+		if ($flag eq 'diseaseHP') {
+			$diseaseHP_types->{$flag_type} = "$flag_mapping->{$flag_type}->{$flag}->{ATP_topic}";
+
+		}
 
 		if (exists $flag_mapping->{$flag_type}->{$flag}->{'for_curation_status'}) {
 
@@ -355,6 +363,7 @@ foreach my $flag_type (sort keys %{$flag_mapping}) {
 				$curation_status_topics->{$ATP}->{$list_key}->{$value}++;
 
 			}
+
 		}
 	}
 
@@ -398,6 +407,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 
 #print Dumper ($curation_status_topics);
+#print Dumper ($diseaseHP_types);
 #die;
 
 my $complete_data = {};
@@ -505,6 +515,10 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 												$store_status++;
 
+												if ($ATP eq 'ATP:0000011') {
+													$note = ''; # set 'HDM flag not applicable' note to empty for the small number of cases where added in error to publications with humanhealth data
+												}
+
 											} else {
 
 												# this represents cases where there is a DONE flag suffix but no corresponding curated data
@@ -549,6 +563,23 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 													$note = $note . "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB. Despite this, set status to 'curated' as attribution may be to a related personal communication (after author correspondence) instead of the original reference.";
 													$store_status++;
+
+												# loop to deal with humanhealth flags (harv_flag disease flags)
+												} elsif ($ATP eq 'ATP:0000011') {
+
+													$curation_status = 'ATP:0000299'; # won't curate
+													$curation_tag = 'ATP:0000226'; # no curatable data
+													$store_status++;
+
+													unless ($note) {
+
+														$note = "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB, so status set to 'won't curate' with a 'no curatable data' tag.";
+													} else {
+
+														$note = ''; # set 'HDM flag not applicable' note to empty as the information is captured in the curation status
+
+													}
+
 
 												} else {
 													$curation_status = 'ATP:0000299'; # won't curate
@@ -620,10 +651,10 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 							}
 
-							} else {
+						} else {
 
-								print $data_error_file "ERROR: unknown suffix type: topic: $ATP, pub_id: $pub_id, suffix: $suffix\n";
-							}
+							print $data_error_file "ERROR: unknown suffix type: topic: $ATP, pub_id: $pub_id, suffix: $suffix\n";
+						}
 					} else {
 						print $data_error_file "ERROR: more than one suffix type for single topic: topic: $ATP, pub_id: $pub_id\n";
 					}
@@ -721,12 +752,17 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 							if (exists $has_curated_data->{$pub_id}) {
 
 								$curation_status = 'ATP:0000239';
-
-								unless ($note) {
-									$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
-
-								}
 								$store_status++;
+
+								if ($ATP eq 'ATP:0000011') {
+									$note = ''; # set 'HDM flag not applicable' note to empty for the small number of cases where added in error to publications with humanhealth data
+								}
+
+								# suppress following loop as was for debugging
+								#unless ($note) {
+								#	$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
+								#}
+
 
 							} else {
 
@@ -744,7 +780,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 										} elsif ($note =~ m/already curated by/) {
 
-											$curation_status = 'ATP:0000299'; # won't curate !! need to check this is OK !!
+											$curation_status = 'ATP:0000299'; # won't curate
 											$store_status++;
 
 										} else {
@@ -761,6 +797,18 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 									}
 
 
+								# loop to deal with humanhealth flags (harv_flag disease flags)
+								} elsif ($ATP eq 'ATP:0000011') {
+
+									if ($note) {
+										$curation_status = 'ATP:0000299'; # won't curate
+										$curation_tag = 'ATP:0000226'; # no curatable data
+										$note = ''; # set 'HDM flag not applicable' note to empty as the information is captured in the curation status
+										$store_status++;
+
+									}
+
+
 								# loop to deal with pheno - change $store_status switch and curation_status based on text
 								} elsif ($ATP eq 'ATP:0000079') {
 
@@ -768,14 +816,9 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 										if ($note =~ m/only pheno_chem data in paper/ || $note =~ m/No phenotypic data in paper/) {
 
-											# this loop is needed to remove an incorrect 'phen_cur: CV annotations only' tag that was added automatically to some records with no phenotypic information
-											if ($note =~m/phen_cur: CV annotations only. [a-z]{2}[0-9]{6}./) {
-												$note =~ s/phen_cur: CV annotations only. [a-z]{2}[0-9]{6}.//;
-
-											}
-
 											$curation_status = 'ATP:0000299'; # won't curate
 											$curation_tag = 'ATP:0000226'; # no curatable data
+											$note = ''; # set note to empty as the information is captured in the curation status
 											$store_status++;
 
 
@@ -783,7 +826,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 									} else {
 
 										# keep this warning - will identify any papers with missing 'No phenotypic data in paper' internal note
-										print $data_error_file "WARNING: no data despite standard filename (pheno loop): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
+										print $data_error_file "WARNING: no data despite standard filename (pheno loop) (check whether need to add a 'No phenotypic data in paper' internal note): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
 
 									}
 
@@ -939,10 +982,10 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 							}
 
-							unless ($note) {
-								$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
-
-							}
+							# suppress following loop as was for debugging
+							#unless ($note) {
+							#	$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
+							#}
 
 							$note =~ s/^ //;
 							$note =~ s/ $//;
@@ -1012,62 +1055,71 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 }
 
-## add 'curation_needed' information for diseaseHP dis_flag
-my $diseaseHP_flags = &get_matching_pubprop_value_with_timestamps($dbh,'dis_flag','diseaseHP');
+## add 'curation_needed' information for 'plain' (no suffix) diseaseHP flags (both harv_flag and dis_flag), i.e. those that still need curating
+foreach my $flag_type (keys %{$diseaseHP_types}) {
 
-foreach my $pub_id (sort keys %{$diseaseHP_flags}) {
-
-
-	if (scalar keys %{$diseaseHP_flags->{$pub_id}} == 1) {
+	my $diseaseHP_flags = &get_matching_pubprop_value_with_timestamps($dbh,$flag_type,'^diseaseHP$');
 
 
-		my $flag = join '', keys %{$diseaseHP_flags->{$pub_id}};
+	foreach my $pub_id (sort keys %{$diseaseHP_flags}) {
 
-		if ($flag eq 'diseaseHP') {
 
-			my $timestamp = $diseaseHP_flags->{$pub_id}->{$flag}[0];
+		if (scalar keys %{$diseaseHP_flags->{$pub_id}} == 1) {
 
-			if (exists $pub_id_to_FBrf->{$pub_id}) {
+			my $flag = join '', keys %{$diseaseHP_flags->{$pub_id}};
 
-				my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
-				my $pub_type = $pub_id_to_FBrf->{$pub_id}->{'type'};
+			if ($flag eq 'diseaseHP') {
 
-				my $element = {};
+				my $timestamp = $diseaseHP_flags->{$pub_id}->{$flag}[0];
 
-				$element->{'date_created'} = $timestamp;
-				$element->{'date_updated'} = $timestamp;
+				if (exists $pub_id_to_FBrf->{$pub_id}) {
 
-				$element->{'created_by'} = "FB_curator";
-				$element->{'updated_by'} = "FB_curator";
+					my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
+					my $pub_type = $pub_id_to_FBrf->{$pub_id}->{'type'};
 
-				$element->{'mod_abbreviation'} = "FB";
-				$element->{'reference_curie'} = "FB:$FBrf";
-				$element->{'topic'} = "ATP:0000152";
-				$element->{'curation_status'} = "ATP:0000238"; # curation_needed
-				$element->{'curation_tag'} = "high priority data"; # placeholder until new ATP term is created
+					my $element = {};
 
-				my $note = exists $element->{'note'} ? $element->{'note'} : '';
+					$element->{'date_created'} = $timestamp;
+					$element->{'date_updated'} = $timestamp;
 
-				push @{$complete_data->{data}}, $element;
+					$element->{'created_by'} = "FB_curator";
+					$element->{'updated_by'} = "FB_curator";
 
-				unless ($ENV_STATE eq 'production') {
-					print $plain_output_file "DATA:$pub_id\t$FBrf\t$pub_type\t$element->{'topic'}\t$flag\t$element->{'curation_status'}\t$element->{'date_created'}\t$element->{'curation_tag'}\t$note\t$element->{'created_by'}\n";
-			}
+					$element->{'mod_abbreviation'} = "FB";
+					$element->{'reference_curie'} = "FB:$FBrf";
+					$element->{'topic'} = "$diseaseHP_types->{$flag_type}";
+					$element->{'curation_status'} = "ATP:0000238"; # curation_needed
+					$element->{'curation_tag'} = "ATP:0000353"; # high priority data
+
+					my $note = '';
+
+					push @{$complete_data->{data}}, $element;
+
+					unless ($ENV_STATE eq 'production') {
+						print $plain_output_file "DATA:$pub_id\t$FBrf\t$pub_type\t$element->{'topic'}\t$flag\t$element->{'curation_status'}\t$element->{'date_created'}\t$element->{'curation_tag'}\t$note\t$element->{'created_by'}\n";
+					}
+				}
+
+
+			} else {
+
+				if ($flag_type eq 'dis_flag') {
+					print $data_error_file "ERROR: $flag_type flag '$flag' is unexpected (should be converted to more specific flag, not have a suffix): pub_id: $pub_id\n";
+
+
+				}
+
 			}
 
 
 		} else {
-			print $data_error_file "ERROR: flag '$flag' is unexpected: pub_id: $pub_id\n";
+
+
+			print $data_error_file "ERROR: more than one $flag_type 'diseaseHP' style flag for single publication: pub_id: $pub_id\n";
 
 		}
-
-
-	} else {
-
-
-		print $data_error_file "ERROR: more than one 'diseaseHP' style flag for single publication: pub_id: $pub_id\n";
-
 	}
+
 }
 
 

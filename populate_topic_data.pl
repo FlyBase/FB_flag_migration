@@ -2,10 +2,7 @@
 
 use strict;
 use warnings;
-#use XML::DOM;
 use DBI;
-use Digest::MD5  qw(md5 md5_hex md5_base64);
-use Time::Piece;
 
 use JSON::PP;
 
@@ -107,7 +104,7 @@ Script logic:
 
 2b. splits the 'raw' triage flag into the flag part and the suffix part (splits on ::) (e.g. disease::DONE -> flag = disease, suffix = DONE).
 
-3. For each flag,
+3. For each triage flag,
 
 3a. the flag is ignored if it is in the $flags_to_ignore hash or it has a suffix and the suffix is 'Inappropriate use of flag' (which indicates the flag is incorrect).
 
@@ -121,14 +118,11 @@ Script logic:
 
 3c. If a matching curator was successfully identified, a data structure with the relevant information is made for that flag+FBrf combination, using the flag timestamp from audit_chado and mapping information in the $flag_mapping hash to fill out the data structure.
 
-3d. the data structure is then converted to json, and either printed (dev mode) or submitted to the appropriate ABC server using POST (all other modes).
 
+4. gets internal notes that contain 'Dataset: pheno' information, tries to identify the relevant curator (using same logic as for triage flags in 3.) and if a matching curator is successfully identified, adds the relevant information for each flag+FBrf combination to the same data structure used to store triage flag information in 3.
 
-=cut
+5. the data structure containing triage flag and 'Dataset: pheno' information is then converted to json, and either submitted to the appropriate ABC server using POST (test mode) or printed (all other modes).
 
-=head1 STILL TO DO
-
-1. The system call to actually run the $cmd to POST the data to a server is currently commented out. In addition, need to add a test to check that the system call completes successfully and to print an error if not.
 
 =cut
 
@@ -272,6 +266,32 @@ open my $process_error_file, '>', "FB_topic_process_errors.${destination}.err"
 my $flag_mapping = &get_flag_mapping();
 my $flags_to_ignore = &get_flags_to_ignore();
 
+#get list of negative flags for each flag type
+my $negative_flags = {};
+
+
+# store the negative flag for a given flag_type (there must only be one)
+foreach my $flag_type (keys %{$flag_mapping}) {
+
+	foreach my $flag (keys %{$flag_mapping->{$flag_type}}) {
+
+		if (exists $flag_mapping->{$flag_type}->{$flag}->{'negated'}) {
+
+			$negative_flags->{$flag_type}->{count}++;
+			$negative_flags->{$flag_type}->{flag} = $flag;
+
+		}
+
+	}
+}
+
+foreach my $flag_type (keys %{$negative_flags}) {
+
+	unless ($negative_flags->{$flag_type}->{count} == 1) {
+		delete $negative_flags->{$flag_type}->{flag}
+	}
+}
+
 
 # get all triage flag info
 my $flag_info = &get_all_flag_info_with_timestamps($dbh);
@@ -289,6 +309,15 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 
 		foreach my $flag_type (sort keys %{$flag_info->{$pub_id}}) {
 
+
+			my $negative_flag = '';
+
+			if (exists $negative_flags->{$flag_type}) {
+
+				$negative_flag = $negative_flags->{$flag_type}->{flag};
+			}
+
+
 			foreach my $flag (sort keys %{$flag_info->{$pub_id}->{$flag_type}}) {
 
 				# 1. only process flags that we want to submit the FB flag to the Alliance
@@ -296,15 +325,49 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 
 					if (exists $flag_mapping->{$flag_type} && exists $flag_mapping->{$flag_type}->{$flag}) {
 
+						if ($negative_flag ne '') {
 
+							if ($flag eq $negative_flag) {
+
+								unless (scalar keys %{$flag_info->{$pub_id}->{$flag_type}} == 1) {
+
+									print $data_error_file "ERROR: publication has negative flag in combination with other flags, not adding: $FBrf\t$flag_type\t$flag\n";
+									next;
+
+								}
+
+							} else {
+
+								if (exists $flag_info->{$pub_id}->{$flag_type}->{$negative_flag}) {
+
+									print $data_error_file "ERROR: publication has negative flag in combination with other flags, not adding: $FBrf\t$flag_type\t$flag\n";
+									next;
+								}
+							}
+						}
+
+
+
+						if (exists $flag_info->{$pub_id}->{$flag_type}->{$flag}->{'Inappropriate use of flag'}) {
+							next;
+						}
+
+
+						my $flag_audit_timestamp;
+						my $flag_suffix = '';
 						if (scalar keys %{$flag_info->{$pub_id}->{$flag_type}->{$flag}} == 1) {
 
-							my $flag_suffix = join '', keys %{$flag_info->{$pub_id}->{$flag_type}->{$flag}};
+							$flag_suffix = join '', keys %{$flag_info->{$pub_id}->{$flag_type}->{$flag}};
+						} else {
 
+							if (exists $flag_info->{$pub_id}->{$flag_type}->{$flag}->{'NO_SUFFIX'}) {
+								$flag_suffix = 'NO_SUFFIX';
 
-							if ($flag_suffix eq 'Inappropriate use of flag') {
-								next;
 							}
+						}
+
+						if ($flag_suffix ne '') {
+
 
 
 							# get the earliest timestamp for when the flag was inserted into chado
@@ -313,6 +376,8 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 
 							# 2. try to find the relevant curator (from curated_by pubprop) using audit table timestamp information
 							my $curator_data = &get_relevant_curator($dbh, $pub_id, $flag_audit_timestamp);
+
+
 							my $curator = ''; # this will be the relevant curator with a matching timestamp.
 							my $file = ''; # this will be the relevant curation record. Not submitted to the Alliance, but useful for plain text output (DATA: lines) when testing.
 
@@ -337,7 +402,7 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 									} else {
 
 										# flag info must have been submitted/looked at by a curator rather than just multiple user curation, so set curator to the generic 'FB_curator'
-										if (exists $flag_mapping->{$flag_type}->{$flag}->{curator_only} || $flag_suffix ne '' || exists $curator_data->{FB_curator_count} ) {
+										if (exists $flag_mapping->{$flag_type}->{$flag}->{curator_only} || $flag_suffix ne '' || (exists $curator_data->{FB_curator_count} && !exists $curator_data->{community_curation_count})) {
 											$curator = 'FB_curator';
 
 										} else {
@@ -440,7 +505,7 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 
 						} else {
 
-							print $data_error_file "ERROR: more than one suffix type for single flag: $pub_id, $flag_type\n";
+							print $data_error_file "ERROR: more than one suffix type and no 'NO_SUFFIX' for single flag: $pub_id, $flag_type\n";
 
 
 						}
@@ -457,7 +522,236 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 	}
 }
 
+# add data for 'Dataset: pheno' topic
+my $dataset_pheno_flag = 'Dataset: pheno';
+my $dataset_pheno_note = &get_matching_pubprop_value_with_timestamps($dbh,'internalnotes',$dataset_pheno_flag);
 
+
+# get relevant data for 'Dataset: pheno'
+my $dataset_pheno_data = {};
+
+foreach my $pub_id (sort keys %{$dataset_pheno_note}) {
+
+
+	# loop to ensure
+	# 1. that when in test/dev mode, only get the 'Dataset: pheno' data for the FBrf(s) being tested ($test_FBrf)
+	# 2. if NOT in test/dev mode, add any missing pub_id/FBrf mapping (for current publications) to the $pub_id_to_FBrf hash so can be used later when the json data is printed
+	unless (exists $pub_id_to_FBrf->{$pub_id}) {
+
+		if ($test_FBrf) {
+			next;
+		} else {
+
+			my $sql_query = sprintf("select p.uniquename from pub p where p.pub_id='%s' and p.is_obsolete='false'", $pub_id);
+			my $db_query= $dbh->prepare($sql_query);
+			$db_query->execute or die "CAN'T GET missing 'Dataset: pheno' FBrf FROM CHADO:\n$sql_query)\n";
+			while (my ($uniquename) = $db_query->fetchrow_array()) {
+				$pub_id_to_FBrf->{$pub_id}->{'FBrf'} = $uniquename;
+			}
+
+			# skip if the missing pub_id was not a valid publication
+			unless (exists $pub_id_to_FBrf->{$pub_id}) {
+				next;
+			}
+
+		}
+
+	}
+
+	my $flag_count = 0; # count of whether there has been a plain 'Dataset: pheno' flag (with a datestamp if it exists) for this publication
+
+
+	foreach my $line (sort keys %{$dataset_pheno_note->{$pub_id}}) {
+
+		my $line_timestamp = $dataset_pheno_note->{$pub_id}->{$line}[0];
+		my $curator_data = &get_relevant_curator($dbh, $pub_id, $line_timestamp);
+		my $curator = ''; # this will be the relevant curator with a matching timestamp.
+		my $file = ''; # this will be the relevant curation record. Not submitted to the Alliance, but useful for plain text output (DATA: lines) when testing.
+
+		my $note = $line;
+		$note =~ s/(Author|User): .*? \<.*?\>\. ?//; # get rid of any author details that have crept in in error
+		# get rid of notes that are just the Dataset: pheno flag (and a datestamp if it exists), so that only end up with anything to add to note if there is additional info
+		$note =~ s/^$dataset_pheno_flag\.?$//;
+		$note =~ s/^$dataset_pheno_flag\. ?-?[a-z]{1,} ?[0-9]{6}(\.)?$//;
+		$note =~ s/^$dataset_pheno_flag\. [0-9]{6}[a-z]{1,}\.$//;
+		$note =~ s/^ +//;
+
+
+		if (defined $curator_data) {
+
+			# simple case, only one matching curated_by pubprop
+			if ($curator_data->{count} == 1) {
+
+				$curator = $curator_data->{relevant_curator};
+				$file = $curator_data->{relevant_record};
+
+			} else {
+
+				# multiple records for same FBrf submitted in same week by same curator
+				if (scalar keys %{$curator_data->{curator}} == 1) {
+
+					$curator = join '', keys %{$curator_data->{curator}};
+					$file = join ', ', sort keys %{$curator_data->{curator}->{$curator}};
+
+				} else {
+
+					# flag info must have been submitted/looked at by a curator rather than just multiple user curation, so set curator to the generic 'FB_curator'
+					if (exists $curator_data->{FB_curator_count} && !exists $curator_data->{community_curation_count}) {
+						$curator = 'FB_curator';
+
+					} else {
+						print $data_error_file "ERROR: multiple different curators that cannot reconcile, not adding: $pub_id\t$line\t" . (join ', ', keys %{$curator_data->{curator}}) . "\t" . (join ', ', keys %{$curator_data->{curator}->{$curator}}) . "\t$line_timestamp\n";
+
+					}
+
+				}
+
+			}
+
+			# convert all unknown style curators to the same 'FB_curator' name that is used for persistent store submissions
+			if ($curator eq 'Unknown' || $curator eq 'Unknown Curator' || $curator eq 'Generic Curator' || $curator eq 'P. Leyland') {
+				$curator = 'FB_curator';
+			}
+
+		} else {
+
+
+			print $data_error_file "ERROR: unable to find who curated for $pub_id: $line\n";
+		}
+
+		if ($curator ne '') {
+
+			unless (exists $dataset_pheno_data->{$pub_id}) {
+
+				$dataset_pheno_data->{$pub_id}->{created_by} = $curator;
+				$dataset_pheno_data->{$pub_id}->{date_created} = $line_timestamp;
+				$dataset_pheno_data->{$pub_id}->{date_updated} = $line_timestamp;
+
+				if ($note ne '') {
+					$dataset_pheno_data->{$pub_id}->{note} = $note;
+				}
+
+			} else {
+
+
+				my $existing_note = exists $dataset_pheno_data->{$pub_id}->{note} ? $dataset_pheno_data->{$pub_id}->{note} : '';
+
+				# not had an internal note that just added 'Dataset: pheno' yet, but have had some other comment
+				# in this case, change the created info to the current datestamp as it should be earlier than the other comment
+				# also add any additional note text
+				if ($flag_count == 0) {
+
+					$dataset_pheno_data->{$pub_id}->{updated_by} = "$dataset_pheno_data->{$pub_id}->{created_by}";
+					$dataset_pheno_data->{$pub_id}->{created_by} = $curator;
+					$dataset_pheno_data->{$pub_id}->{date_updated} = "$dataset_pheno_data->{$pub_id}->{date_created}";
+					$dataset_pheno_data->{$pub_id}->{date_created} = $line_timestamp;
+
+					if ($note ne '') {
+
+						$dataset_pheno_data->{$pub_id}->{note} = ($existing_note) ? ($existing_note . " " . $note) : $note;
+
+					}
+
+				# have already had an internal note that just added 'Dataset: pheno' with no additional info.
+				# in this case, only want to change the updated info (plus add note text) if there is additional note text to add
+				} else {
+
+					if ($note ne '') {
+
+						$dataset_pheno_data->{$pub_id}->{updated_by} = $curator;
+						$dataset_pheno_data->{$pub_id}->{date_updated} = $line_timestamp;
+						$dataset_pheno_data->{$pub_id}->{note} = ($existing_note) ? ($existing_note . " " . $note) : $note;
+
+					}
+
+				}
+
+			}
+		}
+
+
+		# add to the count if the internal note was a plain 'Dataset: pheno' flag
+		if ($note eq '') {
+
+			$flag_count++;
+		}
+
+
+
+	}
+
+
+}
+
+# add Dataset: pheno info to the $complete_data hash
+
+foreach my $pub_id (sort keys %{$dataset_pheno_data}) {
+
+
+
+	if (exists $pub_id_to_FBrf->{$pub_id}) {
+
+		# build reference with information for this publication
+		my $data = {};
+
+		# set basic information for this particular flag and FBrf combination
+		my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
+		my $FBrf_with_prefix="FB:".$FBrf;
+		$data->{reference_curie} = $FBrf_with_prefix;
+		$data->{topic} = "ATP:0000085";
+		$data->{species} = 'NCBITaxon:7214', # Drosophilidae
+		$data->{data_novelty} = 'ATP:0000335'; # if the mapping hash has no specific data novelty term set, the parent term (ATP:0000335 = 'data novelty') must be added for ABC validation purposes
+		$data->{negated} = FALSE;
+
+		foreach my $key (keys %{$dataset_pheno_data->{$pub_id}}) {
+
+			$data->{$key} = $dataset_pheno_data->{$pub_id}->{$key};
+
+		}
+		if ($data->{created_by} eq "Author Submission" || $data->{created_by} eq "User Submission"){
+			$data->{topic_entity_tag_source_id} = $author_source_data->{topic_entity_tag_source_id};
+		} else {
+			$data->{topic_entity_tag_source_id} = $curator_source_data->{topic_entity_tag_source_id};
+		}
+
+		unless ($ENV_STATE eq "test") {
+			push @{$complete_data->{data}}, $data;
+
+		} else {
+
+
+			my $json_data = $json_encoder->encode($data);
+
+			my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
+			my $raw_result = `$cmd`;
+			my $result = $json_encoder->decode($raw_result);
+
+			# plain text output useful for testing
+			print $output_file "DATA: $FBrf\tDataset: pheno information\n";
+
+			if (exists $result->{'status'} && $result->{'status'} eq 'success') {
+
+				print $output_file "json post success\nJSON:\n$json_data\n\n";
+
+			} else {
+
+				print $process_error_file "json post failed\nJSON:\n$json_data\nREASON:\n$raw_result\n#################################\n\n";
+
+			}
+
+
+		}
+
+
+
+	} else {
+
+		print $data_error_file "ERROR: 'Dataset: pheno '$pub_id with no FBrf in final mapping\n";
+
+	}
+}
+
+###
 
 unless ($ENV_STATE eq "test") {
 

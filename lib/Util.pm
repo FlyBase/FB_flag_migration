@@ -149,6 +149,7 @@ o $data_type is the type of curated data. The value must be present as a key in 
 
 		'phys_int' => ['select distinct p.pub_id from pub p, interaction_pub ip, interaction i where p.is_obsolete = \'f\' and p.pub_id = ip.pub_id and ip.interaction_id = i.interaction_id and i.is_obsolete = \'f\''],
 		'cell_line' => ['select distinct p.pub_id from pub p, cell_line_pub cp, cell_line c where p.is_obsolete = \'f\' and p.pub_id = cp.pub_id and cp.cell_line_id = c.cell_line_id'],
+		'humanhealth' => ['select distinct p.pub_id from pub p, humanhealth hh, humanhealth_pub hhp where p.is_obsolete = \'f\' and p.pub_id = hhp.pub_id and hh.humanhealth_id = hhp.humanhealth_id and hh.is_obsolete = \'f\''],
 
 
 		'chemical' => ['select distinct p.pub_id from pub p, feature f, feature_pub fp where p.is_obsolete = \'f\' and p.pub_id = fp.pub_id and f.feature_id = fp.feature_id and f.is_obsolete = \'f\' and f.uniquename ~\'^FBch\''],
@@ -186,6 +187,7 @@ o $data_type is the type of curated data. The value must be present as a key in 
 				'select distinct p.pub_id from phendesc pd, pub p, genotype g where p.is_obsolete = \'f\' and p.pub_id = pd.pub_id and pd.genotype_id = g.genotype_id and g.is_obsolete = \'f\''
 
 ],
+
 
 	};
 

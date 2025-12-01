@@ -64,15 +64,6 @@ sub get_flag_mapping {
 				'data_novelty' => 'ATP:0000229', # new to field
 			},
 
-
-			'gene_group' => {
-				'ATP_topic' => 'ATP:0000065',
-			},
-
-			'pathway' => {
-				'ATP_topic' => 'ATP:0000113',
-			},
-
 			'pert_exp' => {
 				'ATP_topic' => 'ATP:0000042',
 			},
@@ -256,6 +247,12 @@ sub get_flag_mapping {
 
 				'ATP_topic' => 'ATP:0000011',# 'disease' ATP term - using more general ATP term for FBhh curation
 				'species' => 'NCBITaxon:7214', # Drosophilidae
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'humanhealth',
+					'use_filename' => 'humanhealth',
+					'relevant_internal_note' => 'HDM flag not applicable',
+				},
 			},
 
 			# may decide not to submit this flag depending on whether FBhh curation will be done in Alliance (so may need deleting here and adding to ignore hash)
@@ -263,6 +260,12 @@ sub get_flag_mapping {
 
 				'ATP_topic' => 'ATP:0000011',# 'disease' ATP term - using more general ATP term for FBhh curation
 				'species' => 'NCBITaxon:7214', # Drosophilidae
+				'for_curation_status' => {
+					'suffix' => 'use',
+					'get_curated_data' => 'humanhealth',
+					'use_filename' => 'humanhealth',
+					'relevant_internal_note' => 'HDM flag not applicable',
+				},
 			},
 
 			'gene_model' => {
@@ -407,6 +410,8 @@ sub get_flags_to_ignore {
 			'GO_cur' => '1',
 			'GOcur' => '1',
 			'noGOcur' => '1',
+			'gene_group' => '1',
+			'pathway' => '1',
 
 			'nocur' => '1', # nocur will not be added as a topic, but will instead be added to the curation status information in the workflow editor in the Alliance
 		},
