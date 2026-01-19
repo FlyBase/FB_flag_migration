@@ -29,18 +29,24 @@ sub make_abc_json_metadata {
 	Title:    make_abc_json_metadata
 	Usage:    make_abc_json_metadata(source database);
 	Function: The make_abc_json_metadata subroutine makes a reference containing standard information for a "metaData" json object for a json file containing data to be submitted to the ABC.
-	Example: my $json_metadata = &make_abc_json_metadata('production');
+	Example: my $json_metadata = &make_abc_json_metadata('production', 'curation_status');
+	Example: my $json_metadata = &make_abc_json_metadata($db, $api_endpoint);
         Args    : source database - the name of the FlyBase chado database used to make the file.
 
+Arguments:
+
+o $source - the name of the FlyBase chado database used to make the file.
+
+o $api_endpoint - the appropriate path (downstream of the base URL) to use for the Alliance Literature Service API when loading the json data into the ABC.
 
 =cut
 
-	unless (@_ == 1) {
+	unless (@_ == 2) {
 
 		die "Wrong number of parameters passed to the make_abc_json_metadata subroutine\n";
 	}
 
-	my ($source) = @_;
+	my ($source, $api_endpoint) = @_;
 
 	my $date_stamp = &get_yyyymmdd_date_stamp();
 
@@ -49,7 +55,7 @@ sub make_abc_json_metadata {
 		'dataProvider' => {
 
 			'mod' => 'FB',
-			'type' => 'curated', 
+			'type' => 'curated',
 		},
 
 	};
@@ -57,6 +63,7 @@ sub make_abc_json_metadata {
 	# copied format from agr_schemas/ingest/metaData.json
 	$metadata->{'dateProduced'} = $date_stamp;
 	$metadata->{'release'} = $source;
+	$metadata->{'endpoint'} = $api_endpoint;
 
 
 	return ($metadata);
