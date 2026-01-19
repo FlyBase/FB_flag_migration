@@ -37,7 +37,7 @@ Used to load FlyBase triage flag information into the Alliance ABC literature da
 
 =head1 USAGE
 
-USAGE: perl ticket_scrum-3147-topic-entity-tag.pl pg_server db_name pg_username pg_password dev|test|stage|production okta_token
+USAGE: perl ticket_scrum-3147-topic-entity-tag.pl pg_server db_name pg_username pg_password dev|test|stage|production access_token
 
 
 =cut
@@ -129,7 +129,7 @@ Script logic:
 
 if (@ARGV != 6) {
     warn "Wrong number of arguments, should be 6!\n";
-    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production okta_token\n\n";
+    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production access_token\n\n";
     warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production ABCD1234\n\n";
     exit;
 }
@@ -139,12 +139,12 @@ my $db = shift(@ARGV);
 my $user = shift(@ARGV);
 my $pwd = shift(@ARGV);
 my $ENV_STATE = shift(@ARGV);
-my $okta_token = shift(@ARGV);
+my $access_token = shift(@ARGV);
 
 
 my @STATE = ("dev", "test", "stage", "production");
 if (! grep( /^$ENV_STATE$/, @STATE ) ) {
-    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production okta_token\n\n";
+    warn "\n USAGE: $0 pg_server db_name pg_username pg_password dev|test|stage|production access_token\n\n";
     warn "\teg: $0 flysql24 production_chado zhou pwd dev|test|stage|production ABCD1234\n\n";
     exit;
 }
@@ -191,6 +191,12 @@ if ($ENV_STATE eq "dev" || $ENV_STATE eq "test") {
 
 
 my $test_FBrf = '';
+
+
+# variable that specifies the appropriate path (downstream of the base URL) to use for the Alliance Literature Service API.
+# Used to add an element in the metaData object of the output json file and in the curl command used when in test mode.
+my $api_endpoint = 'topic_entity_tag';
+
 
 if ($ENV_STATE eq "dev" || $ENV_STATE eq "test") {
 
@@ -476,7 +482,7 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 									push @{$complete_data->{data}}, $data;
 
 								} else {
-									my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
+									my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/$api_endpoint/'  -H 'accept: application/json'  -H 'Authorization: Bearer $access_token' -H 'Content-Type: application/json'  -d '$json_data'";
 									my $raw_result = `$cmd`;
 									my $result = $json_encoder->decode($raw_result);
 
@@ -722,7 +728,7 @@ foreach my $pub_id (sort keys %{$dataset_pheno_data}) {
 
 			my $json_data = $json_encoder->encode($data);
 
-			my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $okta_token' -H 'Content-Type: application/json'  -d '$json_data'";
+			my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $access_token' -H 'Content-Type: application/json'  -d '$json_data'";
 			my $raw_result = `$cmd`;
 			my $result = $json_encoder->decode($raw_result);
 
@@ -755,7 +761,7 @@ foreach my $pub_id (sort keys %{$dataset_pheno_data}) {
 
 unless ($ENV_STATE eq "test") {
 
-	my $json_metadata = &make_abc_json_metadata($db);
+	my $json_metadata = &make_abc_json_metadata($db, $api_endpoint);
 	$complete_data->{"metaData"} = $json_metadata;
 	my $complete_json_data = $json_encoder->encode($complete_data);
 
