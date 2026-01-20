@@ -239,6 +239,17 @@ my $nocur_flags = &get_matching_pubprop_value_with_timestamps($dbh,'cam_flag','^
 # get publications that *do* have links to genetic objects (used for validation)
 my $has_genetic_data = &pub_has_curated_data($dbh, 'genetic_data');
 
+## 2. Get list of publications: restrict to the type of pubs where it is useful to export workflow status info (same types as used in populate_topic_curation_status.pl)
+my $pub_id_to_FBrf = {};
+my $sql_query = sprintf("select p.uniquename, p.pub_id, cvt.name from pub p, cvterm cvt where p.is_obsolete = 'f' and p.type_id = cvt.cvterm_id and cvt.is_obsolete = '0' and cvt.name in ('paper', 'erratum', 'letter', 'note', 'teaching note', 'supplementary material', 'retraction', 'personal communication to FlyBase', 'review') and p.uniquename ~'%s'", $test_FBrf);
+
+my $db_query= $dbh->prepare  ($sql_query);
+$db_query->execute or die" CAN'T GET FBrf FROM CHADO:\n$sql_query)\n";
+while (my ($uniquename, $pub_id, $pub_type) = $db_query->fetchrow_array()) {
+  $pub_id_to_FBrf->{$pub_id}->{'FBrf'} = $uniquename;
+  $pub_id_to_FBrf->{$pub_id}->{'type'} = $pub_type;
+}
+
 
 #close $json_output_file;
 #close $data_error_file;
