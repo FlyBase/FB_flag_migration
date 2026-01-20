@@ -496,7 +496,7 @@ Arguments:
 		'chemical' => '.+?\.chem\..+?',
 		'args' => '.+?\.args\..+?',
 		'phen' => '[a-z][a-z][0-9]{1,}\.phen',
-		'cam_full' => '(ma|sb|rd|sf|tj|al|sm|cm|pm|gm|ao|cp|lp|sp|sr|rs|ra|ds|ew|cy)[0-9]{1,}(\.(h|hf))?',
+		'cam_full' => '(ma|sb|rd|al|sm|cm|pm|gm|lp|sr|rs|ra|ds|ew|cy)[0-9]{1,}(\.(h|hf))?', # papers that should have had full curation of both any genetic reagent data AND any phenotype data
 		'humanhealth' => '.+?\.(hh|hh_multiple|hds|hds_multiple|hh_[0-9]{1,}|hds_rvw)\..+?',
 
 
