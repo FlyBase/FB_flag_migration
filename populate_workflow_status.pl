@@ -236,6 +236,9 @@ my ($cam_full_by_timestamp, $cam_full_by_curator) = &get_relevant_currec_for_dat
 my ($gene_full_by_timestamp, $gene_full_by_curator) = &get_relevant_currec_for_datatype($dbh,'gene_full');
 my $nocur_flags = &get_matching_pubprop_value_with_timestamps($dbh,'cam_flag','^nocur$');
 
+# get publications that *do* have links to genetic objects (used for validation)
+my $has_genetic_data = &pub_has_curated_data($dbh, 'genetic_data');
+
 
 #close $json_output_file;
 #close $data_error_file;

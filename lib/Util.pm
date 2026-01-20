@@ -195,6 +195,9 @@ o $data_type is the type of curated data. The value must be present as a key in 
 
 ],
 
+# the list of FBid types used in the query is deliberately strict, so that only publications that are about a gene or that use fly lines count as 'has genetic data' to make sure that the manual indexing status and cross-checks with nocur work correctly
+		'genetic_data' => ['select distinct p.pub_id from pub p, feature f, feature_pub fp where p.is_obsolete = \'f\' and p.pub_id = fp.pub_id and f.feature_id = fp.feature_id and f.is_obsolete = \'f\' and f.uniquename ~\'^FB(gn|al|ab|ba|ti|te)\'',
+		],
 
 	};
 
