@@ -179,12 +179,32 @@ my $json_encoder = JSON::PP->new()->pretty(1)->canonical(1);
 
 
 
-# add mapping hash here
-
 my $workflow_tag_mapping = {
 
+	# community curation
+	'0_user' => {
+		'finished_status' => 'ATP:0000234', # community curation finished
+		'relevant_currec' => ['user'],
 
+	},
 
+	# first pass curation
+	'1_skim' => {
+		'finished_status' => 'ATP:0000330', # first pass curation finished
+		'relevant_currec' => ['skim'],
+
+	},
+
+	# manual indexing
+	'2_manual_indexing' => {
+		'finished_status' => 'ATP:0000275', # manual indexing complete
+		'relevant_currec' => ['thin', 'cam_full', 'gene_full', 'cam_no_suffix'], # use an array so can go through in this order when assigning manual indexing status
+		'nocur_override' => 'ATP:0000343', # won't manually index
+		'pubtype_filter' => {
+			'cam_no_suffix' => ['review'],
+		},
+
+	},
 
 };
 
