@@ -244,22 +244,27 @@ print STDERR "##Starting processing: " . (scalar localtime) . "\n";
 
 ## 1. get relevant data for deciding curation status for the various type of workflow_tag curation
 
-# information for community curation status
-my ($user_by_timestamp, $user_by_curator) = &get_relevant_currec_for_datatype($dbh,'user');
+my $fb_data = {};
 
-# information for first pass curation status
-my ($skim_by_timestamp, $skim_by_curator) = &get_relevant_currec_for_datatype($dbh,'skim');
+foreach my $workflow_type (sort keys %{$workflow_tag_mapping}) {
 
-# information for manual indexing status
-my ($thin_by_timestamp, $thin_by_curator) = &get_relevant_currec_for_datatype($dbh,'thin');
-my ($cam_full_by_timestamp, $cam_full_by_curator) = &get_relevant_currec_for_datatype($dbh,'cam_full');
-my ($gene_full_by_timestamp, $gene_full_by_curator) = &get_relevant_currec_for_datatype($dbh,'gene_full');
+	foreach my $relevant_currec (@{$workflow_tag_mapping->{$workflow_type}->{'relevant_currec'}}) {
+
+		($fb_data->{"$relevant_currec"}->{"by_timestamp"}, $fb_data->{"$relevant_currec"}->{"by_curator"}) = &get_relevant_currec_for_datatype($dbh,$relevant_currec);
+
+	}
+}
+
+
+#print Dumper ($fb_data);
+
+# 2. get data to assign 'no genetic data' curation tag and associated 'won't curate' workflow_tag term
 my $nocur_flags = &get_matching_pubprop_value_with_timestamps($dbh,'cam_flag','^nocur$');
 
 # get publications that *do* have links to genetic objects (used for validation)
 my $has_genetic_data = &pub_has_curated_data($dbh, 'genetic_data');
 
-## 2. Get list of publications: restrict to the type of pubs where it is useful to export workflow status info (same types as used in populate_topic_curation_status.pl)
+## 3. Get list of publications: restrict to the type of pubs where it is useful to export workflow status info (same types as used in populate_topic_curation_status.pl)
 my $pub_id_to_FBrf = {};
 my $sql_query = sprintf("select p.uniquename, p.pub_id, cvt.name from pub p, cvterm cvt where p.is_obsolete = 'f' and p.type_id = cvt.cvterm_id and cvt.is_obsolete = '0' and cvt.name in ('paper', 'erratum', 'letter', 'note', 'teaching note', 'supplementary material', 'retraction', 'personal communication to FlyBase', 'review') and p.uniquename ~'%s'", $test_FBrf);
 

@@ -503,6 +503,7 @@ Arguments:
 		'user' => '[a-z][a-z][0-9]{1,}\.user',
 		'skim' => '.+?\.(skim|skim_multiple|skim_multi)(\..+)?',
 		'gene_full' => '[a-z][a-z][0-9]{1,}\.full', # publications that have had full manual indexing (listing) of genes, and genes are the only entity type relevant to manual indexing in the publication
+		'cam_no_suffix' => '(ma|sb|rd|sf|tj|kk|al|sm|cm|pm|gm|ao|cp|lp|sp|sr|rs|ra|ds|vt|ew|cy|pu|ga|ha|hb|rc|rf|pg|st|rz)[0-9]{1,}',
 		# filename types used for both topic curation status AND workflow status
 		'cam_full' => '(ma|sb|rd|al|sm|cm|pm|gm|lp|sr|rs|ra|ds|ew|cy)[0-9]{1,}(\.(h|hf))?', # publications that should have had full curation of both any genetic reagent data AND any phenotype data
 
