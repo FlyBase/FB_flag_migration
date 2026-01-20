@@ -221,8 +221,20 @@ my $workflow_tag_mapping = {
 
 print STDERR "##Starting processing: " . (scalar localtime) . "\n";
 
-##add code here##
 
+## 1. get relevant data for deciding curation status for the various type of workflow_tag curation
+
+# information for community curation status
+my ($user_by_timestamp, $user_by_curator) = &get_relevant_currec_for_datatype($dbh,'user');
+
+# information for first pass curation status
+my ($skim_by_timestamp, $skim_by_curator) = &get_relevant_currec_for_datatype($dbh,'skim');
+
+# information for manual indexing status
+my ($thin_by_timestamp, $thin_by_curator) = &get_relevant_currec_for_datatype($dbh,'thin');
+my ($cam_full_by_timestamp, $cam_full_by_curator) = &get_relevant_currec_for_datatype($dbh,'cam_full');
+my ($gene_full_by_timestamp, $gene_full_by_curator) = &get_relevant_currec_for_datatype($dbh,'gene_full');
+my $nocur_flags = &get_matching_pubprop_value_with_timestamps($dbh,'cam_flag','^nocur$');
 
 
 #close $json_output_file;

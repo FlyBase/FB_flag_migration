@@ -470,7 +470,7 @@ sub get_relevant_currec_for_datatype {
 
 	Title:    get_relevant_currec_for_datatype
 	Usage:    get_relevant_currec_for_datatype(database_handle,datatype);
-	Function: Gets timestamp information for curation records that are expected to contain data of a particular type based on the their filename, for the datatype specified in the second argument.
+	Function: Gets timestamp information for curation records that are expected to contain data/curation of a particular type based on the their filename, for the data/curation type specified in the second argument.
 	Example:  my $currec_for_cell_line = &get_relevant_currec_for_datatype($dbh,'cell_line');
 
 Arguments:
@@ -488,6 +488,7 @@ Arguments:
 	# only use standard filenames for matching so that can be sure that curation of the datatype is complete
 	my $datatype_mapping = {
 
+		# filename types used for topic curation status
 		'cell_line' => '.+?\.(cell|cell_multiple|cell_multi)\..+?',
 		'phys_int' => '.+?\.(int|int_miRNA)\..+?',
 		'DO' => '.+?\.DO\..+?',
@@ -496,8 +497,14 @@ Arguments:
 		'chemical' => '.+?\.chem\..+?',
 		'args' => '.+?\.args\..+?',
 		'phen' => '[a-z][a-z][0-9]{1,}\.phen',
-		'cam_full' => '(ma|sb|rd|al|sm|cm|pm|gm|lp|sr|rs|ra|ds|ew|cy)[0-9]{1,}(\.(h|hf))?', # papers that should have had full curation of both any genetic reagent data AND any phenotype data
 		'humanhealth' => '.+?\.(hh|hh_multiple|hds|hds_multiple|hh_[0-9]{1,}|hds_rvw)\..+?',
+		# filename types used for workflow status
+		'thin' => '[a-z][a-z][0-9]{1,}\.thin',
+		'user' => '[a-z][a-z][0-9]{1,}\.user',
+		'skim' => '.+?\.(skim|skim_multiple|skim_multi)(\..+)?',
+		'gene_full' => '[a-z][a-z][0-9]{1,}\.full', # publications that have had full manual indexing (listing) of genes, and genes are the only entity type relevant to manual indexing in the publication
+		# filename types used for both topic curation status AND workflow status
+		'cam_full' => '(ma|sb|rd|al|sm|cm|pm|gm|lp|sr|rs|ra|ds|ew|cy)[0-9]{1,}(\.(h|hf))?', # publications that should have had full curation of both any genetic reagent data AND any phenotype data
 
 
 
