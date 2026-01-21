@@ -185,7 +185,7 @@ my $workflow_tag_mapping = {
 	'0_user' => {
 		'finished_status' => 'ATP:0000234', # community curation finished
 		'relevant_record_type' => ['user'],
-
+		'community_curation' => '1',
 	},
 
 	# first pass curation
@@ -329,7 +329,20 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 					my $curation_tag = '';
 					my $note = '';
 
-					# for manual indexing, use the nocur information to override the workflow type (to the 'won't curate' style term) and add the appropriate curation_tag
+					# overide the curator for edge cases where the curator has been set to 'FB_curator'
+					# due to multiple records of the same type being submitted in the same week and it
+					# is a community curation record.
+					# set back to 'User Submission' (the more general curator for community curation).
+					if (exists $workflow_tag_mapping->{$workflow_type}->{'community_curation'}) {
+
+						if ($curator_details->{curator} eq 'FB_curator') {
+							$curator_details->{curator} = 'User Submission';
+
+						}
+
+					}
+
+					# for manual indexing, use the nocur information to override the workflow type (to the 'won't curate' style term) and add the appropriate curation_tag where appropriate
 					if (exists $workflow_tag_mapping->{$workflow_type}->{'nocur_override'}) {
 						$note = "$nocur_note";
 
@@ -406,6 +419,40 @@ print STDERR "##Ended processing: " . (scalar localtime) . "\n";
 
 sub get_relevant_curator_from_candidate_list {
 
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    get_relevant_curator_from_candidate_list
+	Usage:    get_relevant_curator_from_candidate_list(candidate_list(by_timestamp),candidate_list(by_curator),pub_id);
+	Function: Gets curator details for a pub_id specified in the third argument, using the candidate_lists provided in the first and second arguments.
+	Example:  my $curator_details = &get_relevant_curator_from_candidate_list($fb_data->{"$relevant_record_type"}->{"by_timestamp"}, $fb_data->{"$relevant_record_type"}->{"by_curator"}, $pub_id);
+
+Arguments:
+
+candidate_list(by_timestamp) and candidate_list(by_curator) are the two data structures returned by the get_relevant_currec_for_datatype subroutine (in AuditTable.pm). They list timestamp, curator name and curation record information for curation records of a particular type, keyed on pub_ids.
+
+pub_id is the pub_id of a single reference.
+
+Returns:
+
+
+- if the pub_id is NOT a key in candidate_list(by_timestamp), returns undef (i.e. there is NO curation of this particular curation type for this pub_id)
+
+- if the pub_id IS a key in candidate_list(by_timestamp), returns information for the *earliest* curation record from the candidate lists
+
+
+ o $curator_details->{curator} = curator name
+ o $curator_details->{timestamp} = timestamp
+ o $curator_details->{currecs} = curation record filename - useful for debugging
+
+If there is more than one curator for the *earliest* timestamp (i.e. if multiple curation records of the same type of curation were submitted for the same pub_id in the same data load) then curator is set to 'FB_curator' and currecs is set to 'multiple curators for timestamp'
+
+=cut
+
+
 	unless (@_ == 3) {
 
 		die "Wrong number of parameters passed to the get_relevant_curator_from_candidate_list subroutine\n";
@@ -415,6 +462,7 @@ sub get_relevant_curator_from_candidate_list {
 	my ($data_by_timestamp, $data_by_curator, $pub_id) = @_;
 
 	my $curator_details = undef;
+
 
 
 	if (exists $data_by_timestamp->{$pub_id}) {
@@ -456,8 +504,8 @@ sub get_relevant_curator_from_candidate_list {
 				}
 
 				unless ($count == 1) {
-					$relevant_curator = '';
-					$relevant_record_types = '';
+					$relevant_curator = 'FB_curator';
+					$relevant_record_types = 'multiple curators for timestamp';
 
 				}
 			}
