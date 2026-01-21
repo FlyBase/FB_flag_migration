@@ -184,24 +184,26 @@ my $workflow_tag_mapping = {
 	# community curation
 	'0_user' => {
 		'finished_status' => 'ATP:0000234', # community curation finished
-		'relevant_currec' => ['user'],
+		'relevant_record_type' => ['user'],
 
 	},
 
 	# first pass curation
 	'1_skim' => {
 		'finished_status' => 'ATP:0000330', # first pass curation finished
-		'relevant_currec' => ['skim'],
+		'relevant_record_type' => ['skim'],
 
 	},
 
 	# manual indexing
 	'2_manual_indexing' => {
 		'finished_status' => 'ATP:0000275', # manual indexing complete
-		'relevant_currec' => ['thin', 'cam_full', 'gene_full', 'cam_no_suffix'], # use an array so can go through in this order when assigning manual indexing status
+		'relevant_record_type' => ['thin', 'cam_full', 'gene_full', 'cam_no_suffix'], # use an array so can go through the types in this order when assigning manual indexing status
 		'nocur_override' => 'ATP:0000343', # won't manually index
 		'pubtype_filter' => {
-			'cam_no_suffix' => ['review'],
+			'cam_no_suffix' => {
+				'review' => '1',
+			},
 		},
 
 	},
@@ -248,9 +250,9 @@ my $fb_data = {};
 
 foreach my $workflow_type (sort keys %{$workflow_tag_mapping}) {
 
-	foreach my $relevant_currec (@{$workflow_tag_mapping->{$workflow_type}->{'relevant_currec'}}) {
+	foreach my $relevant_record_type (@{$workflow_tag_mapping->{$workflow_type}->{'relevant_record_type'}}) {
 
-		($fb_data->{"$relevant_currec"}->{"by_timestamp"}, $fb_data->{"$relevant_currec"}->{"by_curator"}) = &get_relevant_currec_for_datatype($dbh,$relevant_currec);
+		($fb_data->{"$relevant_record_type"}->{"by_timestamp"}, $fb_data->{"$relevant_record_type"}->{"by_curator"}) = &get_relevant_currec_for_datatype($dbh,$relevant_record_type);
 
 	}
 }
@@ -276,10 +278,186 @@ while (my ($uniquename, $pub_id, $pub_type) = $db_query->fetchrow_array()) {
 }
 
 
+my $complete_data = {};
+
+foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
+
+	my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
+	my $pub_type = $pub_id_to_FBrf->{$pub_id}->{'type'};
+
+	# maybe do nocur validation and record status - need to make new subroutine
+#	my ($nocur_status, $nocur_timestamp, $note) = &check_for_nocur($pub_id);
+	my ($nocur_status, $nocur_timestamp, $note) = '';
+
+
+	# switch for tracking whether have set the status of each workflow type already
+	my $switch = {
+
+		'0_user' => 0,
+		'1_skim' => 0,
+		'2_manual_indexing' => 0,
+
+
+	};
+
+	foreach my $workflow_type (sort keys %{$workflow_tag_mapping}) {
+
+
+		foreach my $relevant_record_type (@{$workflow_tag_mapping->{$workflow_type}->{'relevant_record_type'}}) {
+
+			if (exists $workflow_tag_mapping->{$workflow_type}->{'pubtype_filter'} && exists $workflow_tag_mapping->{$workflow_type}->{'pubtype_filter'}->{$relevant_record_type}) {
+
+				#my $pub_type = $pub_id_to_FBrf->{$pub_id}->{'type'};
+
+ 				unless (exists $workflow_tag_mapping->{$workflow_type}->{'pubtype_filter'}->{$relevant_record_type}->{$pub_type}) {
+
+					next;
+
+				}
+			}
+
+			unless ($switch->{"$workflow_type"}) {
+
+				# make new subroutine to get relevant curator and timestamp from $fb_data
+				my $curator_details = &get_relevant_curator_from_candidate_list($fb_data->{"$relevant_record_type"}->{"by_timestamp"}, $fb_data->{"$relevant_record_type"}->{"by_curator"}, $pub_id);
+
+				# if there is a matching record for the workflow type, make a json structure for submitting data to the Alliance
+				if (defined $curator_details) {
+
+
+					my $ATP = $workflow_tag_mapping->{$workflow_type}->{'finished_status'};
+					my $curation_tag = '';
+					my $note = '';
+
+					# for manual indexing, use the nocur information to override the workflow type (to the 'won't curate' style term) and add the appropriate curation_tag
+					if (exists $workflow_tag_mapping->{$workflow_type}->{'nocur_override'} && $nocur_status == 1) {
+						$ATP = $workflow_tag_mapping->{$workflow_type}->{'nocur_override'};
+						$curation_tag = "ATP:0000207"; # no genetic data
+					}
+
+					# build reference with information for this publication+workflow type combination
+					my $data = {};
+
+					my $FBrf_with_prefix="FB:".$FBrf;
+					$data->{date_created} = $curator_details->{timestamp};
+					$data->{date_updated} = $curator_details->{timestamp};
+					$data->{created_by} = $curator_details->{curator};
+					$data->{updated_by} = $curator_details->{curator};
+					$data->{mod_abbreviation} = "FB";
+					$data->{reference_curie} = $FBrf_with_prefix;
+					$data->{workflow_tag_id} = $ATP;
+					$data->{note} = "for debugging: pub type: $pub_type, record type: $relevant_record_type, curation record $curator_details->{currecs}";
+
+					if ($curation_tag) {
+						$data->{curation_tag} = $curation_tag;
+					}
+
+					if ($note) {
+						$data->{curation_tag} = $note;
+					}
+
+					push @{$complete_data->{data}}, $data;
+
+					# set the switch to indicate have set the status for this particular workflow type 
+					$switch->{"$workflow_type"}++;
+
+					#print STDERR "$FBrf, $relevant_record_type, $workflow_type, $curator_details->{currecs}: switch value: $switch->{$workflow_type}\n";
+
+				}
+
+			}
+		}
+
+	}
+
+
+}
+
+
+print Dumper ($complete_data);
+
 #close $json_output_file;
 #close $data_error_file;
 #close $process_error_file;
 #close $plain_output_file;
 
 print STDERR "##Ended processing: " . (scalar localtime) . "\n";
+
+
+
+##############################
+
+
+sub get_relevant_curator_from_candidate_list {
+
+	unless (@_ == 3) {
+
+		die "Wrong number of parameters passed to the get_relevant_curator_from_candidate_list subroutine\n";
+	}
+
+
+	my ($data_by_timestamp, $data_by_curator, $pub_id) = @_;
+
+	my $curator_details = undef;
+
+
+	if (exists $data_by_timestamp->{$pub_id}) {
+
+
+		# get the timestamp of the *earliest* matching curation record
+		my $timestamp = $data_by_timestamp->{$pub_id}[0];
+
+		# try to determine the relevant curator if appropriate for the topic
+		my $relevant_curator = '';
+		my $relevant_record_types = '';
+
+
+		if (exists $data_by_curator->{$pub_id}) {
+
+			if (scalar keys %{$data_by_curator->{$pub_id}} == 1) {
+				my $curator_candidate = join '', keys %{$data_by_curator->{$pub_id}};
+
+				if (exists $data_by_curator->{$pub_id}->{$curator_candidate}->{$timestamp}) {
+					$relevant_curator = $curator_candidate;
+					$relevant_record_types = join ' ', sort keys %{$data_by_curator->{$pub_id}->{$curator_candidate}->{$timestamp}};
+
+				}
+			} else {
+
+				my $count = 0;
+				foreach my $curator_candidate (sort keys %{$data_by_curator->{$pub_id}}) {
+
+					foreach my $candidate_timestamp (sort keys %{$data_by_curator->{$pub_id}->{$curator_candidate}}) {
+
+						if ($candidate_timestamp eq $timestamp) {
+
+							$relevant_curator = $curator_candidate;
+							$relevant_record_types = join ' ', sort keys %{$data_by_curator->{$pub_id}->{$curator_candidate}->{$candidate_timestamp}};
+							$count++;
+
+						}
+					}
+				}
+
+				unless ($count == 1) {
+					$relevant_curator = '';
+					$relevant_record_types = '';
+
+				}
+			}
+		}
+
+		if ($relevant_curator) {
+
+			$curator_details->{curator} = $relevant_curator;
+			$curator_details->{timestamp} = $timestamp;
+			$curator_details->{currecs} = $relevant_record_types; # useful for debugging
+
+		}
+
+
+	}
+
+	return $curator_details;
+}
 
