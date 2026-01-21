@@ -328,6 +328,9 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 					my $ATP = $workflow_tag_mapping->{$workflow_type}->{'finished_status'};
 					my $curation_tag = '';
 					my $note = '';
+					# set values based on matching record (overriden in a few edge cases below)
+					my $curator = "$curator_details->{curator}";
+					my $timestamp = "$curator_details->{timestamp}";
 
 					# overide the curator for edge cases where the curator has been set to 'FB_curator'
 					# due to multiple records of the same type being submitted in the same week and it
@@ -335,8 +338,8 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 					# set back to 'User Submission' (the more general curator for community curation).
 					if (exists $workflow_tag_mapping->{$workflow_type}->{'community_curation'}) {
 
-						if ($curator_details->{curator} eq 'FB_curator') {
-							$curator_details->{curator} = 'User Submission';
+						if ($curator eq 'FB_curator') {
+							$curator = 'User Submission';
 
 						}
 
@@ -349,9 +352,9 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 						if ($nocur_status == 1) {
 							$ATP = $workflow_tag_mapping->{$workflow_type}->{'nocur_override'};
 							$curation_tag = "ATP:0000207"; # no genetic data
-							unless ($curator_details->{timestamp} eq $nocur_timestamp) {
-
-								$note = $note . " timestamp mis-match: curator: $curator_details->{timestamp}, nocur: $nocur_timestamp";
+							unless ($timestamp eq $nocur_timestamp) {
+								$timestamp = "$nocur_timestamp";
+								$curator = 'FB_curator';
 
 							}
 
@@ -363,10 +366,10 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 					my $data = {};
 
 					my $FBrf_with_prefix="FB:".$FBrf;
-					$data->{date_created} = $curator_details->{timestamp};
-					$data->{date_updated} = $curator_details->{timestamp};
-					$data->{created_by} = $curator_details->{curator};
-					$data->{updated_by} = $curator_details->{curator};
+					$data->{date_created} = $timestamp;
+					$data->{date_updated} = $timestamp;
+					$data->{created_by} = $curator;
+					$data->{updated_by} = $curator;
 					$data->{mod_abbreviation} = "FB";
 					$data->{reference_curie} = $FBrf_with_prefix;
 					$data->{workflow_tag_id} = $ATP;
@@ -396,6 +399,50 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
 			}
 		}
+
+		# once been through all the curation record types for each worfklow_type, see if there is additional information that can be added via nocur flag
+		if (exists $workflow_tag_mapping->{$workflow_type}->{'nocur_override'}) {
+
+			unless ($switch->{"$workflow_type"}) {
+
+				if ($nocur_status == 1) {
+					my $ATP = $workflow_tag_mapping->{$workflow_type}->{'nocur_override'};
+					my $curation_tag = "ATP:0000207"; # no genetic data
+					my $note = "$nocur_note";
+
+					# build reference with information for this publication+workflow type combination
+					my $data = {};
+
+					my $FBrf_with_prefix="FB:".$FBrf;
+					$data->{date_created} = $nocur_timestamp;
+					$data->{date_updated} = $nocur_timestamp;
+					$data->{created_by} = 'FB_curator';
+					$data->{updated_by} = 'FB_curator';
+					$data->{mod_abbreviation} = "FB";
+					$data->{reference_curie} = $FBrf_with_prefix;
+					$data->{workflow_tag_id} = $ATP;
+
+					if ($curation_tag) {
+						$data->{curation_tag} = $curation_tag;
+					}
+
+					# for debugging
+					$note = $note . " for debugging: $FBrf, pub type: $pub_type, nocur added via flag, timestamp: $nocur_timestamp";
+					$note =~ s/^ //;
+
+					if ($note) {
+						$data->{note} = $note;
+					}
+
+					push @{$complete_data->{data}}, $data;
+
+					# set the switch to indicate have set the status for this particular workflow type - not sure need this
+					$switch->{"$workflow_type"}++;
+				}
+			}
+
+		}
+
 
 	}
 
