@@ -261,7 +261,7 @@ foreach my $workflow_type (sort keys %{$workflow_tag_mapping}) {
 #print Dumper ($fb_data);
 
 # 2. get data to assign 'no genetic data' curation tag and associated 'won't curate' workflow_tag term
-my $nocur_flags = &get_matching_pubprop_value_with_timestamps($dbh,'cam_flag','^nocur$');
+my $nocur_flags = &get_matching_pubprop_value_with_timestamps($dbh,'cam_flag','^nocur|nocur_abs$');
 
 # get publications that *do* have links to genetic objects (used for validation)
 my $has_genetic_data = &pub_has_curated_data($dbh, 'genetic_data');
@@ -286,8 +286,8 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 	my $pub_type = $pub_id_to_FBrf->{$pub_id}->{'type'};
 
 	# maybe do nocur validation and record status - need to make new subroutine
-#	my ($nocur_status, $nocur_timestamp, $note) = &check_for_nocur($pub_id);
-	my ($nocur_status, $nocur_timestamp, $note) = '';
+	my ($nocur_status, $nocur_timestamp, $nocur_note) = &check_and_validate_nocur($nocur_flags, $has_genetic_data, $pub_id);
+#	my ($nocur_status, $nocur_timestamp, $nocur_note) = '';
 
 
 	# switch for tracking whether have set the status of each workflow type already
@@ -330,9 +330,20 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 					my $note = '';
 
 					# for manual indexing, use the nocur information to override the workflow type (to the 'won't curate' style term) and add the appropriate curation_tag
-					if (exists $workflow_tag_mapping->{$workflow_type}->{'nocur_override'} && $nocur_status == 1) {
-						$ATP = $workflow_tag_mapping->{$workflow_type}->{'nocur_override'};
-						$curation_tag = "ATP:0000207"; # no genetic data
+					if (exists $workflow_tag_mapping->{$workflow_type}->{'nocur_override'}) {
+						$note = "$nocur_note";
+
+						if ($nocur_status == 1) {
+							$ATP = $workflow_tag_mapping->{$workflow_type}->{'nocur_override'};
+							$curation_tag = "ATP:0000207"; # no genetic data
+							unless ($curator_details->{timestamp} eq $nocur_timestamp) {
+
+								$note = $note . " timestamp mis-match: curator: $curator_details->{timestamp}, nocur: $nocur_timestamp";
+
+							}
+
+						}
+
 					}
 
 					# build reference with information for this publication+workflow type combination
@@ -346,15 +357,20 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 					$data->{mod_abbreviation} = "FB";
 					$data->{reference_curie} = $FBrf_with_prefix;
 					$data->{workflow_tag_id} = $ATP;
-					$data->{note} = "for debugging: pub type: $pub_type, record type: $relevant_record_type, curation record $curator_details->{currecs}";
 
 					if ($curation_tag) {
 						$data->{curation_tag} = $curation_tag;
 					}
 
+					# for debugging
+					$note = $note . " for debugging: $FBrf, pub type: $pub_type, record type: $relevant_record_type, curation record $curator_details->{currecs}";
+					$note =~ s/^ //;
+
 					if ($note) {
-						$data->{curation_tag} = $note;
+						$data->{note} = $note;
 					}
+
+
 
 					push @{$complete_data->{data}}, $data;
 
@@ -461,3 +477,51 @@ sub get_relevant_curator_from_candidate_list {
 	return $curator_details;
 }
 
+
+sub check_and_validate_nocur {
+
+	unless (@_ == 3) {
+
+		die "Wrong number of parameters passed to the check_and_validate_nocur subroutine\n";
+	}
+
+	my ($nocur_flags, $has_genetic_data, $pub_id) = @_;
+
+
+	my $nocur_status = 0;
+	my $nocur_timestamp = '';
+	my $note = '';
+
+	if (exists $nocur_flags->{$pub_id}) {
+
+		# if there is curated genetic data then ignore any nocur flag as it must be an error
+		unless (exists $has_genetic_data->{$pub_id}) {
+			$nocur_status = 1;
+		}
+
+		if (exists $nocur_flags->{$pub_id}->{nocur}) {
+			$nocur_timestamp = $nocur_flags->{$pub_id}->{nocur}[0];
+
+		} else {
+
+			$nocur_timestamp = $nocur_flags->{$pub_id}->{nocur_abs}[0];
+
+			$note = "Only looked at abstract.";
+		}
+
+
+	} else {
+
+
+		unless (exists $has_genetic_data->{$pub_id}) {
+
+			$note = "WARNING: publication has no curated genetic data, but is missing a 'nocur' flag";
+
+		}
+
+	}
+
+	return ($nocur_status, $nocur_timestamp, $note);
+
+
+}
