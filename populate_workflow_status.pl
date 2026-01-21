@@ -528,6 +528,45 @@ If there is more than one curator for the *earliest* timestamp (i.e. if multiple
 
 sub check_and_validate_nocur {
 
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    check_and_validate_nocur
+	Function: Checks whether a publication has been marked as a 'nocur' (contains no genetic data), and validates whether that flagging is consistent with the types of entity attached to the publication in FlyBase. Returns information based on this checking and validation.
+	Example:  my ($nocur_status, $nocur_timestamp, $nocur_note) = &check_and_validate_nocur($nocur_flags, $has_genetic_data, $pub_id);
+
+Arguments:
+
+o $nocur_flags - hash reference containing nocur/nocur_abs flag information
+
+o $has_genetic_data - list of all publications that have genetic entities attached to them.
+
+o $pub_id is the pub_id of a single reference.
+
+Returns:
+
+
+o $nocur_status: boolean that indicates whether (1) or not (0) the publication is a 'nocur' (contains no genetic data).
+
+   o Note: if a publication has a nocur/nocur_abs flag in FlyBase but there ARE genetic entities attached to the publication, returns $nocur_status = 0 (i.e. the nocur/nocur_abs flag is ignored as it must be an error).
+
+
+o $nocur_timestamp: timestamp of when the 'nocur' flag was added.
+
+o $nocur_note: free text note that can be added in the 'note' slot of the relevant ATP workflow_tag item.
+
+   o contains 'Only looked at abstract.' for nocur publications ($nocur_status = 1) with the relevant flag (nocur_abs) in FlyBase.
+
+   o contains 'WARNING: publication has no curated genetic data, but is missing a 'nocur' flag' for publications where there are no genetic entities attached to the publication, but the expected 'nocur'/'nocur_abs' flag is missing. These publications have $nocur_status = 0 as there may have been genetic data entities that were within scope at the time of curation, but are no longer in scope, so cannot assume that 'no genetic data' is appropriate.
+
+
+
+=cut
+
+
+
 	unless (@_ == 3) {
 
 		die "Wrong number of parameters passed to the check_and_validate_nocur subroutine\n";
