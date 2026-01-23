@@ -242,6 +242,8 @@ my $workflow_tag_mapping = {
 
 print STDERR "##Starting processing: " . (scalar localtime) . "\n";
 
+my $all_curation_record_data = &get_all_currec_data($dbh);
+
 
 ## 1. get relevant data for deciding curation status for the various type of workflow_tag curation
 
@@ -331,8 +333,10 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 					# set values based on matching record (overriden in a few edge cases below)
 					my $curator = "$curator_details->{curator}";
 					my $timestamp = "$curator_details->{timestamp}";
+					my $curation_records = "$curator_details->{currecs}";
 
-					# for manual indexing, use the nocur information to override the workflow type (to the 'won't curate' style term) and add the appropriate curation_tag where appropriate
+					# for manual indexing, use any nocur information to override the workflow type (to the 'won't curate' style term)
+					# and add the appropriate 'no genetic data' curation_tag where appropriate
 					if (exists $workflow_tag_mapping->{$workflow_type}->{'nocur_override'}) {
 						$note = "$nocur_note";
 
@@ -341,11 +345,27 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 							$curation_tag = "ATP:0000207"; # no genetic data
 							unless ($timestamp eq $nocur_timestamp) {
 								$timestamp = "$nocur_timestamp";
-								$curator = 'FB_curator';
+								$note = $note . "timestamp mismatch: curation record info overwritten by nocur flag info";
+
+								my $nocur_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $timestamp);
+
+								if (defined $nocur_details) {
+
+									$curator = "$nocur_details->{curator}";
+									$curation_records = "$nocur_details->{currecs}";
+
+								} else {
+									$curator = 'FB_curator';
+									$curation_records = "WARNING: unable to get curator details for nocur flag";
+
+
+								}
+
 
 							}
 
 						}
+
 
 					}
 
@@ -366,7 +386,7 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 					}
 
 					# for debugging
-					$note = $note . " for debugging: $FBrf, pub type: $pub_type, record type: $relevant_record_type, curation record $curator_details->{currecs}";
+					$note = $note . " for debugging: $FBrf, pub type: $pub_type, record type: $relevant_record_type, curation record $curation_records";
 					$note =~ s/^ //;
 
 					if ($note) {
@@ -393,18 +413,33 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 			unless ($switch->{"$workflow_type"}) {
 
 				if ($nocur_status == 1) {
+
+					my $curator = 'FB_curator'; # default that is overriden with more specific data later where possible
+					my $timestamp = "$nocur_timestamp";
+					my $curation_records = 'WARNING: unable to get curator details for nocur flag'; # default that is overriden with more specific data later where possible
 					my $ATP = $workflow_tag_mapping->{$workflow_type}->{'nocur_override'};
 					my $curation_tag = "ATP:0000207"; # no genetic data
 					my $note = "$nocur_note";
+
+					# get curator details for the nocur flag and use to override defaults where possible
+					my $nocur_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id,$timestamp);
+
+					if (defined $nocur_details) {
+
+						$curator = "$nocur_details->{curator}";
+						$curation_records = "$nocur_details->{currecs}";
+
+					}
+
 
 					# build reference with information for this publication+workflow type combination
 					my $data = {};
 
 					my $FBrf_with_prefix="FB:".$FBrf;
-					$data->{date_created} = $nocur_timestamp;
-					$data->{date_updated} = $nocur_timestamp;
-					$data->{created_by} = 'FB_curator';
-					$data->{updated_by} = 'FB_curator';
+					$data->{date_created} = $timestamp;
+					$data->{date_updated} = $timestamp;
+					$data->{created_by} = $curator;
+					$data->{updated_by} = $curator;
 					$data->{mod_abbreviation} = "FB";
 					$data->{reference_curie} = $FBrf_with_prefix;
 					$data->{workflow_tag_id} = $ATP;
@@ -414,7 +449,7 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 					}
 
 					# for debugging
-					$note = $note . " for debugging: $FBrf, pub type: $pub_type, nocur added via flag, timestamp: $nocur_timestamp";
+					$note = $note . " for debugging: $FBrf, pub type: $pub_type, nocur added via flag, curation record: $curation_records, timestamp: $nocur_timestamp";
 					$note =~ s/^ //;
 
 					if ($note) {
