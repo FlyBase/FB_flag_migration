@@ -188,13 +188,6 @@ The get_relevant_curator_from_candidate_list_using_pub_and_timestamp in lib/Util
 			my $curation_record_filename = $2;
 			my $timelastmodified = $3;
 
-			# convert all unknown style curators to the same 'FB_curator' name that is used for persistent store submissions
-			if ($curator eq 'Unknown' || $curator eq 'Unknown Curator' || $curator eq 'Generic Curator') {
-
-				$curator = 'FB_curator';
-
-			}
-
 			$data->{$pub_id}->{$timestamp}->{$curator}->{$curation_record_filename}++;
 
 		} else {
