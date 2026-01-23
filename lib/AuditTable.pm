@@ -5,7 +5,7 @@ use warnings;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw(get_relevant_curator get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_flaglist_with_suffix get_timestamps_for_pubprop_value get_relevant_currec_for_datatype get_matching_pubprop_value_with_timestamps get_all_flag_info_with_timestamps);
+our @EXPORT = qw(get_relevant_curator get_all_currec_data get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_flaglist_with_suffix get_timestamps_for_pubprop_value get_relevant_currec_for_datatype get_matching_pubprop_value_with_timestamps get_all_flag_info_with_timestamps);
 
 
 =head1 MODULE: AuditTable
@@ -136,6 +136,76 @@ sub get_relevant_curator {
 
 	return ($data);
 }
+
+sub get_all_currec_data {
+
+
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    get_all_currec_data
+	Usage:    get_all_currec_data(database_handle);
+	Function: Stores curator and corresponding curation_record_filename information for all 'curated_by' pubprops, keyed on pub_id.
+	Example:  my $all_curation_record_data = &get_all_currec_data($dbh);
+
+Arguments: database handle
+
+Returns: data structure with the following format:
+
+$data->{$pub_id}->{$timestamp}->{$curator}->{$curation_record_filename}
+
+
+The get_relevant_curator_from_candidate_list_using_pub_and_timestamp in lib/Util.pm can be used to filter the returned list for the curator (and corresponding curation_record_filename information) that matches a specific pub_id plus timestamp combination.
+
+
+=cut
+
+
+	unless (@_ == 1) {
+
+		die "Wrong number of parameters passed to the get_all_currec_data subroutine\n";
+	}
+
+	my ($dbh) = @_;
+
+	my $data = {};
+
+	my $sql_query=sprintf("select distinct pp.pub_id, pp.value, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where ac.audited_table='pubprop' and ac.audit_transaction='I' and pp.pubprop_id=ac.record_pkey and c.cvterm_id=pp.type_id and c.name = 'curated_by' order by ac.transaction_timestamp");
+
+	my $db_query = $dbh->prepare($sql_query);
+	$db_query->execute or die "WARNING: ERROR: Unable to execute get_all_currec_data query ($!)\n";
+
+
+	while (my ($pub_id, $curated_by_value, $timestamp) = $db_query->fetchrow_array) {
+
+
+		if ($curated_by_value =~ m/^Curator: (.+?);Proforma: (.+?);timelastmodified: (.*)$/) {
+
+			my $curator = $1;
+			my $curation_record_filename = $2;
+			my $timelastmodified = $3;
+
+			# convert all unknown style curators to the same 'FB_curator' name that is used for persistent store submissions
+			if ($curator eq 'Unknown' || $curator eq 'Unknown Curator' || $curator eq 'Generic Curator') {
+
+				$curator = 'FB_curator';
+
+			}
+
+			$data->{$pub_id}->{$timestamp}->{$curator}->{$curation_record_filename}++;
+
+		} else {
+			# not expecting to trip this error
+			print "ERROR: wrong curated_by pubprop format for pub_id: $pub_id, pubprop: $curated_by_value\n";
+		}
+	}
+
+	return $data;
+}
+
 
 
 sub get_flag_info_with_audit_data {
