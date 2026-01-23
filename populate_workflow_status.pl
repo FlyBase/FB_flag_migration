@@ -310,7 +310,6 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
 			if (exists $workflow_tag_mapping->{$workflow_type}->{'pubtype_filter'} && exists $workflow_tag_mapping->{$workflow_type}->{'pubtype_filter'}->{$relevant_record_type}) {
 
-				#my $pub_type = $pub_id_to_FBrf->{$pub_id}->{'type'};
 
  				unless (exists $workflow_tag_mapping->{$workflow_type}->{'pubtype_filter'}->{$relevant_record_type}->{$pub_type}) {
 
@@ -335,18 +334,20 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 					my $curator = "$curator_details->{curator}";
 					my $timestamp = "$curator_details->{timestamp}";
 					my $curation_records = "$curator_details->{currecs}";
+					my $debugging_note = '';
 
 					# for manual indexing, use any nocur information to override the workflow type (to the 'won't curate' style term)
 					# and add the appropriate 'no genetic data' curation_tag where appropriate
 					if (exists $workflow_tag_mapping->{$workflow_type}->{'nocur_override'}) {
-						$note = "$nocur_note";
 
 						if ($nocur_status == 1) {
 							$ATP = $workflow_tag_mapping->{$workflow_type}->{'nocur_override'};
 							$curation_tag = "ATP:0000207"; # no genetic data
+							$note = "$nocur_note";
+
 							unless ($timestamp eq $nocur_timestamp) {
 								$timestamp = "$nocur_timestamp";
-								$note = $note . "timestamp mismatch: curation record info overwritten by nocur flag info";
+								$debugging_note = "timestamp mismatch: curation record info overwritten by nocur flag info";
 
 								my $nocur_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $timestamp);
 
@@ -358,7 +359,6 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 								} else {
 									$curator = 'FB_curator';
 									$curation_records = "WARNING: unable to get curator details for nocur flag";
-
 
 								}
 
@@ -386,9 +386,6 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 						$data->{curation_tag} = $curation_tag;
 					}
 
-					# for debugging
-					$note = $note . " for debugging: $FBrf, pub type: $pub_type, record type: $relevant_record_type, curation record $curation_records";
-					$note =~ s/^ //;
 
 					if ($note) {
 						$data->{note} = $note;
@@ -398,13 +395,12 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
 					push @{$complete_data->{data}}, $data;
 
-					my $debugging_output = "DATA:$pub_id\t$FBrf\t$pub_type\t$relevant_record_type\t$curator\t$curation_records\t$ATP\t$curation_tag\t$timestamp\t$note";
+					my $debugging_output = "DATA:$pub_id\t$FBrf\t$pub_type\t$relevant_record_type\t$curator\t$curation_records\t$ATP\t$curation_tag\t$timestamp\t$note\t$debugging_note";
 					push @debugging_output, $debugging_output;
 
 					# set the switch to indicate have set the status for this particular workflow type 
 					$switch->{"$workflow_type"}++;
 
-					#print STDERR "$FBrf, $relevant_record_type, $workflow_type, $curator_details->{currecs}: switch value: $switch->{$workflow_type}\n";
 
 				}
 
@@ -424,6 +420,7 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 					my $ATP = $workflow_tag_mapping->{$workflow_type}->{'nocur_override'};
 					my $curation_tag = "ATP:0000207"; # no genetic data
 					my $note = "$nocur_note";
+					my $debugging_note = '';
 
 					# get curator details for the nocur flag and use to override defaults where possible
 					my $nocur_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id,$timestamp);
@@ -452,16 +449,13 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 						$data->{curation_tag} = $curation_tag;
 					}
 
-					# for debugging
-					$note = $note . " for debugging: $FBrf, pub type: $pub_type, nocur added via flag, curation record: $curation_records, timestamp: $nocur_timestamp";
-					$note =~ s/^ //;
 
 					if ($note) {
 						$data->{note} = $note;
 					}
 
 					push @{$complete_data->{data}}, $data;
-					my $debugging_output = "DATA:$pub_id\t$FBrf\t$pub_type\tvia flag\t$curator\t$curation_records\t$ATP\t$curation_tag\t$timestamp\t$note";
+					my $debugging_output = "DATA:$pub_id\t$FBrf\t$pub_type\tvia flag\t$curator\t$curation_records\t$ATP\t$curation_tag\t$timestamp\t$note\t$debugging_note";
 					push @debugging_output, $debugging_output;
 
 					# set the switch to indicate have set the status for this particular workflow type - not sure need this
@@ -667,24 +661,21 @@ o $nocur_flags - hash reference containing nocur/nocur_abs flag information
 
 o $has_genetic_data - list of all publications that have genetic entities attached to them.
 
-o $pub_id is the pub_id of a single reference.
+o $pub_id is the pub_id of the single publication to be checked.
 
 Returns:
 
 
-o $nocur_status: boolean that indicates whether (1) or not (0) the publication is a 'nocur' (contains no genetic data).
+$nocur_status is a boolean. It is only set to 1 if the publication being checked IS a nocur (has a nocur/nocur_abs flag in FlyBase) AND passed the validation (there are NO genetic entities attached to it).
 
-   o Note: if a publication has a nocur/nocur_abs flag in FlyBase but there ARE genetic entities attached to the publication, returns $nocur_status = 0 (i.e. the nocur/nocur_abs flag is ignored as it must be an error).
+(i.e. if a publication has a nocur/nocur_abs flag in FlyBase but there ARE genetic entities attached to the publication, $nocur_status = 0).
 
 
-o $nocur_timestamp: timestamp of when the 'nocur' flag was added.
+$nocur_timestamp: timestamp of when the nocur/nocur_abs flag was added (if the flag exists).
 
-o $nocur_note: free text note that can be added in the 'note' slot of the relevant ATP workflow_tag item.
+$nocur_note: free text note that can be added in the 'note' slot of the relevant ATP workflow_tag item.
 
-   o contains 'Only looked at abstract.' for nocur publications ($nocur_status = 1) with the relevant flag (nocur_abs) in FlyBase.
-
-   o contains 'WARNING: publication has no curated genetic data, but is missing a 'nocur' flag' for publications where there are no genetic entities attached to the publication, but the expected 'nocur'/'nocur_abs' flag is missing. These publications have $nocur_status = 0 as there may have been genetic data entities that were within scope at the time of curation, but are no longer in scope, so cannot assume that 'no genetic data' is appropriate.
-
+   o contains 'Only looked at abstract.' for publications with a nocur_abs flag in FlyBase.
 
 
 =cut
@@ -719,17 +710,6 @@ o $nocur_note: free text note that can be added in the 'note' slot of the releva
 
 			$note = "Only looked at abstract.";
 		}
-
-
-	} else {
-
-
-		unless (exists $has_genetic_data->{$pub_id}) {
-
-			$note = "WARNING: publication has no curated genetic data, but is missing a 'nocur' flag";
-
-		}
-
 	}
 
 	return ($nocur_status, $nocur_timestamp, $note);
