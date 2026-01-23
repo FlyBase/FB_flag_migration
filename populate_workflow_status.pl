@@ -370,6 +370,7 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
 					}
 
+
 					# build reference with information for this publication+workflow type combination
 					my $data = {};
 
@@ -429,6 +430,12 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
 						$curator = "$nocur_details->{curator}";
 						$curation_records = "$nocur_details->{currecs}";
+
+					}
+
+					# override edge cases where a curator added nocur in a user record
+					if ($curator eq 'Author Submission' || $curator eq 'User Submission') {
+						$curator = 'FB_curator';
 
 					}
 
