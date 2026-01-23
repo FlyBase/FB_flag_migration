@@ -281,6 +281,7 @@ while (my ($uniquename, $pub_id, $pub_type) = $db_query->fetchrow_array()) {
 
 
 my $complete_data = {};
+my @debugging_output;
 
 foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
@@ -397,6 +398,9 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
 					push @{$complete_data->{data}}, $data;
 
+					my $debugging_output = "DATA:$pub_id\t$FBrf\t$pub_type\t$relevant_record_type\t$curator\t$curation_records\t$ATP\t$curation_tag\t$timestamp\t$note";
+					push @debugging_output, $debugging_output;
+
 					# set the switch to indicate have set the status for this particular workflow type 
 					$switch->{"$workflow_type"}++;
 
@@ -457,6 +461,8 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 					}
 
 					push @{$complete_data->{data}}, $data;
+					my $debugging_output = "DATA:$pub_id\t$FBrf\t$pub_type\tvia flag\t$curator\t$curation_records\t$ATP\t$curation_tag\t$timestamp\t$note";
+					push @debugging_output, $debugging_output;
 
 					# set the switch to indicate have set the status for this particular workflow type - not sure need this
 					$switch->{"$workflow_type"}++;
@@ -471,6 +477,12 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
 }
 
+foreach my $line (sort @debugging_output) {
+
+	print "$line\n";
+
+
+}
 
 print Dumper ($complete_data);
 
