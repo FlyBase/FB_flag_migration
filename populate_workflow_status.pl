@@ -191,6 +191,7 @@ my $workflow_tag_mapping = {
 	'1_skim' => {
 		'finished_status' => 'ATP:0000330', # first pass curation finished
 		'relevant_record_type' => ['skim'],
+		'relevant_internal_note' => 'GeneSkim|generated automatically by script from tagtog output',
 
 	},
 
@@ -278,6 +279,20 @@ $diseaseHP_flags->{'harv_flag'} = &get_matching_pubprop_value_with_timestamps($d
 
 #print Dumper ($diseaseHP_flags);
 
+## get any relevant internal notes to be added to the note
+
+my $relevant_internal_notes = {};
+
+foreach my $workflow_type (keys %{$workflow_tag_mapping}) {
+
+	if (exists $workflow_tag_mapping->{$workflow_type}->{'relevant_internal_note'}) {
+
+		$relevant_internal_notes->{"$workflow_type"} = &get_matching_pubprop_value_with_timestamps($dbh,'internalnotes',$workflow_tag_mapping->{$workflow_type}->{'relevant_internal_note'});
+
+	}
+
+}
+
 
 ## Get list of publications: restrict to the type of pubs where it is useful to export workflow status info (same types as used in populate_topic_curation_status.pl)
 my $pub_id_to_FBrf = {};
@@ -347,6 +362,8 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 					my $curation_records = "$curator_details->{currecs}";
 					my $debugging_note = '';
 
+
+
 					# for manual indexing, use any nocur information to override the workflow type (to the 'won't curate' style term)
 					# and add the appropriate 'no genetic data' curation_tag where appropriate
 					if (exists $workflow_tag_mapping->{$workflow_type}->{'nocur_override'}) {
@@ -379,6 +396,10 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 						}
 
 
+					}
+
+					if (exists $relevant_internal_notes->{$workflow_type}->{$pub_id}) {
+						$note = $note . (join ' ', sort keys %{$relevant_internal_notes->{$workflow_type}->{$pub_id}});
 					}
 
 
