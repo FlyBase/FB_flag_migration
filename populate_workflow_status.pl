@@ -204,6 +204,7 @@ my $workflow_tag_mapping = {
 				'review' => '1',
 			},
 		},
+		'high_priority_override' => 'ATP:0000274', # manual indexing needed
 
 	},
 
@@ -262,13 +263,17 @@ foreach my $workflow_type (sort keys %{$workflow_tag_mapping}) {
 #print Dumper ($fb_data);
 
 
-# 2. get data to assign 'no genetic data' curation tag and associated 'won't curate' workflow_tag term
+# get data to assign 'no genetic data' curation tag and associated 'won't curate' workflow_tag term
 my $nocur_flags = &get_matching_pubprop_value_with_timestamps($dbh,'cam_flag','^nocur|nocur_abs$');
 
 # get publications that *do* have links to genetic objects (used for validation)
 my $has_genetic_data = &pub_has_curated_data($dbh, 'genetic_data');
 
-## 3. Get list of publications: restrict to the type of pubs where it is useful to export workflow status info (same types as used in populate_topic_curation_status.pl)
+## diseaseHP flags to assign 'needs curation' to manual indexing where appropriate
+my $diseaseHP_flags = &get_matching_pubprop_value_with_timestamps($dbh,'dis_flag','^diseaseHP$');
+
+
+## Get list of publications: restrict to the type of pubs where it is useful to export workflow status info (same types as used in populate_topic_curation_status.pl)
 my $pub_id_to_FBrf = {};
 my $sql_query = sprintf("select p.uniquename, p.pub_id, cvt.name from pub p, cvterm cvt where p.is_obsolete = 'f' and p.type_id = cvt.cvterm_id and cvt.is_obsolete = '0' and cvt.name in ('paper', 'erratum', 'letter', 'note', 'teaching note', 'supplementary material', 'retraction', 'personal communication to FlyBase', 'review') and p.uniquename ~'%s'", $test_FBrf);
 
@@ -408,7 +413,7 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 			}
 		}
 
-		# once been through all the curation record types for each worfklow_type, see if there is additional information that can be added via nocur flag
+		# once been through all the curation record types for each workflow_type, see if there is additional information that can be added via nocur flag
 		if (exists $workflow_tag_mapping->{$workflow_type}->{'nocur_override'}) {
 
 			unless ($switch->{"$workflow_type"}) {
@@ -472,6 +477,66 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
 		}
 
+		# next, see if there are any non-curated papers that should be marked as 'need curation' as they are high-priority
+		if (exists $workflow_tag_mapping->{$workflow_type}->{'high_priority_override'}) {
+
+			unless ($switch->{"$workflow_type"}) {
+
+				if (exists $diseaseHP_flags->{$pub_id}) {
+
+					my $timestamp = $diseaseHP_flags->{$pub_id}->{diseaseHP}[0];
+					# set generic defaults that are overwritten later with more specific information
+					my $curator = 'FB_curator';
+					my $curation_records = '';
+
+
+					# get curator details for the diseaseHP flag and use to override generic defaults where possible
+					my $diseaseHP_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $timestamp);
+
+					if (defined $diseaseHP_details) {
+
+						$curator = "$diseaseHP_details->{curator}";
+						$curation_records = "$diseaseHP_details->{currecs}";
+
+					}
+
+					my $ATP = $workflow_tag_mapping->{$workflow_type}->{'high_priority_override'};
+					my $curation_tag = "ATP:0000353"; # high priority data
+					my $note = '';
+					my $debugging_note = '';
+
+					# build reference with information for this publication+workflow type combination
+					my $data = {};
+
+					my $FBrf_with_prefix="FB:".$FBrf;
+					$data->{date_created} = $timestamp;
+					$data->{date_updated} = $timestamp;
+					$data->{created_by} = $curator;
+					$data->{updated_by} = $curator;
+					$data->{mod_abbreviation} = "FB";
+					$data->{reference_curie} = $FBrf_with_prefix;
+					$data->{workflow_tag_id} = $ATP;
+
+					if ($curation_tag) {
+						$data->{curation_tag} = $curation_tag;
+					}
+
+
+					if ($note) {
+						$data->{note} = $note;
+					}
+
+					push @{$complete_data->{data}}, $data;
+					my $debugging_output = "DATA:$pub_id\t$FBrf\t$pub_type\tvia flag\t$curator\t$curation_records\t$ATP\t$curation_tag\t$timestamp\t$note\t$debugging_note";
+					push @debugging_output, $debugging_output;
+
+					# set the switch to indicate have set the status for this particular workflow type
+					$switch->{"$workflow_type"}++;
+				}
+
+			}
+
+		}
 
 	}
 
