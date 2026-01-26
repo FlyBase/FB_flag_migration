@@ -306,8 +306,8 @@ while (my ($uniquename, $pub_id, $pub_type) = $db_query->fetchrow_array()) {
 }
 
 
-my $complete_data = {};
-my @debugging_output;
+my $workflow_status_data = {};
+
 
 foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
@@ -318,16 +318,6 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 	my ($nocur_status, $nocur_timestamp, $nocur_note) = &check_and_validate_nocur($nocur_flags, $has_genetic_data, $pub_id);
 #	my ($nocur_status, $nocur_timestamp, $nocur_note) = '';
 
-
-	# switch for tracking whether have set the status of each workflow type already
-	my $switch = {
-
-		'0_user' => 0,
-		'1_skim' => 0,
-		'2_manual_indexing' => 0,
-
-
-	};
 
 	foreach my $workflow_type (sort keys %{$workflow_tag_mapping}) {
 
@@ -344,7 +334,7 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 				}
 			}
 
-			unless ($switch->{"$workflow_type"}) {
+			unless (exists $workflow_status_data->{$pub_id}->{$workflow_type}) {
 
 				# make new subroutine to get relevant curator and timestamp from $fb_data
 				my $curator_details = &get_relevant_curator_from_candidate_list($fb_data->{"$relevant_record_type"}, $pub_id);
@@ -404,36 +394,29 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
 
 					# build reference with information for this publication+workflow type combination
-					my $data = {};
 
 					my $FBrf_with_prefix="FB:".$FBrf;
-					$data->{date_created} = $timestamp;
-					$data->{date_updated} = $timestamp;
-					$data->{created_by} = $curator;
-					$data->{updated_by} = $curator;
-					$data->{mod_abbreviation} = "FB";
-					$data->{reference_curie} = $FBrf_with_prefix;
-					$data->{workflow_tag_id} = $ATP;
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{date_created} = $timestamp;
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{date_updated} = $timestamp;
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{created_by} = $curator;
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{updated_by} = $curator;
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{mod_abbreviation} = "FB";
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{reference_curie} = $FBrf_with_prefix;
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{workflow_tag_id} = $ATP;
 
 					if ($curation_tag) {
-						$data->{curation_tag} = $curation_tag;
+						$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{curation_tag} = $curation_tag;
 					}
 
 
 					if ($note) {
-						$data->{note} = $note;
+						$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = $note;
 					}
 
 
-
-					push @{$complete_data->{data}}, $data;
-
-					my $debugging_output = "DATA:$pub_id\t$FBrf\t$pub_type\t$relevant_record_type\t$curator\t$curation_records\t$ATP\t$curation_tag\t$timestamp\t$note\t$debugging_note";
-					push @debugging_output, $debugging_output;
-
-					# set the switch to indicate have set the status for this particular workflow type 
-					$switch->{"$workflow_type"}++;
-
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{currecs} = $curation_records;
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} = $debugging_note;
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{relevant_record_type} = $relevant_record_type;
 
 				}
 
@@ -443,7 +426,7 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 		# once been through all the curation record types for each workflow_type, see if there is additional information that can be added via nocur flag
 		if (exists $workflow_tag_mapping->{$workflow_type}->{'nocur_override'}) {
 
-			unless ($switch->{"$workflow_type"}) {
+			unless (exists $workflow_status_data->{$pub_id}->{$workflow_type}) {
 
 				if ($nocur_status == 1) {
 
@@ -473,32 +456,32 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
 
 					# build reference with information for this publication+workflow type combination
-					my $data = {};
 
 					my $FBrf_with_prefix="FB:".$FBrf;
-					$data->{date_created} = $timestamp;
-					$data->{date_updated} = $timestamp;
-					$data->{created_by} = $curator;
-					$data->{updated_by} = $curator;
-					$data->{mod_abbreviation} = "FB";
-					$data->{reference_curie} = $FBrf_with_prefix;
-					$data->{workflow_tag_id} = $ATP;
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{date_created} = $timestamp;
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{date_updated} = $timestamp;
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{created_by} = $curator;
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{updated_by} = $curator;
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{mod_abbreviation} = "FB";
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{reference_curie} = $FBrf_with_prefix;
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{workflow_tag_id} = $ATP;
+
+					#
 
 					if ($curation_tag) {
-						$data->{curation_tag} = $curation_tag;
+						$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{curation_tag} = $curation_tag;
 					}
 
 
 					if ($note) {
-						$data->{note} = $note;
+						$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = $note;
 					}
 
-					push @{$complete_data->{data}}, $data;
-					my $debugging_output = "DATA:$pub_id\t$FBrf\t$pub_type\tvia flag\t$curator\t$curation_records\t$ATP\t$curation_tag\t$timestamp\t$note\t$debugging_note";
-					push @debugging_output, $debugging_output;
 
-					# set the switch to indicate have set the status for this particular workflow type - not sure need this
-					$switch->{"$workflow_type"}++;
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{currecs} = $curation_records;
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} = $debugging_note;
+					$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{relevant_record_type} = 'via flag';
+
 				}
 			}
 
@@ -509,7 +492,7 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
 			foreach my $flag_type (sort keys %{$diseaseHP_flags}) {
 
-				unless ($switch->{"$workflow_type"}) {
+				unless (exists $workflow_status_data->{$pub_id}->{$workflow_type}) {
 
 					if (exists $diseaseHP_flags->{$flag_type}->{$pub_id}) {
 
@@ -537,32 +520,27 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
 
 						# build reference with information for this publication+workflow type combination
-						my $data = {};
 
 						my $FBrf_with_prefix="FB:".$FBrf;
-						$data->{date_created} = $timestamp;
-						$data->{date_updated} = $timestamp;
-						$data->{created_by} = $curator;
-						$data->{updated_by} = $curator;
-						$data->{mod_abbreviation} = "FB";
-						$data->{reference_curie} = $FBrf_with_prefix;
-						$data->{workflow_tag_id} = $ATP;
+						$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{date_created} = $timestamp;
+						$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{date_updated} = $timestamp;
+						$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{created_by} = $curator;
+						$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{updated_by} = $curator;
+						$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{mod_abbreviation} = "FB";
+						$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{reference_curie} = $FBrf_with_prefix;
+						$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{workflow_tag_id} = $ATP;
 
 						if ($curation_tag) {
-							$data->{curation_tag} = $curation_tag;
+							$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{curation_tag} = $curation_tag;
 						}
 
 
 						if ($note) {
-							$data->{note} = $note;
+							$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = $note;
 						}
-
-						push @{$complete_data->{data}}, $data;
-						my $debugging_output = "DATA:$pub_id\t$FBrf\t$pub_type\tvia flag\t$curator\t$curation_records\t$ATP\t$curation_tag\t$timestamp\t$note\t$debugging_note";
-						push @debugging_output, $debugging_output;
-
-						# set the switch to indicate have set the status for this particular workflow type
-						$switch->{"$workflow_type"}++;
+						$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{currecs} = $curation_records;
+						$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} = $debugging_note;
+						$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{relevant_record_type} = 'from diseaseHP';
 
 					}
 				}
@@ -576,12 +554,42 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
 }
 
-foreach my $line (sort @debugging_output) {
-
-	print "$line\n";
+my $complete_data = {};
 
 
+foreach my $pub_id (sort keys %{$workflow_status_data}) {
+
+	foreach my $workflow_type (sort keys %{$workflow_status_data->{$pub_id}}) {
+
+		my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
+		my $pub_type = $pub_id_to_FBrf->{$pub_id}->{'type'};
+
+
+
+		#store data for making json later
+		push @{$complete_data->{data}}, $workflow_status_data->{$pub_id}->{$workflow_type}->{json};
+
+		# simple output for testing/debugging
+		my $curated_by = $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'created_by'} ? "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'created_by'}" : '';
+		my $updated_by = $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'updated_by'} ? "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'updated_by'}" : '';
+
+
+		my $workflow_tag_id = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'workflow_tag_id'} ? $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'workflow_tag_id'} : '';
+		my $date_created = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'date_created'} ? $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'date_created'} : '';
+
+
+		my $curation_tag = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'curation_tag'} ? $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'curation_tag'} : '';
+		my $note = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'note'} ? $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'note'} : '';
+
+		my $curation_records = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{currecs} ? $workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{currecs} : '';
+		my $debugging_note = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} ? $workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} : '';
+		my $relevant_record_type = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{relevant_record_type} ? $workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{relevant_record_type} : '';
+
+
+		print "DATA:$pub_id\t$FBrf\t$pub_type\t$relevant_record_type\t$curated_by\t$curation_records\t$workflow_tag_id\t$curation_tag\t$date_created\t$note\t$debugging_note\n";
+	}
 }
+
 
 print Dumper ($complete_data);
 
