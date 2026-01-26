@@ -5,7 +5,7 @@ use warnings;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw(get_relevant_curator get_all_currec_data get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_flaglist_with_suffix get_timestamps_for_pubprop_value get_relevant_currec_for_datatype get_matching_pubprop_value_with_timestamps get_all_flag_info_with_timestamps);
+our @EXPORT = qw(get_relevant_curator get_all_currec_data get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_flaglist_with_suffix get_timestamps_for_pubprop_value get_relevant_currec_for_datatype get_matching_pubprop_value_with_timestamps get_all_flag_info_with_timestamps get_all_pub_internal_notes_for_tet_wf);
 
 
 =head1 MODULE: AuditTable
@@ -790,3 +790,122 @@ o $audit_timestamp is a timestamp from the audit_chado table. The $audit_timesta
 	return $data;
 
 }
+
+
+
+
+
+sub get_all_pub_internal_notes_for_tet_wf {
+
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    get_all_pub_internal_notes_for_tet_wf
+	Usage:    get_all_pub_internal_notes_for_tet_wf(database_handle);
+	Function: Gets all publication level internal notes that we want to try to submit to the Alliance ABC in either the topic-entity-tg (tet) editor or the workflow editor.
+	Example:  my $all_pub_internal_notes_for_tet_wf = &get_all_pub_internal_notes_for_tet_wf($dbh);
+
+
+Returns:
+
+The returned hash reference has the following structure:
+
+@{$data->{$pub_id}->{$line}}, $audit_timestamp;
+
+
+o $pub_id is the pub_id of the reference.
+
+o $line is the complete internal note; if the internal note contains multiple lines they will be present in the returned $line, so this may need to be converted to spaces when submitting to the ABC if you want the note to appear as a single line.
+
+o $audit_timestamp is the 'I' timestamp(s) from the audit_chado table for the matching $line. The $audit_timestamp values are sorted earliest to latest within the array.
+
+
+The subroutine only returns internal notes that we want to try to submit to the Alliance ABC (e.g. by matching the internal note timestamp to the timestamp of the appropriate topic (for the tet topics or wf curation_status) or curation record (for wf workflow_tag).
+
+The subroutine thus removes internal notes of two main kinds:
+
+ 
+o those in $ignore - internal notes related to the bibliography that are no longer relevant
+
+o those in $email - email addresses (either community curation or the submitter of a personal communication) - these will be submitted elsewhere in the ABC.
+
+
+
+=cut
+
+
+	unless (@_ == 1) {
+
+		die "Wrong number of parameters passed to the get_all_pub_internal_notes_for_tet_wf subroutine\n";
+	}
+
+
+	my ($dbh, $pubprop_type, $string) = @_;
+
+	my $data = {};
+
+
+	my $ignore = [
+
+		'Automated trawl for PMID, ggrumbli 090330',
+		'BIOSIS Gene Name field: .+',
+
+	];
+
+
+	my $email = [
+
+		'(Author|User|Submitter|submitter): ?.*?\<?\S+@\S+?\>?$',
+		'(Author|User|Submitter|submitter): ?.*?\<?\S+@\S+?\>? [a-z]{2}[0-9]{1,}\.$',
+		'(Author|User|Submitter|submitter): ?.*?\<?\S+@\S+?\>? ',
+		'(Author|User|Submitter|submitter): ?.*?\<?\S+_at_\S+?\>?$',
+		'(Author|User|Submitter|submitter): ?.*?\<?\S+_AT_\S+?\>?$',
+		'(Author|User|Submitter|submitter) .*?\<?\S+@\S+?\>?\. ?[a-z]{2}[0-9]{1,}\.$',
+		'^(Author|User|Submitter|submitter):$',
+
+
+
+	];
+
+
+	my $sql_query = sprintf("select distinct pp.pub_id, pp.value, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where c.cvterm_id=pp.type_id  and c.name ='internalnotes' and ac.audited_table='pubprop' and ac.audit_transaction = 'I' and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp");
+	my $db_query = $dbh->prepare($sql_query);
+	$db_query->execute or die "WARNING: ERROR: Unable to execute get_timestamps_for_pubprop_value query ($!)\n";
+
+
+	while (my ($pub_id, $value, $audit_timestamp) = $db_query->fetchrow_array) {
+
+
+		foreach my $regex (@{$ignore}) {
+
+			$value =~ s/$regex//mg;
+
+
+		}
+
+		foreach my $regex (@{$email}) {
+
+			$value =~ s/$regex//mg;
+
+
+		}
+
+		$value =~ s/^ +//;
+		$value =~ s/ +$//;
+		$value =~ s/^\n+//;
+
+
+		if ($value ne '') {
+
+			push @{$data->{$pub_id}->{$value}}, $audit_timestamp;
+
+		}
+	}
+
+	return $data;
+
+}
+
