@@ -805,9 +805,14 @@ sub get_all_pub_internal_notes_for_tet_wf {
 
 	Title:    get_all_pub_internal_notes_for_tet_wf
 	Usage:    get_all_pub_internal_notes_for_tet_wf(database_handle);
-	Function: Gets all publication level internal notes that we want to try to submit to the Alliance ABC in either the topic-entity-tg (tet) editor or the workflow editor.
-	Example:  my $all_pub_internal_notes_for_tet_wf = &get_all_pub_internal_notes_for_tet_wf($dbh);
+	Function: Gets all publication level internal notes that we want to try to submit to the Alliance ABC in either the topic-entity-tg (tet) editor or the workflow editor, additionally filtered using the array reference provided in the second argument.
+	Example:  my $all_pub_internal_notes_for_tet_wf = &get_all_pub_internal_notes_for_tet_wf($dbh, $additional_filters);
 
+Arguments:
+
+o database handle
+
+o reference to an array of additional regular expressions to be used to filter out matching internal notes from the returned output. (This array reference can be empty).
 
 Returns:
 
@@ -823,27 +828,26 @@ o $line is the complete internal note; if the internal note contains multiple li
 o $audit_timestamp is the 'I' timestamp(s) from the audit_chado table for the matching $line. The $audit_timestamp values are sorted earliest to latest within the array.
 
 
-The subroutine only returns internal notes that we want to try to submit to the Alliance ABC (e.g. by matching the internal note timestamp to the timestamp of the appropriate topic (for the tet topics or wf curation_status) or curation record (for wf workflow_tag).
-
-The subroutine thus removes internal notes of two main kinds:
+The subroutine only returns internal notes that we want to end up in either the topic-entity-tg (tet) editor or the workflow editor in the Alliance ABC. Internal notes of two kinds are thus removed from returned output by default, using the regular expressions in the following array references:
 
  
-o those in $ignore - internal notes related to the bibliography that are no longer relevant
+o $ignore - internal notes that are related to the bibliographic data and are no longer relevant.
 
-o those in $email - email addresses (either community curation or the submitter of a personal communication) - these will be submitted elsewhere in the ABC.
+o $email - email address information (either community curation or the submitter of a personal communication) - these will be submitted elsewhere in the ABC.
 
+
+In addition, any regular expressions passed via the array reference in the second argument are also used to remove matching internal notes from the returned output.
 
 
 =cut
 
-
-	unless (@_ == 1) {
+	unless (@_ == 2) {
 
 		die "Wrong number of parameters passed to the get_all_pub_internal_notes_for_tet_wf subroutine\n";
 	}
 
 
-	my ($dbh, $pubprop_type, $string) = @_;
+	my ($dbh, $additional_filters) = @_;
 
 	my $data = {};
 
@@ -852,7 +856,7 @@ o those in $email - email addresses (either community curation or the submitter 
 
 		'Automated trawl for PMID, ggrumbli 090330',
 		'BIOSIS Gene Name field: .+',
-
+		'^[?:]?Supplement:.+$', # there are some cases with ? or : at the beginning of the Supplement: line
 	];
 
 
@@ -892,6 +896,14 @@ o those in $email - email addresses (either community curation or the submitter 
 
 
 		}
+
+		foreach my $regex (@{$additional_filters}) {
+
+			$value =~ s/$regex//mg;
+
+
+		}
+
 
 		$value =~ s/^ +//;
 		$value =~ s/ +$//;
