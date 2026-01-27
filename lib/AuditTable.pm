@@ -805,14 +805,14 @@ sub get_all_pub_internal_notes_for_tet_wf {
 
 	Title:    get_all_pub_internal_notes_for_tet_wf
 	Usage:    get_all_pub_internal_notes_for_tet_wf(database_handle);
-	Function: Gets all publication level internal notes that we want to try to submit to the Alliance ABC in either the topic-entity-tg (tet) editor or the workflow editor, additionally filtered using the array reference provided in the second argument.
+	Function: Gets all publication level internal notes that we want to try to submit to the Alliance ABC in either the topic-entity-tg (tet) editor or the workflow editor, additionally filtered using the regexes in the array reference provided in the second argument.
 	Example:  my $all_pub_internal_notes_for_tet_wf = &get_all_pub_internal_notes_for_tet_wf($dbh, $additional_filters);
 
 Arguments:
 
 o database handle
 
-o reference to an array of additional regular expressions to be used to filter out matching internal notes from the returned output. (This array reference can be empty).
+o $additional_filters - reference to an array of additional regular expressions to be used to filter the internal notes before they are returned. (This array reference can be empty).
 
 Returns:
 
@@ -836,7 +836,12 @@ o $ignore - internal notes that are related to the bibliographic data and are no
 o $email - email address information (either community curation or the submitter of a personal communication) - these will be submitted elsewhere in the ABC.
 
 
-In addition, any regular expressions passed via the array reference in the second argument are also used to remove matching internal notes from the returned output.
+In addition, any regular expressions passed via the $additional_filters array reference are also used to filter the returned output. Note that the regexes are used to remove matching text from each internal note; any remaining text after the substitutions is returned. This strategy is necessary as in some cases, a single internal note contains multiple lines that may need different treatment when being exported to the ABC. For example, some internal notes in FB are not being submitted as free text 'notes' to the ABC, but are instead being turned into an ATP term representing a topic, topic status or a controlled tag; in these cases, the regexes in $additional_filters can be used to remove the relevant internal notes so that they are not then redundantly also submitted to the ABC as a free text note.
+
+This means that any regex in $additional_filters should typically be specified to either remove a *complete* line (using ^ and $ in the regex), or be sufficiently specific that it is safe to remove the text when it is part of a line (e.g. similar to the email regexes in the $email array reference below).
+
+(It isn't possible to just split on newline to separate out each 'row' of a given 'multiple lines' internal note, because in some cases, the multiple lines correspond to a paragraph (i.e. the multiple lines should stay together when submitted to the ABC) but in others, each row represents a different kind of internal note that may need to be split up and treated differently as they are submitted to the ABC (e.g. those that are being converted into an ATP term as described above).
+
 
 
 =cut
