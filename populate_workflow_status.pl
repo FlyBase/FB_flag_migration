@@ -21,6 +21,8 @@ use Mappings;
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
 
+use Encode;
+binmode(STDOUT, ":utf8");
 
 =head1 NAME populate_workflow_status.pl
 
@@ -191,7 +193,6 @@ my $workflow_tag_mapping = {
 	'1_skim' => {
 		'finished_status' => 'ATP:0000330', # first pass curation finished
 		'relevant_record_type' => ['skim'],
-		'relevant_internal_note' => 'GeneSkim|generated automatically by script from tagtog output',
 
 	},
 
@@ -279,17 +280,63 @@ $diseaseHP_flags->{'harv_flag'} = &get_matching_pubprop_value_with_timestamps($d
 
 #print Dumper ($diseaseHP_flags);
 
-## get any relevant internal notes to be added to the note
+my $additional_filters = [
 
-my $relevant_internal_notes = {};
+	# Use simple regex to remove *all* 'Dataset:' lines - will be converted to a topic and/or associated free text note in another script
+	# The commented out lines are the regexes needed to identify the 'Dataset: pheno' lines for the topic scripts
+	#'^Dataset: pheno\.?$',
+	#'^Dataset: pheno\. ?-?[a-z]{1,} ?[0-9]{6}(\.)?$',
+	#'^Dataset: pheno\. [0-9]{6}[a-z]{1,}\.$',
+	'^(D|d)ataset:.+$',
 
-foreach my $workflow_type (keys %{$workflow_tag_mapping}) {
+	# filters to remove lines that will be converted to a topic *status* and/or associated free text note in another script
+	'^HDM flag not applicable\.?( *[a-z]{1,}[0-9]{6})?$',
+	'^phen curation: only pheno_chem data in paper\.( *[a-z]{2}[0-9]{6}\.?)?$',
+	'^phen curation: No phenotypic data in paper\.( *[a-z]{2}[0-9]{6}\.?)?$',
+	'^phen_cur: CV annotations only(\. *[a-z]{2}[0-9]{6}\.?)?$',
+	'^phys_int not curated.+$',
 
-	if (exists $workflow_tag_mapping->{$workflow_type}->{'relevant_internal_note'}) {
+	# filters to remove lines that will be converted to a free text note attached to a topic in another script
+	'^The phys_int flag inferred from.+$',
+	'^The phys_int flag is inferred from.+$',
+	'^The phys_int flag was inferred.+$',
 
-		$relevant_internal_notes->{"$workflow_type"} = &get_matching_pubprop_value_with_timestamps($dbh,'internalnotes',$workflow_tag_mapping->{$workflow_type}->{'relevant_internal_note'});
+];
 
+## get any relevant internal notes to be added to the free text note slot of a workflow_tag element - first filtering out any internal notes that do not need to be added by this script (they will instead either be converted into an ATP term corresponding to a topic or controlled note in the Alliance, or added as a free text note to a specific topic), using the regexes specified in $additional_filters.
+my $all_candidate_internal_notes = &get_all_pub_internal_notes_for_tet_wf($dbh, $additional_filters);
+
+## then remove any internal notes that come from curation records for a particular topic - these will be added as a note to the curation status of the *topic* in another script, rather than being added to the more general workflow_tag categories in this script.
+# any remaining internal notes will be those either submitted under one of the workflow_tag types for this script (identified later through matching timestamp and curation record filename information) or under an 'edit' record - the latter will be added to the most appropriate workflow_tag with a note indicating it was an edit record
+my @topic_record_types = ('cell_line', 'phys_int', 'DO', 'neur_exp', 'wt_exp', 'chemical', 'args', 'phen', 'humanhealth');
+
+foreach my $topic_record_type (@topic_record_types) {
+
+	my (undef, $curation_record_data) = &get_relevant_currec_for_datatype($dbh,$topic_record_type);
+
+
+	foreach my $pub_id (keys %{$all_candidate_internal_notes}) {
+
+		foreach my $int_note (keys %{$all_candidate_internal_notes->{$pub_id}}) {
+
+		foreach my $timestamp (@{$all_candidate_internal_notes->{$pub_id}->{$int_note}}) {
+			my $int_note_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $timestamp);
+
+			if (defined $int_note_details && $int_note_details->{currecs} ne 'multiple curators for same timestamp') {
+
+				if (exists $curation_record_data->{$pub_id}->{"$int_note_details->{curator}"} && exists $curation_record_data->{$pub_id}->{"$int_note_details->{curator}"}->{$timestamp}->{"$int_note_details->{currecs}"}) {
+
+					delete $all_candidate_internal_notes->{$pub_id}->{$int_note};
+					next;
+				}
+			}
+
+
+		}
 	}
+}
+
+
 
 }
 
@@ -386,10 +433,6 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 						}
 
 
-					}
-
-					if (exists $relevant_internal_notes->{$workflow_type}->{$pub_id}) {
-						$note = $note . (join ' ', sort keys %{$relevant_internal_notes->{$workflow_type}->{$pub_id}});
 					}
 
 
@@ -554,6 +597,100 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
 }
 
+# try to add relevant publication-level internal notes where appropriates
+
+foreach my $pub_id (sort keys %{$all_candidate_internal_notes}) {
+
+	if (exists $workflow_status_data->{$pub_id}) {
+
+		foreach my $int_note (sort keys %{$all_candidate_internal_notes->{$pub_id}}) {
+
+			my $switch = 0;
+			my $reformatted_note = "$int_note";
+			$reformatted_note =~ s/\n/ /g;
+
+			# for internal notes with a single timestamp
+			if (scalar @{$all_candidate_internal_notes->{$pub_id}->{$int_note}} == 1) {
+
+
+				my $int_note_timestamp = join '', @{$all_candidate_internal_notes->{$pub_id}->{$int_note}};
+
+
+				# 1. go through the different workflow_tags to find cases where both the timestamp and curation records show a match
+				foreach my $workflow_type (sort keys %{$workflow_status_data->{$pub_id}}) {
+
+					unless ($switch) {
+						my $workflow_type_timestamp = "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{date_created}";
+						my $workflow_type_currecs = "$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{currecs}";
+						my $workflow_type_curator = "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{created_by}";
+
+						#print "HERE2: workflow: $workflow_type_currecs, $workflow_type_timestamp\n";
+
+						# 2. if the timestamps of the workflow tag and internal note match
+						if ($int_note_timestamp eq $workflow_type_timestamp) {
+
+							my $int_note_curator_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $int_note_timestamp);
+
+
+							# 3. get the curation record details for the internal note to check against those of workflow_tag
+							if (defined $int_note_curator_details) {
+
+								my $int_note_currecs = "$int_note_curator_details->{currecs}";
+								my $int_note_curator = "$int_note_curator_details->{curator}";
+
+
+								#print "HERE: internal note: $int_note_currecs, $int_note_timestamp\n";
+
+								# 4. if the curation record for the workflow type is in the list of possibilities for the internal note
+								# and there is only one curator possibility for that timestamp
+								# then the internal note can be added to the entry for that workflow tag
+								if ($int_note_currecs =~ m/$workflow_type_currecs/ && $int_note_currecs ne 'multiple curators for same timestamp') {
+
+									$switch++;
+
+
+									if (exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note}) {
+
+
+										my $note = "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note}";
+										$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = "$note||$int_note";
+
+
+									} else {
+
+										$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = "$int_note";
+
+									}
+								}
+
+							}
+
+						}
+
+					}
+				}
+
+
+			} else {
+
+				print "WARNING: internal note(s) with MULTIPLE TIMESTAMPS: $pub_id\t$pub_id_to_FBrf->{$pub_id}->{'FBrf'}\t$pub_id_to_FBrf->{$pub_id}->{'type'}\t$reformatted_note\n";
+
+
+			}
+
+			unless ($switch) {
+
+				print "WARNING: internal note(s) that could not match up: $pub_id\t$pub_id_to_FBrf->{$pub_id}->{'FBrf'}\t$pub_id_to_FBrf->{$pub_id}->{'type'}\t$reformatted_note\n";
+
+
+			}
+		}
+	}
+}
+
+
+#print Dumper ($workflow_status_data);
+
 my $complete_data = {};
 
 
@@ -580,6 +717,7 @@ foreach my $pub_id (sort keys %{$workflow_status_data}) {
 
 		my $curation_tag = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'curation_tag'} ? $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'curation_tag'} : '';
 		my $note = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'note'} ? $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'note'} : '';
+		$note =~ s/\n/ /g;
 
 		my $curation_records = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{currecs} ? $workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{currecs} : '';
 		my $debugging_note = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} ? $workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} : '';
@@ -590,8 +728,8 @@ foreach my $pub_id (sort keys %{$workflow_status_data}) {
 	}
 }
 
-
 print Dumper ($complete_data);
+
 
 #close $json_output_file;
 #close $data_error_file;

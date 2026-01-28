@@ -913,7 +913,9 @@ This means that any regex in $additional_filters should typically be specified t
 		$value =~ s/^ +//;
 		$value =~ s/ +$//;
 		$value =~ s/^\n+//;
+		$value =~ s/\n+$//;
 
+		$value =~ s/\t//g;
 
 		if ($value ne '') {
 
