@@ -869,7 +869,6 @@ This means that any regex in $additional_filters should typically be specified t
 
 		'(Author|User|Submitter|submitter): ?.*?\<?\S+@\S+?\>?$',
 		'(Author|User|Submitter|submitter): ?.*?\<?\S+@\S+?\>? [a-z]{2}[0-9]{1,}\.$',
-		'(Author|User|Submitter|submitter): ?.*?\<?\S+@\S+?\>? ',
 		'(Author|User|Submitter|submitter): ?.*?\<?\S+_at_\S+?\>?$',
 		'(Author|User|Submitter|submitter): ?.*?\<?\S+_AT_\S+?\>?$',
 		'(Author|User|Submitter|submitter) .*?\<?\S+@\S+?\>?\. ?[a-z]{2}[0-9]{1,}\.$',
