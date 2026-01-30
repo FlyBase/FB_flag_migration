@@ -872,6 +872,10 @@ This means that any regex in $additional_filters should typically be specified t
 		'(Author|User|Submitter|submitter): ?.*?\<?\S+_at_\S+?\>?$',
 		'(Author|User|Submitter|submitter): ?.*?\<?\S+_AT_\S+?\>?$',
 		'(Author|User|Submitter|submitter) .*?\<?\S+@\S+?\>?\. ?[a-z]{2}[0-9]{1,}\.$',
+
+		# remove email info from beginning of line - require <> around email part of regex else is not strict enough
+		'(Author|User|Submitter|submitter): .*?\<\S+?@\S+?\>\. ',
+
 		'^(Author|User|Submitter|submitter):$',
 
 
