@@ -300,6 +300,7 @@ my $additional_filters = [
 	'^The phys_int flag inferred from.+$',
 	'^The phys_int flag is inferred from.+$',
 	'^The phys_int flag was inferred.+$',
+	'^FTYP cell line:.+$',
 
 ];
 
