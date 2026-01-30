@@ -5,7 +5,7 @@ use warnings;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw(make_abc_json_metadata get_yyyymmdd_date_stamp pub_has_curated_data get_relevant_curator_from_candidate_list get_relevant_curator_from_candidate_list_using_pub_and_timestamp check_and_validate_nocur);
+our @EXPORT = qw(make_abc_json_metadata get_yyyymmdd_date_stamp pub_has_curated_data get_relevant_curator_from_candidate_list get_relevant_curator_from_candidate_list_using_pub_and_timestamp check_and_validate_nocur clean_note);
 
 use JSON::PP;
 
@@ -589,3 +589,133 @@ $nocur_note: free text note that can be added in the 'note' slot of the relevant
 
 
 }
+
+
+
+
+sub clean_note {
+
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    clean_note
+	Function: Subroutine that 'cleans' text that is being submitted to the Alliance ABC as an internal 'note'.
+	Example:  &clean_note($value);
+
+The conversions done are:
+
+- removes any tabs
+
+- converts superscripts/subscripts to curator-friendly form
+
+
+- uses degreek subroutine to convert any greek symbols in FB 'sgml' format to spelt out greek name.
+
+
+Does NOT substitute returns (because many of the internal notes being submitted are in multiline format which needs to be preserved).
+
+
+=cut
+	unless (@_ == 1) {
+
+		die "Wrong number of parameters passed to the clean_free_text subroutine\n";
+	}
+	my ($string) =  @_;
+
+	if ($string =~ m/\t/) {
+		$string =~ s/\t/ /g;
+	}
+
+	$string =~ s/\<\/down\>/\]\]/g;
+	$string =~ s/\<down\>/\[\[/g;
+	$string =~ s/\<up\>/\[/g;
+	$string =~ s/\<\/up\>/\]/g;
+
+	$string = &degreek($string);
+
+	return $string;
+
+}
+
+
+
+sub degreek {
+
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    degreek
+	Function: Subroutine that converts sgml greek format to spelt out greek name.
+
+
+=cut
+
+
+	my $symbol = $_[0];
+
+	my %greek = (
+		'&Agr;' => 'Alpha',
+		'&Bgr;' => 'Beta',
+		'&Ggr;' => 'Gamma',
+		'&Dgr;' => 'Delta',
+		'&Egr;' => 'Epsilon',
+		'&Zgr;' => 'Zeta',
+		'&EEgr;' => 'Eta',
+		'&THgr;' => 'Theta',
+		'&Igr;' => 'Iota',
+		'&Kgr;' => 'Kappa',
+		'&Lgr;' => 'Lambda',
+		'&Mgr;' => 'Mu',
+		'&Ngr;' => 'Nu',
+		'&Xgr;' => 'Xi',
+		'&Ogr;' => 'Omicron',
+		'&Pgr;' => 'Pi',
+		'&Rgr;' => 'Rho',
+		'&Sgr;' => 'Sigma',
+		'&Tgr;' => 'Tau',
+		'&Ugr;' => 'Upsilon',
+		'&PHgr;' => 'Phi',
+		'&KHgr;' => 'Chi',
+		'&PSgr;' => 'Psi',
+		'&OHgr;' => 'Omega',
+		'&agr;' => 'alpha',
+		'&bgr;' => 'beta',
+		'&ggr;' => 'gamma',
+		'&dgr;' => 'delta',
+		'&egr;' => 'epsilon',
+		'&zgr;' => 'zeta',
+		'&eegr;' => 'eta',
+		'&thgr;' => 'theta',
+		'&igr;' => 'iota',
+		'&kgr;' => 'kappa',
+		'&lgr;' => 'lambda',
+		'&mgr;' => 'mu',
+		'&ngr;' => 'nu',
+		'&xgr;' => 'xi',
+		'&ogr;' => 'omicron',
+		'&pgr;' => 'pi',
+		'&rgr;' => 'rho',
+		'&sgr;' => 'sigma',
+		'&tgr;' => 'tau',
+		'&ugr;' => 'upsilon',
+		'&phgr;' => 'phi',
+		'&khgr;' => 'chi',
+		'&psgr;' => 'psi',
+		'&ohgr;' => 'omega',
+	);
+
+
+	$symbol =~ s/(&[a-z]{1,2}gr;)/$greek{$1}?"$greek{$1}":"$1"/egi;
+
+	$symbol =~ s/&cap;/INTERSECTION/g; # conversion needed to make 'plain' symbol for any FBco symbols in note.
+
+	return $symbol;
+
+}
+

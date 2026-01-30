@@ -607,7 +607,7 @@ foreach my $pub_id (sort keys %{$all_candidate_internal_notes}) {
 		foreach my $int_note (sort keys %{$all_candidate_internal_notes->{$pub_id}}) {
 
 			my $switch = 0;
-			my $reformatted_note = "$int_note";
+			my $reformatted_note = &clean_note("$int_note");
 			$reformatted_note =~ s/\n/ /g;
 
 			# for internal notes with a single timestamp
@@ -654,12 +654,12 @@ foreach my $pub_id (sort keys %{$all_candidate_internal_notes}) {
 
 
 										my $note = "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note}";
-										$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = "$note||$int_note";
+										$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = &clean_note("$note||$int_note");
 
 
 									} else {
 
-										$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = "$int_note";
+										$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = &clean_note("$int_note");
 
 									}
 								}
