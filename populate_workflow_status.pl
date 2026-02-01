@@ -303,6 +303,9 @@ my $additional_filters = [
 	'^The phys_int flag was inferred.+$',
 	'^FTYP cell line:.+$',
 
+	# filter to remove lines that would be better converted into a note when submit curation record filename info.
+	'^Curation record .*? is to add the allele phendesc data originally curated in .+$',
+
 
 ];
 
