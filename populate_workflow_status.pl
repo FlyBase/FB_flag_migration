@@ -295,12 +295,14 @@ my $additional_filters = [
 	'^phen curation: No phenotypic data in paper\.( *[a-z]{2}[0-9]{6}\.?)?$',
 	'^phen_cur: CV annotations only(\. *[a-z]{2}[0-9]{6}\.?)?$',
 	'^phys_int not curated.+$',
+	'^FTA: DOcur genotype - need to check for missing drivers$',
 
 	# filters to remove lines that will be converted to a free text note attached to a topic in another script
 	'^The phys_int flag inferred from.+$',
 	'^The phys_int flag is inferred from.+$',
 	'^The phys_int flag was inferred.+$',
 	'^FTYP cell line:.+$',
+
 
 ];
 
@@ -616,7 +618,7 @@ foreach my $pub_id (sort keys %{$all_candidate_internal_notes}) {
 
 				my $int_note_timestamp = join '', @{$all_candidate_internal_notes->{$pub_id}->{$int_note}};
 
-
+				# A. first pass - go through different workflow types, from least to most detailed curation, and match up internal notes using timestamp and curation record info
 				# 1. go through the different workflow_tags to find cases where both the timestamp and curation records show a match
 				foreach my $workflow_type (sort keys %{$workflow_status_data->{$pub_id}}) {
 
