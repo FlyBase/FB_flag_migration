@@ -306,6 +306,9 @@ my $additional_filters = [
 	# filter to remove lines that would be better converted into a note when submit curation record filename info.
 	'^Curation record .*? is to add the allele phendesc data originally curated in .+$',
 
+	# filter to remove preliminary data that will not be submitted to the Alliance
+	'^HDM flag future.+$',
+
 
 ];
 
