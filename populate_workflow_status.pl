@@ -464,8 +464,11 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
 
 					$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{currecs} = $curation_records;
-					$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} = $debugging_note;
 					$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{relevant_record_type} = $relevant_record_type;
+
+					if ($debugging_note) {
+						$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} = $debugging_note;
+					}
 
 				}
 
@@ -528,9 +531,12 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
 
 					$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{currecs} = $curation_records;
-					$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} = $debugging_note;
 					$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{relevant_record_type} = 'via flag';
 
+					if ($debugging_note) {
+						$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} = $debugging_note;
+
+					}
 				}
 			}
 
@@ -588,9 +594,11 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 							$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = $note;
 						}
 						$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{currecs} = $curation_records;
-						$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} = $debugging_note;
 						$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{relevant_record_type} = 'from diseaseHP';
 
+						if ($debugging_note) {
+							$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} = $debugging_note;
+						}
 					}
 				}
 
@@ -675,6 +683,66 @@ foreach my $pub_id (sort keys %{$all_candidate_internal_notes}) {
 
 					}
 				}
+
+
+				# B. second pass, if the internal note did not match in the loop above, add it to the note for manual indexing if that workflow_tag exists, so that the information gets into the Alliance
+				# (Many of the non-matching notes are edits to original curation, so makes sense to add here).
+				unless ($switch) {
+
+					my $workflow_type = "2_manual_indexing";
+
+					if (exists $workflow_status_data->{$pub_id}->{$workflow_type}) {
+
+						my $workflow_type_timestamp = "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{date_created}";
+						my $workflow_type_currecs = "$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{currecs}";
+						my $workflow_type_curator = "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{created_by}";
+
+						my $int_note_curator_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $int_note_timestamp);
+
+						if (defined $int_note_curator_details) {
+
+							my $int_note_currecs = "$int_note_curator_details->{currecs}";
+							my $int_note_curator = "$int_note_curator_details->{curator}";
+
+							my $debugging_note = "ADDED in second pass: $int_note";
+							$debugging_note =~ s/\n/ /g;
+
+							$switch++;
+
+
+							if (exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note}) {
+
+
+								my $note = "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note}";
+
+								$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = &clean_note("$note||$int_note");
+
+
+							} else {
+
+								$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = &clean_note("$int_note");
+
+							}
+
+							if (exists $workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note}) {
+
+
+								my $existing_note = "$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note}";
+								$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} = &clean_note("$existing_note||$debugging_note");
+
+
+							} else {
+
+								$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} = &clean_note("$debugging_note");
+
+							}
+
+
+						}
+
+					}
+				}
+
 
 
 			} else {
