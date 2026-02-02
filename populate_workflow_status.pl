@@ -193,6 +193,7 @@ my $workflow_tag_mapping = {
 	'1_skim' => {
 		'finished_status' => 'ATP:0000330', # first pass curation finished
 		'relevant_record_type' => ['skim'],
+		'second_pass'  => '1',
 
 	},
 
@@ -207,6 +208,7 @@ my $workflow_tag_mapping = {
 			},
 		},
 		'high_priority_override' => 'ATP:0000274', # manual indexing needed
+		'second_pass'  => '1',
 
 	},
 
@@ -645,11 +647,10 @@ foreach my $pub_id (sort keys %{$all_candidate_internal_notes}) {
 
 						#print "HERE2: workflow: $workflow_type_currecs, $workflow_type_timestamp\n";
 
+						my $int_note_curator_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $int_note_timestamp);
+
 						# 2. if the timestamps of the workflow tag and internal note match
 						if ($int_note_timestamp eq $workflow_type_timestamp) {
-
-							my $int_note_curator_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $int_note_timestamp);
-
 
 							# 3. get the curation record details for the internal note to check against those of workflow_tag
 							if (defined $int_note_curator_details) {
@@ -684,70 +685,103 @@ foreach my $pub_id (sort keys %{$all_candidate_internal_notes}) {
 
 							}
 
+						} else {
+
+							# if the timestamps do not match, but the curation record filename matches the type, its still OK to add the note
+							foreach my $relevant_record_type (@{$workflow_tag_mapping->{$workflow_type}->{'relevant_record_type'}}) {
+
+								unless ($switch) {
+
+									if (defined $int_note_curator_details) {
+										if ($int_note_curator_details->{currecs} =~ m/$relevant_record_type/) {
+
+											$switch++;
+
+
+											if (exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note}) {
+
+
+												my $existing_note = "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note}";
+												$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = &clean_note("$existing_note||$int_note");
+
+
+											} else {
+
+												$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = &clean_note("$int_note");
+											}
+										}
+
+									}
+
+								}
+							}
+
 						}
 
 					}
 				}
 
 
-				# B. second pass, if the internal note did not match in the loop above, add it to the note for manual indexing if that workflow_tag exists, so that the information gets into the Alliance
-				# (Many of the non-matching notes are edits to original curation, so makes sense to add here).
-				unless ($switch) {
+				# B. second pass, if the internal note did not match in the loop above, add it to the note for the workflow_type if appropriate, so that the information gets into the Alliance
+				# (Many of the non-matching notes are edits to original curation, so makes sense to add to either skim/manual_indexing workflow types).
+				foreach my $workflow_type (reverse sort keys %{$workflow_tag_mapping}) {
 
-					my $workflow_type = "2_manual_indexing";
+					if (exists $workflow_tag_mapping->{$workflow_type}->{'second_pass'}) {
 
-					if (exists $workflow_status_data->{$pub_id}->{$workflow_type}) {
+						unless ($switch) {
 
-						my $workflow_type_timestamp = "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{date_created}";
-						my $workflow_type_currecs = "$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{currecs}";
-						my $workflow_type_curator = "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{created_by}";
+							if (exists $workflow_status_data->{$pub_id}->{$workflow_type}) {
 
-						my $int_note_curator_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $int_note_timestamp);
+								my $workflow_type_timestamp = "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{date_created}";
+								my $workflow_type_currecs = "$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{currecs}";
+								my $workflow_type_curator = "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{created_by}";
 
-						if (defined $int_note_curator_details) {
+								my $int_note_curator_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $int_note_timestamp);
 
-							my $int_note_currecs = "$int_note_curator_details->{currecs}";
-							my $int_note_curator = "$int_note_curator_details->{curator}";
+								if (defined $int_note_curator_details) {
 
-							my $debugging_note = "ADDED in second pass: $int_note";
-							$debugging_note =~ s/\n/ /g;
+									my $int_note_currecs = "$int_note_curator_details->{currecs}";
+									my $int_note_curator = "$int_note_curator_details->{curator}";
 
-							$switch++;
+									my $debugging_note = "ADDED in second pass: $int_note ($int_note_curator, $int_note_currecs)";
+									$debugging_note =~ s/\n/ /g;
 
-
-							if (exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note}) {
-
-
-								my $note = "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note}";
-
-								$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = &clean_note("$note||$int_note");
+									$switch++;
 
 
-							} else {
+									if (exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note}) {
 
-								$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = &clean_note("$int_note");
+
+										my $note = "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note}";
+
+										$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = &clean_note("$note||$int_note");
+
+
+									} else {
+
+										$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = &clean_note("$int_note");
+
+									}
+
+									if (exists $workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note}) {
+
+
+										my $existing_note = "$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note}";
+										$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} = &clean_note("$existing_note||$debugging_note");
+
+
+									} else {
+
+										$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} = &clean_note("$debugging_note");
+
+									}
+								}
 
 							}
-
-							if (exists $workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note}) {
-
-
-								my $existing_note = "$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note}";
-								$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} = &clean_note("$existing_note||$debugging_note");
-
-
-							} else {
-
-								$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} = &clean_note("$debugging_note");
-
-							}
-
 
 						}
-
 					}
 				}
-
 
 
 			} else {
