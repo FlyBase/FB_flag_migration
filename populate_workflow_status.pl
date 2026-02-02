@@ -374,9 +374,7 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 	my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
 	my $pub_type = $pub_id_to_FBrf->{$pub_id}->{'type'};
 
-	# maybe do nocur validation and record status - need to make new subroutine
 	my ($nocur_status, $nocur_timestamp, $nocur_note) = &check_and_validate_nocur($nocur_flags, $has_genetic_data, $pub_id);
-#	my ($nocur_status, $nocur_timestamp, $nocur_note) = '';
 
 
 	foreach my $workflow_type (sort keys %{$workflow_tag_mapping}) {
@@ -645,7 +643,6 @@ foreach my $pub_id (sort keys %{$all_candidate_internal_notes}) {
 						my $workflow_type_currecs = "$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{currecs}";
 						my $workflow_type_curator = "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{created_by}";
 
-						#print "HERE2: workflow: $workflow_type_currecs, $workflow_type_timestamp\n";
 
 						my $int_note_curator_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $int_note_timestamp);
 
@@ -658,8 +655,6 @@ foreach my $pub_id (sort keys %{$all_candidate_internal_notes}) {
 								my $int_note_currecs = "$int_note_curator_details->{currecs}";
 								my $int_note_curator = "$int_note_curator_details->{curator}";
 
-
-								#print "HERE: internal note: $int_note_currecs, $int_note_timestamp\n";
 
 								# 4. if the curation record for the workflow type is in the list of possibilities for the internal note
 								# and there is only one curator possibility for that timestamp
