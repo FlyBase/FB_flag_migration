@@ -231,18 +231,22 @@ my $workflow_tag_mapping = {
 
 # open output and error logging files
 
-#open my $json_output_file, '>', "FB_workflow_status_data.json"
-#	or die "Can't open json output file ($!)\n";
+open my $json_output_file, '>', "FB_workflow_status_data.json"
+	or die "Can't open json output file ($!)\n";
+binmode($json_output_file, ":utf8");
 
-#open my $data_error_file, '>', "FB_workflow_status_data_errors.err"
-#	or die "Can't open data error logging file ($!)\n";
+open my $data_error_file, '>', "FB_workflow_status_data_errors.err"
+	or die "Can't open data error logging file ($!)\n";
+binmode($data_error_file, ":utf8");
 
-#open my $process_error_file, '>', "FB_workflow_status_process_errors.err"
-#	or die "Can't open processing error logging file ($!)\n";
+open my $process_error_file, '>', "FB_workflow_status_process_errors.err"
+	or die "Can't open processing error logging file ($!)\n";
+binmode($process_error_file, ":utf8");
 
 
-#open my $plain_output_file, '>', "FB_workflow_status_data.txt"
-#	or die "Can't open plain output file ($!)\n";
+open my $plain_output_file, '>', "FB_workflow_status_data.txt"
+	or die "Can't open plain output file ($!)\n";
+binmode($plain_output_file, ":utf8");
 
 
 print STDERR "##Starting processing: " . (scalar localtime) . "\n";
@@ -781,14 +785,14 @@ foreach my $pub_id (sort keys %{$all_candidate_internal_notes}) {
 
 			} else {
 
-				print "WARNING: internal note(s) with MULTIPLE TIMESTAMPS: $pub_id\t$pub_id_to_FBrf->{$pub_id}->{'FBrf'}\t$pub_id_to_FBrf->{$pub_id}->{'type'}\t$reformatted_note\n";
+				print $data_error_file "WARNING: internal note(s) with MULTIPLE TIMESTAMPS: $pub_id\t$pub_id_to_FBrf->{$pub_id}->{'FBrf'}\t$pub_id_to_FBrf->{$pub_id}->{'type'}\t$reformatted_note\n";
 
 
 			}
 
 			unless ($switch) {
 
-				print "WARNING: internal note(s) that could not match up: $pub_id\t$pub_id_to_FBrf->{$pub_id}->{'FBrf'}\t$pub_id_to_FBrf->{$pub_id}->{'type'}\t$reformatted_note\n";
+				print $data_error_file "WARNING: internal note(s) that could not match up: $pub_id\t$pub_id_to_FBrf->{$pub_id}->{'FBrf'}\t$pub_id_to_FBrf->{$pub_id}->{'type'}\t$reformatted_note\n";
 
 
 			}
@@ -832,17 +836,60 @@ foreach my $pub_id (sort keys %{$workflow_status_data}) {
 		my $relevant_record_type = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{relevant_record_type} ? $workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{relevant_record_type} : '';
 
 
-		print "DATA:$pub_id\t$FBrf\t$pub_type\t$relevant_record_type\t$curated_by\t$curation_records\t$workflow_tag_id\t$curation_tag\t$date_created\t$note\t$debugging_note\n";
+		print $plain_output_file "DATA:$pub_id\t$FBrf\t$pub_type\t$relevant_record_type\t$curated_by\t$curation_records\t$workflow_tag_id\t$curation_tag\t$date_created\t$note\t$debugging_note\n";
 	}
 }
 
-print Dumper ($complete_data);
+#print Dumper ($complete_data);
 
 
-#close $json_output_file;
-#close $data_error_file;
-#close $process_error_file;
-#close $plain_output_file;
+unless ($ENV_STATE eq "test") {
+
+	my $json_metadata = &make_abc_json_metadata($db, $api_endpoint);
+
+	$complete_data->{"metaData"} = $json_metadata;
+	my $complete_json_data = $json_encoder->encode($complete_data);
+
+	print $json_output_file $complete_json_data;
+
+
+} else {
+
+
+	foreach my $element (@{$complete_data->{"data"}}) {
+
+		my $json_element = $json_encoder->encode($element);
+
+
+		my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/$api_endpoint/'  -H 'accept: application/json'  -H 'Authorization: Bearer $access_token' -H 'Content-Type: application/json'  -d '$json_element'";
+		my $raw_result = `$cmd`;
+
+		
+
+		if ($raw_result =~ m/^\d+$/) {
+
+			print $plain_output_file "json post success\nJSON:\n$json_element\n\n";
+
+		} else {
+
+			print $process_error_file "json post failed\nJSON:\n$json_element\nREASON:\n$raw_result\n#################################\n\n";
+
+		}
+
+
+	}
+
+
+
+
+}
+
+
+
+close $json_output_file;
+close $data_error_file;
+close $process_error_file;
+close $plain_output_file;
 
 print STDERR "##Ended processing: " . (scalar localtime) . "\n";
 
