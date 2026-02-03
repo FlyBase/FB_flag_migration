@@ -102,7 +102,7 @@ o Output files
 
   o json output file (FB_workflow_status_data.json) containing a single json structure for all the data (manual_indexing status data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source). Data is printed to this file in all modes except 'test'.
 
- o 'plain' output file (FB_workflow_status_data.txt) to aid in debugging - prints the same data as in the json file, but with a single 'DATA:' tsv row for each FBrf+topic combination. Data is printed to this file in all modes except 'production'. In 'test' mode
+ o 'plain' output file (FB_workflow_status_data.txt) to aid in debugging - prints the same data as in the json file, but with a single 'DATA:' tsv row for each FBrf+topic combination. Data is printed to this file in all modes.
 
   o FB_workflow_status_data_errors.err - errors in mapping FlyBase data to appropriate Alliance json are printed in this file. Data is printed to this file in all modes.
 
@@ -586,6 +586,7 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 						# build reference with information for this publication+workflow type combination
 
 						my $FBrf_with_prefix="FB:".$FBrf;
+
 						$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{date_created} = $timestamp;
 						$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{date_updated} = $timestamp;
 						$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{created_by} = $curator;
