@@ -66,6 +66,27 @@ o manual indexing ('thin' curation at FB)
 
 (NB: In the Alliance, curation status for individual datatypes (Alliance name: 'topics') are stored in 'curation_status', NOT 'workflow_tag', so FB curation status info for these types of curation (e.g. phenotype, physical interactions) are not dealt with by this script, but instead by populate_topic_curation_status.pl).
 
+Script logic:
+
+
+o Uses FB 'curated_by' pubprop information to determine the curation status of the three FB curation types being mapped to workflow_tag. Sets curation status to 'done' when a file of the standard expected filename format is found for a given curation type.
+
+o Uses the 'nocur' flag to identify papers that contain 'no genetic information'. Validates that the nocur flag is correct and then sets manual_indexing status to 'won't curate' (with 'no genetic information' curation_tag), overriding any 'done' status added in the first step above.
+
+o Identifies papers have not yet been manually indexed, but which contain high-priority data. Sets curation status to 'curation needed' for manual indexing, with a note explaining why the paper is high priority.
+
+
+o Adds publication-level internal notes to the 'note' of the appropriate workflow_tag curation type
+
+   o first filters out internal notes that are either not being submitted to the Alliance or will be submitted in a different script (e.g. attached either to a topic or a topic curation status).
+
+  o uses the internal note timestamp to identify which of the three workflow_tag curation types to add the internal note to.
+
+  o For any internal notes where the timestamp did not match any of the workflow_tag timestamps for that publication (can happen if the note was added as an edit record), add it to the manual indexing status (if that exists), or then the first-pass curation status (if that exists).
+
+ o Any internal notes that have not been matched up and added in the above steps are printed in the FB_workflow_status_data_errors.err file.
+
+
 Script has three modes:
 
 o dev mode
@@ -398,10 +419,9 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 
 			unless (exists $workflow_status_data->{$pub_id}->{$workflow_type}) {
 
-				# make new subroutine to get relevant curator and timestamp from $fb_data
 				my $curator_details = &get_relevant_curator_from_candidate_list($fb_data->{"$relevant_record_type"}, $pub_id);
 
-				# if there is a matching record for the workflow type, make a json structure for submitting data to the Alliance
+				# if there is a matching record for the workflow type, store the information for submitting data to the Alliance
 				if (defined $curator_details) {
 
 
