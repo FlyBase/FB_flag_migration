@@ -299,13 +299,27 @@ my $nocur_flags = &get_matching_pubprop_value_with_timestamps($dbh,'cam_flag','^
 my $has_genetic_data = &pub_has_curated_data($dbh, 'genetic_data');
 
 ## get diseaseHP flags so can assign manual indexing 'needs curation' where appropriate
-my $diseaseHP_flags = {};
+my $high_priority_flags = {};
 
-$diseaseHP_flags->{'dis_flag'} = &get_matching_pubprop_value_with_timestamps($dbh,'dis_flag','^diseaseHP$');
+$high_priority_flags->{'diseaseHP_dis_flag'} = &get_matching_pubprop_value_with_timestamps($dbh,'dis_flag','^diseaseHP$');
 
-$diseaseHP_flags->{'harv_flag'} = &get_matching_pubprop_value_with_timestamps($dbh,'harv_flag','^diseaseHP$');
+$high_priority_flags->{'diseaseHP_harv_flag'} = &get_matching_pubprop_value_with_timestamps($dbh,'harv_flag','^diseaseHP$');
 
-#print Dumper ($diseaseHP_flags);
+$high_priority_flags->{'wt_exp_needs_curation'} = &get_matching_pubprop_value_with_timestamps($dbh,'harv_flag','^wt_exp::Needs cam curation$');
+
+
+my $high_priority_mapping = {
+
+
+	'diseaseHP_dis_flag' => 'diseaseHP',
+	'diseaseHP_harv_flag' => 'diseaseHP',
+	'wt_exp_needs_curation' => 'wt_exp::Needs cam curation',
+
+
+
+};
+
+#print Dumper ($high_priority_flags);
 
 my $additional_filters = [
 
@@ -574,31 +588,32 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 		# next, see if there are any non-curated papers that should be marked as 'need curation' as they are high-priority
 		if (exists $workflow_tag_mapping->{$workflow_type}->{'high_priority_override'}) {
 
-			foreach my $flag_type (sort keys %{$diseaseHP_flags}) {
+			foreach my $flag_type (sort keys %{$high_priority_flags}) {
 
 				unless (exists $workflow_status_data->{$pub_id}->{$workflow_type}) {
 
-					if (exists $diseaseHP_flags->{$flag_type}->{$pub_id}) {
+					if (exists $high_priority_flags->{$flag_type}->{$pub_id}) {
 
 						my $ATP = $workflow_tag_mapping->{$workflow_type}->{'high_priority_override'};
 						my $curation_tag = "ATP:0000353"; # high priority data
-						my $note = '';
+
+						my $note = "$high_priority_mapping->{$flag_type}";
 						my $debugging_note = '';
 
 
-						my $timestamp = $diseaseHP_flags->{$flag_type}->{$pub_id}->{diseaseHP}[0];
+						my $timestamp = $high_priority_flags->{$flag_type}->{$pub_id}->{"$high_priority_mapping->{$flag_type}"}[0];
 						# set generic defaults that are overwritten later with more specific information
 						my $curator = 'FB_curator';
 						my $curation_records = '';
 
 
-						# get curator details for the diseaseHP flag and use to override generic defaults where possible
-						my $diseaseHP_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $timestamp);
+						# get curator details for the high priority flag and use to override generic defaults where possible
+						my $high_priority_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $timestamp);
 
-						if (defined $diseaseHP_details) {
+						if (defined $high_priority_details) {
 
-							$curator = "$diseaseHP_details->{curator}";
-							$curation_records = "$diseaseHP_details->{currecs}";
+							$curator = "$high_priority_details->{curator}";
+							$curation_records = "$high_priority_details->{currecs}";
 
 						}
 
@@ -620,11 +635,18 @@ foreach my $pub_id (sort keys %{$pub_id_to_FBrf}) {
 						}
 
 
-						if ($note) {
-							$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = $note;
+						if (exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note}) {
+
+							my $existing_note = "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note}";
+							$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = "$existing_note, $note";
+
+
+						} else {
+
+							$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{note} = "$note";
+
 						}
 						$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{currecs} = $curation_records;
-						$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{relevant_record_type} = 'from diseaseHP';
 
 						if ($debugging_note) {
 							$workflow_status_data->{$pub_id}->{$workflow_type}->{debugging}->{note} = $debugging_note;
