@@ -5,7 +5,7 @@ use warnings;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw(get_relevant_curator get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_flaglist_with_suffix get_timestamps_for_pubprop_value get_relevant_currec_for_datatype get_matching_pubprop_value_with_timestamps get_all_flag_info_with_timestamps);
+our @EXPORT = qw(get_relevant_curator get_all_currec_data get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_flaglist_with_suffix get_timestamps_for_pubprop_value get_relevant_currec_for_datatype get_matching_pubprop_value_with_timestamps get_all_flag_info_with_timestamps get_all_pub_internal_notes_for_tet_wf);
 
 
 =head1 MODULE: AuditTable
@@ -136,6 +136,69 @@ sub get_relevant_curator {
 
 	return ($data);
 }
+
+sub get_all_currec_data {
+
+
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    get_all_currec_data
+	Usage:    get_all_currec_data(database_handle);
+	Function: Stores curator and corresponding curation_record_filename information for all 'curated_by' pubprops, keyed on pub_id.
+	Example:  my $all_curation_record_data = &get_all_currec_data($dbh);
+
+Arguments: database handle
+
+Returns: data structure with the following format:
+
+$data->{$pub_id}->{$timestamp}->{$curator}->{$curation_record_filename}
+
+
+The get_relevant_curator_from_candidate_list_using_pub_and_timestamp in lib/Util.pm can be used to filter the returned list for the curator (and corresponding curation_record_filename information) that matches a specific pub_id plus timestamp combination.
+
+
+=cut
+
+
+	unless (@_ == 1) {
+
+		die "Wrong number of parameters passed to the get_all_currec_data subroutine\n";
+	}
+
+	my ($dbh) = @_;
+
+	my $data = {};
+
+	my $sql_query=sprintf("select distinct pp.pub_id, pp.value, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where ac.audited_table='pubprop' and ac.audit_transaction='I' and pp.pubprop_id=ac.record_pkey and c.cvterm_id=pp.type_id and c.name = 'curated_by' order by ac.transaction_timestamp");
+
+	my $db_query = $dbh->prepare($sql_query);
+	$db_query->execute or die "WARNING: ERROR: Unable to execute get_all_currec_data query ($!)\n";
+
+
+	while (my ($pub_id, $curated_by_value, $timestamp) = $db_query->fetchrow_array) {
+
+
+		if ($curated_by_value =~ m/^Curator: (.+?);Proforma: (.+?);timelastmodified: (.*)$/) {
+
+			my $curator = $1;
+			my $curation_record_filename = $2;
+			my $timelastmodified = $3;
+
+			$data->{$pub_id}->{$timestamp}->{$curator}->{$curation_record_filename}++;
+
+		} else {
+			# not expecting to trip this error
+			print "ERROR: wrong curated_by pubprop format for pub_id: $pub_id, pubprop: $curated_by_value\n";
+		}
+	}
+
+	return $data;
+}
+
 
 
 sub get_flag_info_with_audit_data {
@@ -470,7 +533,7 @@ sub get_relevant_currec_for_datatype {
 
 	Title:    get_relevant_currec_for_datatype
 	Usage:    get_relevant_currec_for_datatype(database_handle,datatype);
-	Function: Gets timestamp information for curation records that are expected to contain data of a particular type based on the their filename, for the datatype specified in the second argument.
+	Function: Gets timestamp information for curation records that are expected to contain data/curation of a particular type based on the their filename, for the data/curation type specified in the second argument.
 	Example:  my $currec_for_cell_line = &get_relevant_currec_for_datatype($dbh,'cell_line');
 
 Arguments:
@@ -488,6 +551,7 @@ Arguments:
 	# only use standard filenames for matching so that can be sure that curation of the datatype is complete
 	my $datatype_mapping = {
 
+		# filename types used for topic curation status
 		'cell_line' => '.+?\.(cell|cell_multiple|cell_multi)\..+?',
 		'phys_int' => '.+?\.(int|int_miRNA)\..+?',
 		'DO' => '.+?\.DO\..+?',
@@ -496,8 +560,15 @@ Arguments:
 		'chemical' => '.+?\.chem\..+?',
 		'args' => '.+?\.args\..+?',
 		'phen' => '[a-z][a-z][0-9]{1,}\.phen',
-		'cam_full' => '(ma|sb|rd|sf|tj|al|sm|cm|pm|gm|ao|cp|lp|sp|sr|rs|ra|ds|ew|cy)[0-9]{1,}(\.(h|hf))?',
 		'humanhealth' => '.+?\.(hh|hh_multiple|hds|hds_multiple|hh_[0-9]{1,}|hds_rvw)\..+?',
+		# filename types used for workflow status
+		'thin' => '[a-z][a-z][0-9]{1,}\.thin',
+		'user' => '[a-z][a-z][0-9]{1,}\.user',
+		'skim' => '.+?\.(skim|skim_multiple|skim_multi)(\..+)?',
+		'gene_full' => '[a-z][a-z][0-9]{1,}\.full', # publications that have had full manual indexing (listing) of genes, and genes are the only entity type relevant to manual indexing in the publication
+		'cam_no_suffix' => '(ma|sb|rd|sf|tj|kk|al|sm|cm|pm|gm|ao|cp|lp|sp|sr|rs|ra|ds|vt|ew|cy|pu|ga|ha|hb|rc|rf|pg|st|rz)[0-9]{1,}',
+		# filename types used for both topic curation status AND workflow status
+		'cam_full' => '(ma|sb|rd|al|sm|cm|pm|gm|lp|sr|rs|ra|ds|ew|cy)[0-9]{1,}(\.(h|hf))?', # publications that should have had full curation of both any genetic reagent data AND any phenotype data
 
 
 
@@ -719,3 +790,144 @@ o $audit_timestamp is a timestamp from the audit_chado table. The $audit_timesta
 	return $data;
 
 }
+
+
+
+
+
+sub get_all_pub_internal_notes_for_tet_wf {
+
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    get_all_pub_internal_notes_for_tet_wf
+	Usage:    get_all_pub_internal_notes_for_tet_wf(database_handle);
+	Function: Gets all publication level internal notes that we want to try to submit to the Alliance ABC in either the topic-entity-tg (tet) editor or the workflow editor, additionally filtered using the regexes in the array reference provided in the second argument.
+	Example:  my $all_pub_internal_notes_for_tet_wf = &get_all_pub_internal_notes_for_tet_wf($dbh, $additional_filters);
+
+Arguments:
+
+o database handle
+
+o $additional_filters - reference to an array of additional regular expressions to be used to filter the internal notes before they are returned. (This array reference can be empty).
+
+Returns:
+
+The returned hash reference has the following structure:
+
+@{$data->{$pub_id}->{$line}}, $audit_timestamp;
+
+
+o $pub_id is the pub_id of the reference.
+
+o $line is the complete internal note; if the internal note contains multiple lines they will be present in the returned $line, so this may need to be converted to spaces when submitting to the ABC if you want the note to appear as a single line.
+
+o $audit_timestamp is the 'I' timestamp(s) from the audit_chado table for the matching $line. The $audit_timestamp values are sorted earliest to latest within the array.
+
+
+The subroutine only returns internal notes that we want to end up in either the topic-entity-tg (tet) editor or the workflow editor in the Alliance ABC. Internal notes of two kinds are thus removed from returned output by default, using the regular expressions in the following array references:
+
+ 
+o $ignore - internal notes that are related to the bibliographic data and are no longer relevant.
+
+o $email - email address information (either community curation or the submitter of a personal communication) - these will be submitted elsewhere in the ABC.
+
+
+In addition, any regular expressions passed via the $additional_filters array reference are also used to filter the returned output. Note that the regexes are used to remove matching text from each internal note; any remaining text after the substitutions is returned. This strategy is necessary as in some cases, a single internal note contains multiple lines that may need different treatment when being exported to the ABC. For example, some internal notes in FB are not being submitted as free text 'notes' to the ABC, but are instead being turned into an ATP term representing a topic, topic status or a controlled tag; in these cases, the regexes in $additional_filters can be used to remove the relevant internal notes so that they are not then redundantly also submitted to the ABC as a free text note.
+
+This means that any regex in $additional_filters should typically be specified to either remove a *complete* line (using ^ and $ in the regex), or be sufficiently specific that it is safe to remove the text when it is part of a line (e.g. similar to the email regexes in the $email array reference below).
+
+(It isn't possible to just split on newline to separate out each 'row' of a given 'multiple lines' internal note, because in some cases, the multiple lines correspond to a paragraph (i.e. the multiple lines should stay together when submitted to the ABC) but in others, each row represents a different kind of internal note that may need to be split up and treated differently as they are submitted to the ABC (e.g. those that are being converted into an ATP term as described above).
+
+
+
+=cut
+
+	unless (@_ == 2) {
+
+		die "Wrong number of parameters passed to the get_all_pub_internal_notes_for_tet_wf subroutine\n";
+	}
+
+
+	my ($dbh, $additional_filters) = @_;
+
+	my $data = {};
+
+
+	my $ignore = [
+
+		'Automated trawl for PMID, ggrumbli 090330',
+		'BIOSIS Gene Name field: .+',
+		'^[?:]?Supplement:.+$', # there are some cases with ? or : at the beginning of the Supplement: line
+	];
+
+
+	my $email = [
+
+		'(Author|User|Submitter|submitter): ?.*?\<?\S+@\S+?\>?$',
+		'(Author|User|Submitter|submitter): ?.*?\<?\S+@\S+?\>? [a-z]{2}[0-9]{1,}\.$',
+		'(Author|User|Submitter|submitter): ?.*?\<?\S+_at_\S+?\>?$',
+		'(Author|User|Submitter|submitter): ?.*?\<?\S+_AT_\S+?\>?$',
+		'(Author|User|Submitter|submitter) .*?\<?\S+@\S+?\>?\. ?[a-z]{2}[0-9]{1,}\.$',
+
+		# remove email info from beginning of line - require <> around email part of regex else is not strict enough
+		'(Author|User|Submitter|submitter): .*?\<\S+?@\S+?\>\. ',
+
+		'^(Author|User|Submitter|submitter):$',
+
+
+
+	];
+
+
+	my $sql_query = sprintf("select distinct pp.pub_id, pp.value, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where c.cvterm_id=pp.type_id  and c.name ='internalnotes' and ac.audited_table='pubprop' and ac.audit_transaction = 'I' and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp");
+	my $db_query = $dbh->prepare($sql_query);
+	$db_query->execute or die "WARNING: ERROR: Unable to execute get_timestamps_for_pubprop_value query ($!)\n";
+
+
+	while (my ($pub_id, $value, $audit_timestamp) = $db_query->fetchrow_array) {
+
+
+		foreach my $regex (@{$ignore}) {
+
+			$value =~ s/$regex//mg;
+
+
+		}
+
+		foreach my $regex (@{$email}) {
+
+			$value =~ s/$regex//mg;
+
+
+		}
+
+		foreach my $regex (@{$additional_filters}) {
+
+			$value =~ s/$regex//mg;
+
+
+		}
+
+
+		$value =~ s/^ +//;
+		$value =~ s/ +$//;
+		$value =~ s/^\n+//;
+		$value =~ s/\n+$//;
+
+		$value =~ s/\t//g;
+
+		if ($value ne '') {
+
+			push @{$data->{$pub_id}->{$value}}, $audit_timestamp;
+
+		}
+	}
+
+	return $data;
+
+}
+
