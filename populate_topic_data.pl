@@ -171,13 +171,13 @@ my $curator_source_data = {};
 
 if ($ENV_STATE eq "dev" || $ENV_STATE eq "test") {
 
-	$author_source_data = &get_topic_entity_tag_source_data('stage', 'author');
-	$curator_source_data = &get_topic_entity_tag_source_data('stage', 'curator');
+	$author_source_data = &get_topic_entity_tag_source_data('stage', 'author', $access_token);
+	$curator_source_data = &get_topic_entity_tag_source_data('stage', 'curator', $access_token);
 
 } else {
 
-	$author_source_data = &get_topic_entity_tag_source_data($ENV_STATE, 'author');
-	$curator_source_data = &get_topic_entity_tag_source_data($ENV_STATE, 'curator');
+	$author_source_data = &get_topic_entity_tag_source_data($ENV_STATE, 'author', $access_token);
+	$curator_source_data = &get_topic_entity_tag_source_data($ENV_STATE, 'curator', $access_token);
 
 }
 

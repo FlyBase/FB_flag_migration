@@ -26,9 +26,9 @@ sub get_topic_entity_tag_source_data {
 =head1
 
 	Title:    get_topic_entity_tag_source_data
-	Usage:    get_topic_entity_tag_source_data(API_type, curator_type);
+	Usage:    get_topic_entity_tag_source_data(API_type, curator_type, access_token);
 	Function: The get_topic_entity_tag_source_data subroutine gets json that describes the topic_entity_tag_source information, using a curl command to query the relevant Alliance REST API service, and returns that information as a reference.
-	Example: my $source_data = &get_topic_entity_tag_source_data('production', 'curator');
+	Example: my $source_data = &get_topic_entity_tag_source_data('production', 'curator', $access_token);
 
 	
 Arguments:
@@ -37,16 +37,17 @@ o API_type: the 'type' of the relevant Alliance REST API service to query - must
 
 o curator_type: the type of curation that you want the json details for - must be either 'curator' or 'author'
 
+o access_token: access token for the relevant Alliance REST API service that was given in the first argument.
 
 =cut
 
 
-	unless (@_ == 2) {
+	unless (@_ == 3) {
 
 		die "Wrong number of parameters passed to the get_topic_entity_tag_source_data subroutine\n";
 	}
 
-	my ($API_type, $curator_type) = @_;
+	my ($API_type, $curator_type, $access_token) = @_;
 
 	unless ($API_type eq 'production' | $API_type eq 'stage') {
 
@@ -88,11 +89,11 @@ o curator_type: the type of curation that you want the json details for - must b
 
 	if ($API_type eq 'stage') {
 
-		$cmd = "curl -X 'GET' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/source/ATP%3A$curator_type_mapping->{$curator_type}->{evidence}/$curator_type_mapping->{$curator_type}->{source_method}/FB/FB' -H 'accept: application/json'";
+		$cmd = "curl -X 'GET' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/source/ATP%3A$curator_type_mapping->{$curator_type}->{evidence}/$curator_type_mapping->{$curator_type}->{source_method}/FB/FB' -H 'accept: application/json' -H 'Authorization: Bearer $access_token'";
 
 	} else {
 
-		$cmd = "curl -X 'GET' 'https://literature-rest.alliancegenome.org/topic_entity_tag/source/ATP%3A$curator_type_mapping->{$curator_type}->{evidence}/$curator_type_mapping->{$curator_type}->{source_method}/FB/FB' -H 'accept: application/json'";
+		$cmd = "curl -X 'GET' 'https://literature-rest.alliancegenome.org/topic_entity_tag/source/ATP%3A$curator_type_mapping->{$curator_type}->{evidence}/$curator_type_mapping->{$curator_type}->{source_method}/FB/FB' -H 'accept: application/json' -H 'Authorization: Bearer $access_token'";
 
 	}
 
