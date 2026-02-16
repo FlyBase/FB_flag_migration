@@ -50,9 +50,6 @@ o dev mode
 
   o single FBrf mode: asks user for FBrf number (can also use a regular expression to test multiple FBrfs in this mode).
 
-  o makes a json output file (FB_topic_data.stage.json) containing a single json structure for all the data (topic data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source).
-  o makes error files (see below) to record any errors.
-
 
 o test mode
 
@@ -60,30 +57,27 @@ o test mode
 
   o uses curl to try to POST data to the Alliance ABC stage server (so asks user for okta token for Alliance ABC stage server).
 
-  o makes a txt output file (FB_topic_data.stage.txt) - prints a 'DATA:' tsv row for each FBrf+topic combination. For each successful curl POST event, the successfully loaded json element is printed in this file.
-  o also makes error files (see below) to record any errors.
-
 o stage mode
 
   o makes data for all FBrfs in chado, with source ids correct for the ABC *stage* database.
-
-  o makes a json output file (FB_topic_data.stage.json) containing a single json structure for all the data (topic data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source).
-  o also makes error files (see below) to record any errors.
 
 o production mode
 
   o makes data for all FBrfs in chado, with source ids correct for the ABC *production* database.
 
-  o makes a json output file (FB_topic_data.production.json) containing a single json structure for all the data (topic data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source).
-  o also makes error files (see below) to record any errors.
-
-o error files (made for all modes)
+Output files:
 
   o file names include the intended "destination" ABC database - this is 'production' for production mode, and 'stage' for all other modes (this is needed because the id for source information for the topics can be different in production vs stage ABC).
 
-  o FB_topic_data_errors.<destination>.err - errors in mapping FlyBase data to appropriate Alliance json are printed in this file.
+  o The same four files are made in each mode:
 
-  o FB_topic_process_errors.<processing>.err - processing errors - if a curl POST fails in test mode, the failed json element and the reason for the failure are printed in this file. Expected to be empty for all other modes.
+    o json output file (FB_topic_data.<destination>.json) - in all modes except 'test' contains a single json structure for all the data (topic data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source). In test mode, successfully submitted json elements are printed in this file.
+
+    o 'plain' output file (FB_topic_data.<destination>.txt) to aid in debugging - prints the same data as in the json file, but with a single 'DATA:' tsv row for each FBrf+topic combination.
+
+    o FB_topic_data_errors.<destination>.err - errors in mapping FlyBase data to appropriate Alliance json are printed in this file.
+
+    o FB_topic_process_errors.<processing>.err - processing errors - if a curl POST fails in test mode, the failed json element and the reason for the failure are printed in this file. Expected to be empty for all other modes.
 
 
 Mapping hashes:
@@ -250,15 +244,16 @@ if ($ENV_STATE eq 'production') {
 
 }
 
-my $output_file_type = 'json';
-if ($ENV_STATE eq 'test') {
 
-	$output_file_type = 'txt';
+open my $json_output_file, '>', "FB_topic_data.${destination}.json"
+	or die "Can't open json output file ($!)\n";
+binmode($json_output_file, ":utf8");
 
-}
 
-open my $output_file, '>', "FB_topic_data.${destination}.${output_file_type}"
-	or die "Can't open output file ($!)\n";
+
+open my $plain_output_file, '>', "FB_topic_data.${destination}.txt"
+	or die "Can't open plain output file ($!)\n";
+binmode($plain_output_file, ":utf8");
 
 
 open my $data_error_file, '>', "FB_topic_data_errors.${destination}.err"
@@ -477,6 +472,9 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 
 								my $json_data = $json_encoder->encode($data);
 
+								# plain text output useful for testing
+								print $plain_output_file "DATA: $FBrf\t$flag_type\t$flag\t$curator\t$file;\t$flag_audit_timestamp\n";
+
 
 								unless ($ENV_STATE eq "test") {
 									push @{$complete_data->{data}}, $data;
@@ -487,12 +485,10 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 									my $result = $json_encoder->decode($raw_result);
 
 
-									# plain text output useful for testing
-									print $output_file "DATA: $FBrf\t$flag_type\t$flag\t$curator\t$file;\t$flag_audit_timestamp\n";
 
 									if (exists $result->{'status'} && $result->{'status'} eq 'success') {
-							
-										print $output_file "json post success\nJSON:\n$json_data\n\n";
+
+										print $json_output_file "json post success\nJSON:\n$json_data\n\n";
 
 									} else {
 
@@ -733,13 +729,14 @@ foreach my $pub_id (sort keys %{$dataset_pheno_data}) {
 			my $result = $json_encoder->decode($raw_result);
 
 			# plain text output useful for testing
-			print $output_file "DATA: $FBrf\tDataset: pheno information\n";
+			print $plain_output_file "DATA: $FBrf\tDataset: pheno information\n";
 
 			if (exists $result->{'status'} && $result->{'status'} eq 'success') {
 
-				print $output_file "json post success\nJSON:\n$json_data\n\n";
+				print $json_output_file "json post success\nJSON:\n$json_data\n\n";
 
 			} else {
+
 
 				print $process_error_file "json post failed\nJSON:\n$json_data\nREASON:\n$raw_result\n#################################\n\n";
 
@@ -765,13 +762,14 @@ unless ($ENV_STATE eq "test") {
 	$complete_data->{"metaData"} = $json_metadata;
 	my $complete_json_data = $json_encoder->encode($complete_data);
 
-	print $output_file $complete_json_data;
+	print $json_output_file $complete_json_data;
 
 
 
 }
 
 
-close $output_file;
+close $json_output_file;
+close $plain_output_file;
 close $data_error_file;
 close $process_error_file;
