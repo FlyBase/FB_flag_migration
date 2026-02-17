@@ -445,10 +445,10 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 	}
 
 	#additional 'cam_full' curation record filename info - needed for pheno flag
-	my $cam_full_by_timestamp = undef;
-	my $cam_full_by_curator = undef;
+	my $cam_full = {};
 	if (exists $curation_status_topics->{$ATP}->{'use_cam_full_filename'}) {
-		($cam_full_by_timestamp, $cam_full_by_curator) = &get_relevant_currec_for_datatype($dbh,'cam_full');
+		($cam_full->{"by_timestamp"}, $cam_full->{"by_curator"}) = &get_relevant_currec_for_datatype($dbh,'cam_full');
+
 	}
 
 	# if appropriate, get internal notes relevant to curation status for the flag
@@ -839,96 +839,32 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 ####
 	#for phenotype datatype, additional check for older curation record with older filename format indicating 'full' curation by cam.
-	if (defined $cam_full_by_timestamp) {
+	if (exists $cam_full->{"by_timestamp"}) {
 
-		foreach my $pub_id (sort keys %{$cam_full_by_timestamp}) {
+		foreach my $pub_id (sort keys %{$cam_full->{"by_timestamp"}}) {
 
 			if (exists $pub_id_to_FBrf->{$pub_id} && $pub_id_to_FBrf->{$pub_id}->{'type'} ne 'review') {
 
 				unless (exists $curation_status_data->{$pub_id}) {
 
-					# get the timestamp of the *earliest* matching curation record, so that get first relevant record and not any subsequent 'plain' format filename that represented edits, before we started using .edit format
-					my $timestamp = $cam_full_by_timestamp->{$pub_id}[0];
 
-					# try to determine the relevant curator if appropriate for the topic
-					my $relevant_curator = '';
+					# try to determine the relevant curator for the topic
+					my $timestamp = '';
 					my $relevant_currecs = '';
 					my $curated_by = '';
 
-					if (defined $cam_full_by_curator) {
+					my $curator_details = &get_relevant_curator_from_candidate_list($cam_full, $pub_id);
 
 
-						if (exists $cam_full_by_curator->{$pub_id}) {
+					if (defined $curator_details) {
+
+						$timestamp = "$curator_details->{timestamp}";
+						$curated_by = "$curator_details->{curator}";
+						$relevant_currecs = "$curator_details->{currecs}";
 
 
-							if (scalar keys %{$cam_full_by_curator->{$pub_id}} == 1) {
-								my $curator_candidate = join '', keys %{$cam_full_by_curator->{$pub_id}};
-
-								if (exists $cam_full_by_curator->{$pub_id}->{$curator_candidate}->{$timestamp}) {
-									$relevant_curator = $curator_candidate;
-									$relevant_currecs = join ' ', sort keys %{$cam_full_by_curator->{$pub_id}->{$curator_candidate}->{$timestamp}};
-
-								}
-							} else {
-
-								my $timestamp_count = 0;
-								my $full_curator = {};
-								foreach my $curator_candidate (sort keys %{$cam_full_by_curator->{$pub_id}}) {
-
-									foreach my $candidate_timestamp (sort keys %{$cam_full_by_curator->{$pub_id}->{$curator_candidate}}) {
-
-										my $full_switch = 0;
-										foreach my $currec (keys %{$cam_full_by_curator->{$pub_id}->{$curator_candidate}->{$candidate_timestamp}}) {
-											if ($currec =~ m/\.h$/ || $currec =~ m/\.hf$/) {
-												$full_curator->{$curator_candidate}->{$candidate_timestamp}->{$currec}++;
-												$full_switch++;
-											}
-										}
-
-										if ($candidate_timestamp eq $timestamp) {
-
-											if ($full_switch) {
-
-												$relevant_curator = $curator_candidate;
-												$relevant_currecs = join ' ', sort keys %{$cam_full_by_curator->{$pub_id}->{$curator_candidate}->{$candidate_timestamp}};
-
-											}
-
-										}
-
-
-									}
-								}
-
-
-
-								if ($relevant_curator) {
-									# if there is more than one curator with a .h/.hf record, reset relevant_curator to nothing, so that FB_curator will be submitted to the Alliance
-									if (scalar keys %{$full_curator} > 1) {
-										$relevant_curator = '';
-										$relevant_currecs = '';
-
-									}
-
-								}
-								# if there is more than one curation record with the same timestamp, reset relevant_curator to nothing, so that FB_curator will be submitted to the Alliance
-								if ($timestamp_count > 1) {
-
-									$relevant_curator = '';
-									$relevant_currecs = '';
-
-								}
-
-
-							}
-						}
 					}
 
-					if ($relevant_curator) {
-
-						#$curated_by = "$relevant_curator: $relevant_currecs"; # debugging
-						$curated_by = "$relevant_curator";
-					}
 
 					# add curation status if there is phenotypic data - it is expected that many of this kind of curation record will NOT contain phenotype data,
 					# so no need for else loop for those without phenotypic data
