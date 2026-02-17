@@ -616,24 +616,24 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 								if ($store_status) {
 
-									$curation_status_data->{$pub_id}->{'date_created'} = $timestamp;
-									$curation_status_data->{$pub_id}->{'date_updated'} = $timestamp;
-									$curation_status_data->{$pub_id}->{'created_by'} = "FB_curator";
-									$curation_status_data->{$pub_id}->{'updated_by'} = "FB_curator";
+									$curation_status_data->{$pub_id}->{json}->{'date_created'} = $timestamp;
+									$curation_status_data->{$pub_id}->{json}->{'date_updated'} = $timestamp;
+									$curation_status_data->{$pub_id}->{json}->{'created_by'} = "FB_curator";
+									$curation_status_data->{$pub_id}->{json}->{'updated_by'} = "FB_curator";
 
-									$curation_status_data->{$pub_id}->{'mod_abbreviation'} = "FB";
+									$curation_status_data->{$pub_id}->{json}->{'mod_abbreviation'} = "FB";
 									my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
-									$curation_status_data->{$pub_id}->{'reference_curie'} = "FB:$FBrf";
+									$curation_status_data->{$pub_id}->{json}->{'reference_curie'} = "FB:$FBrf";
 
-									$curation_status_data->{$pub_id}->{'topic'} = $ATP;
-									$curation_status_data->{$pub_id}->{'curation_status'} = $curation_status;
+									$curation_status_data->{$pub_id}->{json}->{'topic'} = $ATP;
+									$curation_status_data->{$pub_id}->{json}->{'curation_status'} = $curation_status;
 
 									if ($note) {
-										$curation_status_data->{$pub_id}->{'note'} = $note;
+										$curation_status_data->{$pub_id}->{json}->{'note'} = $note;
 									}
 
 									if ($curation_tag) {
-										$curation_status_data->{$pub_id}->{'curation_tag'} = $curation_tag;
+										$curation_status_data->{$pub_id}->{json}->{'curation_tag'} = $curation_tag;
 									}
 
 								}
@@ -642,7 +642,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 								# this loop adds an undefined 'curation_status' when the suffix is 'Inappropriate use of flag', which prevents any incorrect 'curated' status being added in the 'DESCRIPTION, Script logic: 4' loop below for these cases.
 								if ($suffix eq 'Inappropriate use of flag') {
-									$curation_status_data->{$pub_id}->{'curation_status'} = undef;
+									$curation_status_data->{$pub_id}->{json}->{'curation_status'} = undef;
 
 								}
 
@@ -675,7 +675,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 				unless ($curation_status_topics->{$ATP}->{'flag_type'} eq 'cam_flag' && $pub_id_to_FBrf->{$pub_id}->{'type'} eq 'review') {
 
-					unless (exists $curation_status_data->{$pub_id}) {
+					unless (exists $curation_status_data->{$pub_id}->{json}) {
 
 						# try to determine the relevant curator for the topic
 						my $timestamp = '';
@@ -801,26 +801,27 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 								if ($store_status) {
 
-									$curation_status_data->{$pub_id}->{'date_created'} = $timestamp;
-									$curation_status_data->{$pub_id}->{'date_updated'} = $timestamp;
-									$curation_status_data->{$pub_id}->{'curation_status'} = $curation_status;
+									$curation_status_data->{$pub_id}->{json}->{'date_created'} = $timestamp;
+									$curation_status_data->{$pub_id}->{json}->{'date_updated'} = $timestamp;
+									$curation_status_data->{$pub_id}->{json}->{'curation_status'} = $curation_status;
 
 
-									$curation_status_data->{$pub_id}->{'created_by'} = $curated_by;
-									$curation_status_data->{$pub_id}->{'updated_by'} = $curated_by;
-									$curation_status_data->{$pub_id}->{'mod_abbreviation'} = "FB";
+									$curation_status_data->{$pub_id}->{json}->{'created_by'} = $curated_by;
+									$curation_status_data->{$pub_id}->{json}->{'updated_by'} = $curated_by;
+									$curation_status_data->{$pub_id}->{json}->{'mod_abbreviation'} = "FB";
 									my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
-									$curation_status_data->{$pub_id}->{'reference_curie'} = "FB:$FBrf";
+									$curation_status_data->{$pub_id}->{json}->{'reference_curie'} = "FB:$FBrf";
 
-									$curation_status_data->{$pub_id}->{'topic'} = $ATP;
+									$curation_status_data->{$pub_id}->{json}->{'topic'} = $ATP;
 									if ($note) {
-										$curation_status_data->{$pub_id}->{'note'} = $note;
+										$curation_status_data->{$pub_id}->{json}->{'note'} = $note;
 									}
 
 									if ($curation_tag) {
-										$curation_status_data->{$pub_id}->{'curation_tag'} = $curation_tag;
+										$curation_status_data->{$pub_id}->{json}->{'curation_tag'} = $curation_tag;
 									}
 
+									$curation_status_data->{$pub_id}->{debugging}->{'currecs'} = $relevant_currecs;
 								}
 
 
@@ -843,7 +844,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 			if (exists $pub_id_to_FBrf->{$pub_id} && $pub_id_to_FBrf->{$pub_id}->{'type'} ne 'review') {
 
-				unless (exists $curation_status_data->{$pub_id}) {
+				unless (exists $curation_status_data->{$pub_id}->{json}) {
 
 
 					# try to determine the relevant curator for the topic
@@ -881,20 +882,22 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 								$note =~ s/^ //;
 								$note =~ s/ $//;
 
-								$curation_status_data->{$pub_id}->{'date_created'} = $timestamp;
-								$curation_status_data->{$pub_id}->{'date_updated'} = $timestamp;
-								$curation_status_data->{$pub_id}->{'created_by'} = $curated_by;
-								$curation_status_data->{$pub_id}->{'updated_by'} = $curated_by;
+								$curation_status_data->{$pub_id}->{json}->{'date_created'} = $timestamp;
+								$curation_status_data->{$pub_id}->{json}->{'date_updated'} = $timestamp;
+								$curation_status_data->{$pub_id}->{json}->{'created_by'} = $curated_by;
+								$curation_status_data->{$pub_id}->{json}->{'updated_by'} = $curated_by;
 
-								$curation_status_data->{$pub_id}->{'mod_abbreviation'} = "FB";
+								$curation_status_data->{$pub_id}->{json}->{'mod_abbreviation'} = "FB";
 								my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
-								$curation_status_data->{$pub_id}->{'reference_curie'} = "FB:$FBrf";
-								$curation_status_data->{$pub_id}->{'topic'} = $ATP;
-								$curation_status_data->{$pub_id}->{'curation_status'} = "ATP:0000239";
+								$curation_status_data->{$pub_id}->{json}->{'reference_curie'} = "FB:$FBrf";
+								$curation_status_data->{$pub_id}->{json}->{'topic'} = $ATP;
+								$curation_status_data->{$pub_id}->{json}->{'curation_status'} = "ATP:0000239";
 
 								if ($note) {
-									$curation_status_data->{$pub_id}->{'note'} = $note;
+									$curation_status_data->{$pub_id}->{json}->{'note'} = $note;
 								}
+
+								$curation_status_data->{$pub_id}->{debugging}->{'currecs'} = $relevant_currecs;
 
 
 							}
@@ -925,21 +928,24 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 
 
-		if (defined $curation_status_data->{$pub_id}->{'curation_status'}) {
+		if (defined $curation_status_data->{$pub_id}->{json}->{'curation_status'}) {
 
 			#store data for making json later
-			push @{$complete_data->{data}}, $curation_status_data->{$pub_id};
+			push @{$complete_data->{data}}, $curation_status_data->{$pub_id}->{json};
 
 			# simple output for testing
 			my $flag = $curation_status_topics->{$ATP}->{'flags'}[0];
-			my $curated_by = $curation_status_data->{$pub_id}->{'created_by'} ? "$curation_status_data->{$pub_id}->{'created_by'}" : '';
-			my $curation_status = exists $curation_status_data->{$pub_id}->{'curation_status'} ? $curation_status_data->{$pub_id}->{'curation_status'} : '';
-			my $date_created = exists $curation_status_data->{$pub_id}->{'date_created'} ? $curation_status_data->{$pub_id}->{'date_created'} : '';
-			my $curation_tag = exists $curation_status_data->{$pub_id}->{'curation_tag'} ? $curation_status_data->{$pub_id}->{'curation_tag'} : '';
-			my $note = exists $curation_status_data->{$pub_id}->{'note'} ? $curation_status_data->{$pub_id}->{'note'} : '';
+			my $curated_by = $curation_status_data->{$pub_id}->{json}->{'created_by'} ? "$curation_status_data->{$pub_id}->{json}->{'created_by'}" : '';
+			my $curation_status = exists $curation_status_data->{$pub_id}->{json}->{'curation_status'} ? $curation_status_data->{$pub_id}->{json}->{'curation_status'} : '';
+			my $date_created = exists $curation_status_data->{$pub_id}->{json}->{'date_created'} ? $curation_status_data->{$pub_id}->{json}->{'date_created'} : '';
+			my $curation_tag = exists $curation_status_data->{$pub_id}->{json}->{'curation_tag'} ? $curation_status_data->{$pub_id}->{json}->{'curation_tag'} : '';
+			my $note = exists $curation_status_data->{$pub_id}->{json}->{'note'} ? $curation_status_data->{$pub_id}->{json}->{'note'} : '';
+
+			# adding useful debugging info
+			my $curation_records = exists $curation_status_data->{$pub_id}->{debugging}->{currecs} ? $curation_status_data->{$pub_id}->{debugging}->{currecs} : '';
 
 			unless ($ENV_STATE eq 'production') {
-				print $plain_output_file "DATA:$pub_id\t$FBrf\t$pub_type\t$ATP\t$flag\t$curation_status\t$date_created\t$curation_tag\t$note\t$curated_by\n";
+				print $plain_output_file "DATA:$pub_id\t$FBrf\t$pub_type\t$ATP\t$flag\t$curation_status\t$date_created\t$curation_tag\t$note\t$curated_by\t$curation_records\n";
 			}
 		}
 
