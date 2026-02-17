@@ -690,143 +690,141 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 							$curated_by = "$curator_details->{curator}";
 							$relevant_currecs = "$curator_details->{currecs}";
 
-
-						}
-
-
-						if (defined $has_curated_data) {
+							if (defined $has_curated_data) {
 
 
-							my $curation_status = '';
-							my $note = '';
+								my $curation_status = '';
+								my $note = '';
 
 
-							if (defined $relevant_internal_notes && exists $relevant_internal_notes->{$pub_id}) {
-								$note = $note . (join ' ', sort keys %{$relevant_internal_notes->{$pub_id}});
+								if (defined $relevant_internal_notes && exists $relevant_internal_notes->{$pub_id}) {
+									$note = $note . (join ' ', sort keys %{$relevant_internal_notes->{$pub_id}});
 
-							}
-
-							my $curation_tag = '';
-
-							my $store_status = 0;
-
-							if (exists $has_curated_data->{$pub_id}) {
-
-								$curation_status = 'ATP:0000239';
-								$store_status++;
-
-								if ($ATP eq 'ATP:0000011') {
-									$note = ''; # set 'HDM flag not applicable' note to empty for the small number of cases where added in error to publications with humanhealth data
 								}
 
-								# suppress following loop as was for debugging
-								#unless ($note) {
-								#	$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
-								#}
+								my $curation_tag = '';
 
+								my $store_status = 0;
 
-							} else {
+								if (exists $has_curated_data->{$pub_id}) {
 
-								# loop to deal with phys_int
-								if ($ATP eq 'ATP:0000069') {
+									$curation_status = 'ATP:0000239';
+									$store_status++;
 
-									if ($note) {
-
-										if ($note =~ m/phys_int not curated; bad flag/ || $note =~ m/phys_int not curated; bad SVM flag/) {
-
-											$curation_status = 'ATP:0000299'; # won't curate
-											$curation_tag = 'ATP:0000226'; # no curatable data
-											$store_status++;
-
-
-										} elsif ($note =~ m/already curated by/) {
-
-											$curation_status = 'ATP:0000299'; # won't curate
-											$store_status++;
-
-										} else {
-
-											$curation_status = 'ATP:0000299'; # won't curate
-											$curation_tag = 'ATP:0000208'; # not curatable
-											$store_status++;
-
-										}
-									} else {
-
-										print $data_error_file "WARNING: no data despite standard filename (phys_int loop): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
-
+									if ($ATP eq 'ATP:0000011') {
+										$note = ''; # set 'HDM flag not applicable' note to empty for the small number of cases where added in error to publications with humanhealth data
 									}
 
-
-								# loop to deal with humanhealth flags (harv_flag disease flags)
-								} elsif ($ATP eq 'ATP:0000011') {
-
-									if ($note) {
-										$curation_status = 'ATP:0000299'; # won't curate
-										$curation_tag = 'ATP:0000226'; # no curatable data
-										$note = ''; # set 'HDM flag not applicable' note to empty as the information is captured in the curation status
-										$store_status++;
-
-									}
-
-
-								# loop to deal with pheno - change $store_status switch and curation_status based on text
-								} elsif ($ATP eq 'ATP:0000079') {
-
-									if ($note) {
-
-										if ($note =~ m/only pheno_chem data in paper/ || $note =~ m/No phenotypic data in paper/) {
-
-											$curation_status = 'ATP:0000299'; # won't curate
-											$curation_tag = 'ATP:0000226'; # no curatable data
-											$note = ''; # set note to empty as the information is captured in the curation status
-											$store_status++;
-
-
-										}
-									} else {
-
-										# keep this warning - will identify any papers with missing 'No phenotypic data in paper' internal note
-										print $data_error_file "WARNING: no data despite standard filename (pheno loop) (check whether need to add a 'No phenotypic data in paper' internal note): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
-
-									}
+									# suppress following loop as was for debugging
+									#unless ($note) {
+									#	$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
+									#}
 
 
 								} else {
 
+									# loop to deal with phys_int
+									if ($ATP eq 'ATP:0000069') {
 
-									#print $data_error_file "WARNING: no data despite standard filename: topic: $ATP, pub_id: $pub_id, $timestamp\n";
+										if ($note) {
+
+											if ($note =~ m/phys_int not curated; bad flag/ || $note =~ m/phys_int not curated; bad SVM flag/) {
+
+												$curation_status = 'ATP:0000299'; # won't curate
+												$curation_tag = 'ATP:0000226'; # no curatable data
+												$store_status++;
+
+
+											} elsif ($note =~ m/already curated by/) {
+
+												$curation_status = 'ATP:0000299'; # won't curate
+												$store_status++;
+
+											} else {
+
+												$curation_status = 'ATP:0000299'; # won't curate
+												$curation_tag = 'ATP:0000208'; # not curatable
+												$store_status++;
+
+											}
+										} else {
+
+											print $data_error_file "WARNING: no data despite standard filename (phys_int loop): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
+
+										}
+
+
+									# loop to deal with humanhealth flags (harv_flag disease flags)
+									} elsif ($ATP eq 'ATP:0000011') {
+
+										if ($note) {
+											$curation_status = 'ATP:0000299'; # won't curate
+											$curation_tag = 'ATP:0000226'; # no curatable data
+											$note = ''; # set 'HDM flag not applicable' note to empty as the information is captured in the curation status
+											$store_status++;
+
+										}
+
+
+									# loop to deal with pheno - change $store_status switch and curation_status based on text
+									} elsif ($ATP eq 'ATP:0000079') {
+
+										if ($note) {
+
+											if ($note =~ m/only pheno_chem data in paper/ || $note =~ m/No phenotypic data in paper/) {
+
+												$curation_status = 'ATP:0000299'; # won't curate
+												$curation_tag = 'ATP:0000226'; # no curatable data
+												$note = ''; # set note to empty as the information is captured in the curation status
+												$store_status++;
+
+
+											}
+										} else {
+
+											# keep this warning - will identify any papers with missing 'No phenotypic data in paper' internal note
+											print $data_error_file "WARNING: no data despite standard filename (pheno loop) (check whether need to add a 'No phenotypic data in paper' internal note): topic: $ATP, pub_id: $pub_id, $pub_id_to_FBrf->{$pub_id}->{'FBrf'}, $timestamp\n";
+
+										}
+
+
+									} else {
+
+
+										#print $data_error_file "WARNING: no data despite standard filename: topic: $ATP, pub_id: $pub_id, $timestamp\n";
+
+									}
+								}
+
+								$note =~ s/^ //;
+								$note =~ s/ $//;
+
+								if ($store_status) {
+
+									$curation_status_data->{$pub_id}->{'date_created'} = $timestamp;
+									$curation_status_data->{$pub_id}->{'date_updated'} = $timestamp;
+									$curation_status_data->{$pub_id}->{'curation_status'} = $curation_status;
+
+
+									$curation_status_data->{$pub_id}->{'created_by'} = $curated_by ? $curated_by : "FB_curator";
+									$curation_status_data->{$pub_id}->{'updated_by'} = $curated_by ? $curated_by : "FB_curator";
+									$curation_status_data->{$pub_id}->{'mod_abbreviation'} = "FB";
+									my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
+									$curation_status_data->{$pub_id}->{'reference_curie'} = "FB:$FBrf";
+
+									$curation_status_data->{$pub_id}->{'topic'} = $ATP;
+									if ($note) {
+										$curation_status_data->{$pub_id}->{'note'} = $note;
+									}
+
+									if ($curation_tag) {
+										$curation_status_data->{$pub_id}->{'curation_tag'} = $curation_tag;
+									}
 
 								}
+
+
 							}
-
-							$note =~ s/^ //;
-							$note =~ s/ $//;
-
-							if ($store_status) {
-
-								$curation_status_data->{$pub_id}->{'date_created'} = $timestamp;
-								$curation_status_data->{$pub_id}->{'date_updated'} = $timestamp;
-								$curation_status_data->{$pub_id}->{'curation_status'} = $curation_status;
-
-
-								$curation_status_data->{$pub_id}->{'created_by'} = $curated_by ? $curated_by : "FB_curator";
-								$curation_status_data->{$pub_id}->{'updated_by'} = $curated_by ? $curated_by : "FB_curator";
-								$curation_status_data->{$pub_id}->{'mod_abbreviation'} = "FB";
-								my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
-								$curation_status_data->{$pub_id}->{'reference_curie'} = "FB:$FBrf";
-
-								$curation_status_data->{$pub_id}->{'topic'} = $ATP;
-								if ($note) {
-									$curation_status_data->{$pub_id}->{'note'} = $note;
-								}
-
-								if ($curation_tag) {
-									$curation_status_data->{$pub_id}->{'curation_tag'} = $curation_tag;
-								}
-
-							}
-
 
 						}
 
@@ -862,51 +860,49 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 						$curated_by = "$curator_details->{curator}";
 						$relevant_currecs = "$curator_details->{currecs}";
 
+						# add curation status if there is phenotypic data - it is expected that many of this kind of curation record will NOT contain phenotype data,
+						# so no need for else loop for those without phenotypic data
+						if (defined $has_curated_data) {
 
-					}
+							if (exists $has_curated_data->{$pub_id}) {
 
+								my $note = '';
 
-					# add curation status if there is phenotypic data - it is expected that many of this kind of curation record will NOT contain phenotype data,
-					# so no need for else loop for those without phenotypic data
-					if (defined $has_curated_data) {
+								if (defined $relevant_internal_notes && exists $relevant_internal_notes->{$pub_id}) {
+									$note = $note . (join ' ', sort keys %{$relevant_internal_notes->{$pub_id}});
 
-						if (exists $has_curated_data->{$pub_id}) {
+								}
 
-							my $note = '';
+								# suppress following loop as was for debugging
+								#unless ($note) {
+								#	$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
+								#}
 
-							if (defined $relevant_internal_notes && exists $relevant_internal_notes->{$pub_id}) {
-								$note = $note . (join ' ', sort keys %{$relevant_internal_notes->{$pub_id}});
+								$note =~ s/^ //;
+								$note =~ s/ $//;
+
+								$curation_status_data->{$pub_id}->{'date_created'} = $timestamp;
+								$curation_status_data->{$pub_id}->{'date_updated'} = $timestamp;
+								$curation_status_data->{$pub_id}->{'created_by'} = $curated_by ? $curated_by : "FB_curator";
+								$curation_status_data->{$pub_id}->{'updated_by'} = $curated_by ? $curated_by : "FB_curator";
+
+								$curation_status_data->{$pub_id}->{'mod_abbreviation'} = "FB";
+								my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
+								$curation_status_data->{$pub_id}->{'reference_curie'} = "FB:$FBrf";
+								$curation_status_data->{$pub_id}->{'topic'} = $ATP;
+								$curation_status_data->{$pub_id}->{'curation_status'} = "ATP:0000239";
+
+								if ($note) {
+									$curation_status_data->{$pub_id}->{'note'} = $note;
+								}
+
 
 							}
-
-							# suppress following loop as was for debugging
-							#unless ($note) {
-							#	$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
-							#}
-
-							$note =~ s/^ //;
-							$note =~ s/ $//;
-
-							$curation_status_data->{$pub_id}->{'date_created'} = $timestamp;
-							$curation_status_data->{$pub_id}->{'date_updated'} = $timestamp;
-								
-							$curation_status_data->{$pub_id}->{'created_by'} = $curated_by ? $curated_by : "FB_curator";
-							$curation_status_data->{$pub_id}->{'updated_by'} = $curated_by ? $curated_by : "FB_curator";
-
-							$curation_status_data->{$pub_id}->{'mod_abbreviation'} = "FB";
-							my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
-							$curation_status_data->{$pub_id}->{'reference_curie'} = "FB:$FBrf";
-							$curation_status_data->{$pub_id}->{'topic'} = $ATP;
-							$curation_status_data->{$pub_id}->{'curation_status'} = "ATP:0000239";
-
-							if ($note) {
-								$curation_status_data->{$pub_id}->{'note'} = $note;
-							}
-
 
 						}
 
 					}
+
 				}
 
 			}
