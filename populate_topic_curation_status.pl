@@ -436,19 +436,12 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 	}
 
 	# if appropriate, get references that are *expected* to contain curated data corresponding to the ATP topic, based on curation record filename.
-	my $currecs_by_timestamp = undef;
-	my $currecs_by_curator = undef;
+	my $currecs = {};
+
 	if (exists $curation_status_topics->{$ATP}->{'use_filename'}) {
 
-		if ($curation_status_topics->{$ATP}->{'flag_type'} eq 'cam_flag') {
+		($currecs->{"by_timestamp"}, $currecs->{"by_curator"}) = &get_relevant_currec_for_datatype($dbh,$curation_status_topics->{$ATP}->{'use_filename'});
 
-			($currecs_by_timestamp, $currecs_by_curator) = &get_relevant_currec_for_datatype($dbh,$curation_status_topics->{$ATP}->{'use_filename'});
-
-		} else {
-
-			($currecs_by_timestamp, undef) = &get_relevant_currec_for_datatype($dbh,$curation_status_topics->{$ATP}->{'use_filename'});
-
-		}
 	}
 
 	#additional 'cam_full' curation record filename info - needed for pheno flag
@@ -600,9 +593,9 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 										} else {
 
 											# in the absence of a check for curated data of the expected type, use presence of curation record with expected filename
-											if (defined $currecs_by_timestamp) {
+											if (exists $currecs->{"by_timestamp"}) {
 
-												if (exists $currecs_by_timestamp->{$pub_id}) {
+												if (exists $currecs->{"by_timestamp"}->{$pub_id}) {
 													$note = $note . " 'curated' flag suffix confirmed by presence of currec with expected filename format.";
 													$store_status++;
 												} else {
@@ -673,9 +666,9 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 	#second, assign curation status based on standard record filenames, if not already assigned above (this gets data for papers curated before triage flags were used in FB).
 	# DESCRIPTION, Script logic: 4
-	if (defined $currecs_by_timestamp) {
+	if (exists $currecs->{"by_timestamp"}) {
 
-		foreach my $pub_id (sort keys %{$currecs_by_timestamp}) {
+		foreach my $pub_id (sort keys %{$currecs->{"by_timestamp"}}) {
 
 ##
 			if (exists $pub_id_to_FBrf->{$pub_id}) {
@@ -684,55 +677,19 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 					unless (exists $curation_status_data->{$pub_id}) {
 
-						# get the timestamp of the *earliest* matching curation record
-						my $timestamp = $currecs_by_timestamp->{$pub_id}[0];
-
-						# try to determine the relevant curator if appropriate for the topic
-						my $relevant_curator = '';
-						my $relevant_currecs = '';
+						# try to determine the relevant curator for the topic
+						my $timestamp = '';
 						my $curated_by = '';
+						my $relevant_currecs = '';
 
-						if (defined $currecs_by_curator) {
+						my $curator_details = &get_relevant_curator_from_candidate_list($currecs, $pub_id);
 
-							if (exists $currecs_by_curator->{$pub_id}) {
+						if (defined $curator_details) {
 
-								if (scalar keys %{$currecs_by_curator->{$pub_id}} == 1) {
-									my $curator_candidate = join '', keys %{$currecs_by_curator->{$pub_id}};
+							$timestamp = "$curator_details->{timestamp}";
+							$curated_by = "$curator_details->{curator}";
+							$relevant_currecs = "$curator_details->{currecs}";
 
-									if (exists $currecs_by_curator->{$pub_id}->{$curator_candidate}->{$timestamp}) {
-										$relevant_curator = $curator_candidate;
-										$relevant_currecs = join ' ', sort keys %{$currecs_by_curator->{$pub_id}->{$curator_candidate}->{$timestamp}};
-
-									}
-								} else {
-
-									my $count = 0;
-									foreach my $curator_candidate (sort keys %{$currecs_by_curator->{$pub_id}}) {
-
-										foreach my $candidate_timestamp (sort keys %{$currecs_by_curator->{$pub_id}->{$curator_candidate}}) {
-
-											if ($candidate_timestamp eq $timestamp) {
-
-												$relevant_curator = $curator_candidate;
-												$relevant_currecs = join ' ', sort keys %{$currecs_by_curator->{$pub_id}->{$curator_candidate}->{$candidate_timestamp}};
-												$count++;
-
-											}
-										}
-									}
-
-									unless ($count == 1) {
-										$relevant_curator = '';
-										$relevant_currecs = '';
-									}
-								}
-							}
-						}
-
-						if ($relevant_curator) {
-
-							#$curated_by = "$relevant_curator: $relevant_currecs"; # debugging
-							$curated_by = "$relevant_curator";
 
 						}
 
