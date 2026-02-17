@@ -288,16 +288,20 @@ my $flag_suffix_mapping = {
 
 open my $json_output_file, '>', "FB_curation_status_data.json"
 	or die "Can't open json output file ($!)\n";
+binmode($json_output_file, ":utf8");
 
 open my $data_error_file, '>', "FB_curation_status_data_errors.err"
 	or die "Can't open data error logging file ($!)\n";
+binmode($data_error_file, ":utf8");
 
 open my $process_error_file, '>', "FB_curation_status_process_errors.err"
 	or die "Can't open processing error logging file ($!)\n";
+binmode($process_error_file, ":utf8");
 
 
 open my $plain_output_file, '>', "FB_curation_status_data.txt"
 	or die "Can't open plain output file ($!)\n";
+binmode($plain_output_file, ":utf8");
 
 
 print STDERR "##Starting processing: " . (scalar localtime) . "\n";
