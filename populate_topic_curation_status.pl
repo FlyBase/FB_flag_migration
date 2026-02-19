@@ -481,13 +481,15 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 								my $note = '';
 
 								if (defined $relevant_internal_notes && exists $relevant_internal_notes->{$pub_id}) {
-									$note = $note . (join ' ', sort keys %{$relevant_internal_notes->{$pub_id}});
+
+									my $text_to_add = (join '||', sort keys %{$relevant_internal_notes->{$pub_id}});
+									$note ? $note = "$note||$text_to_add" : $note = "$text_to_add";
 								}
 
 								if (exists $flag_suffix_mapping->{$suffix}->{note}) {
-									$note = $note . " $flag_suffix_mapping->{$suffix}->{note}";
+
+									$note ? $note = "$note||$flag_suffix_mapping->{$suffix}->{note}" : $note = "$flag_suffix_mapping->{$suffix}->{note}";
 								}
-								$note =~ s/^ //;
 
 
 								my $timestamp = $flags_with_suffix->{$pub_id}->{$suffix}->{'timestamp'}[-1];
@@ -548,7 +550,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 														$curation_status = 'ATP:0000299'; # won't curate
 														$curation_tag = 'ATP:0000226'; # no curatable data
 
-														$note = $note . "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB, so status set to 'won't curate' with a 'no curatable data' tag.";
+														my $error_note = "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB, so status set to 'won't curate' with a 'no curatable data' tag.";
+														$note ? $note = "$note||$error_note" : $note = "$error_note";
 														$store_status++;
 
 														#print $data_error_file "WARNING: no data despite curated flag suffix: topic (phys_int loop): $ATP, pub_id: $pub_id, suffix: $suffix, note: $note\n";
@@ -557,8 +560,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 												# loop to deal with genom_feat - flag may be on primary paper, while details are in a related pc, so add the curation status as 'done' with a warning note
 												} elsif ($ATP eq 'ATP:0000056') {
-
-													$note = $note . "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB. Despite this, set status to 'curated' as attribution may be to a related personal communication (after author correspondence) instead of the original reference.";
+													my $error_note = "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB. Despite this, set status to 'curated' as attribution may be to a related personal communication (after author correspondence) instead of the original reference.";
+													$note ? $note = "$note||$error_note" : $note = "$error_note";
 													$store_status++;
 
 												# loop to deal with humanhealth flags (harv_flag disease flags)
@@ -568,9 +571,12 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 													$curation_tag = 'ATP:0000226'; # no curatable data
 													$store_status++;
 
+
+													my $error_note = "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB, so status set to 'won't curate' with a 'no curatable data' tag.";
+
 													unless ($note) {
 
-														$note = "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB, so status set to 'won't curate' with a 'no curatable data' tag.";
+														$note = "$error_note";
 													} else {
 
 														$note = ''; # set 'HDM flag not applicable' note to empty as the information is captured in the curation status
@@ -582,7 +588,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 													$curation_status = 'ATP:0000299'; # won't curate
 													$curation_tag = 'ATP:0000226'; # no curatable data
 
-													$note = $note . "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB, so status set to 'won't curate' with a 'no curatable data' tag.";
+													my $error_note = "'$suffix' flag suffix present in FB, indicating that the publication has been looked at, but there is no curated data of the relevant type in FB, so status set to 'won't curate' with a 'no curatable data' tag.";
+													$note ? $note = "$note||$error_note" : $note = "$error_note";
 													$store_status++;
 
 												}
@@ -596,7 +603,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 											if (exists $currecs->{"by_timestamp"}) {
 
 												if (exists $currecs->{"by_timestamp"}->{$pub_id}) {
-													$note = $note . " 'curated' flag suffix confirmed by presence of currec with expected filename format.";
+													my $error_note = "'curated' flag suffix confirmed by presence of currec with expected filename format.";
+													$note ? $note = "$note||$error_note" : $note = "$error_note";
 													$store_status++;
 												} else {
 													print $data_error_file "WARNING: DONE style flag but no corresponding currec: topic: $ATP, pub_id: $pub_id, suffix: $suffix, note: $note\n";
@@ -611,8 +619,6 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 									}
 								}
 
-								$note =~ s/^ //;
-								$note =~ s/ $//;
 
 								if ($store_status) {
 
@@ -698,7 +704,9 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 
 								if (defined $relevant_internal_notes && exists $relevant_internal_notes->{$pub_id}) {
-									$note = $note . (join ' ', sort keys %{$relevant_internal_notes->{$pub_id}});
+
+									my $text_to_add = (join '||', sort keys %{$relevant_internal_notes->{$pub_id}});
+									$note ? $note = "$note||$text_to_add" : $note = "$text_to_add";
 
 								}
 
@@ -796,8 +804,6 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 									}
 								}
 
-								$note =~ s/^ //;
-								$note =~ s/ $//;
 
 								if ($store_status) {
 
@@ -870,7 +876,9 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 								my $note = '';
 
 								if (defined $relevant_internal_notes && exists $relevant_internal_notes->{$pub_id}) {
-									$note = $note . (join ' ', sort keys %{$relevant_internal_notes->{$pub_id}});
+									#$note = $note . (join '||', sort keys %{$relevant_internal_notes->{$pub_id}});
+									my $text_to_add = (join '||', sort keys %{$relevant_internal_notes->{$pub_id}});
+									$note ? $note = "$note||$text_to_add" : $note = "$text_to_add";
 
 								}
 
@@ -879,8 +887,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 								#	$note = "'curated' status inferred from presence of data plus currec with expected filename format.";
 								#}
 
-								$note =~ s/^ //;
-								$note =~ s/ $//;
+								#$note =~ s/^ //;
+								#$note =~ s/ $//;
 
 								$curation_status_data->{$pub_id}->{json}->{'date_created'} = $timestamp;
 								$curation_status_data->{$pub_id}->{json}->{'date_updated'} = $timestamp;
