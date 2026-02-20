@@ -617,6 +617,24 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 
 								my $timestamp = $flags_with_suffix->{$pub_id}->{$suffix}->{'timestamp'}[-1];
+								my $curated_by = '';
+								my $relevant_currecs = '';
+
+								# try to match up timestamp information to relevant curation record
+								my $curator_details = &get_relevant_curator_from_candidate_list($currecs, $pub_id);
+
+
+								if (defined $curator_details) {
+
+									my $curator_timestamp = "$curator_details->{timestamp}";
+									if ($curator_timestamp eq $timestamp && $curator_details->{currecs} ne 'multiple curators for same timestamp') {
+
+										$curated_by = "$curator_details->{curator}";
+										$relevant_currecs = "$curator_details->{currecs}";
+
+									}
+
+								}
 
 								my $store_status = 0;
 
@@ -698,8 +716,18 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 									$curation_status_data->{$pub_id}->{json}->{'date_created'} = $timestamp;
 									$curation_status_data->{$pub_id}->{json}->{'date_updated'} = $timestamp;
-									$curation_status_data->{$pub_id}->{json}->{'created_by'} = "FB_curator";
-									$curation_status_data->{$pub_id}->{json}->{'updated_by'} = "FB_curator";
+
+									if ($curated_by) {
+										$curation_status_data->{$pub_id}->{json}->{'created_by'} = $curated_by;
+										$curation_status_data->{$pub_id}->{json}->{'updated_by'} = $curated_by;
+
+
+									} else {
+
+										$curation_status_data->{$pub_id}->{json}->{'created_by'} = "FB_curator";
+										$curation_status_data->{$pub_id}->{json}->{'updated_by'} = "FB_curator";
+									}
+
 
 									$curation_status_data->{$pub_id}->{json}->{'mod_abbreviation'} = "FB";
 									my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
@@ -718,6 +746,11 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 									if ($potential_note) {
 										$curation_status_data->{$pub_id}->{debugging}->{'potential_note'} = $potential_note;
+									}
+
+									if ($relevant_currecs) {
+										$curation_status_data->{$pub_id}->{debugging}->{'currecs'} = $relevant_currecs;
+
 									}
 
 								}
