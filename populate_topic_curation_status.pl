@@ -139,12 +139,14 @@ Again, the curation status is stored along with any relevant 'controlled_tag' an
 
 5. Internal notes associated with the publication are then used as follows:
 
-5a. If the internal note matches any of the standard format notes expected for that topic:
+5a. if the internal note matches any of the standard format notes expected for that topic:
 
 - the original curation_tag information assinged in 3. or 4. above may be changed to a more appropriate value (using the info in $int_note_to_curation_tag_mapping).
 - the potential_note may be added into the 'note' slot for submitting in the json (only used if adding the more appropriate curation_tag does not fully explain the curation status)
 - the standard format note may be *removed* from the internal note text (done when the the more appropriate curation_tag fully conveys the information in the standard format note).
 - any remaining internal note information is added to the 'note' slot for submitting in the json.
+
+5b. for any other internal notes not dealt with by the above, then if the internal note metadata (timestamp, curator, curation records) *completely* matches that of the curated_by timestamp for a topic, then it is safe to add that internal note into the 'note' slot for that topic.
 
 
 6. Once the script has been through all the ATP topics, the stored information is converted into json for submitting to the Alliance.
@@ -942,97 +944,204 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 					my $dealt_with = 0;
 
-					# first deal with the standard format internal notes that can be used to override initial setting of curation status and curation tag, doesn't matter about timestamp for these
-					if (exists $int_note_to_curation_tag_mapping->{$ATP}) {
+					if ($curated_by && $date_created && $curation_records) {
 
-						foreach my $match_type (sort keys %{$int_note_to_curation_tag_mapping->{$ATP}}) {
-
-							my $string = $int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{regex};
-
-							if ($int_note =~ m|$string|m) {
-
-								$dealt_with++;
+						if (scalar @{$all_candidate_internal_notes->{$pub_id}->{$int_note}} == 1) {
+							my $int_note_timestamp = join '', @{$all_candidate_internal_notes->{$pub_id}->{$int_note}};
+							my $int_note_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $int_note_timestamp);
 
 
-								if (exists $int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{tag}) {
 
-									unless ($freeze_tag) {
+							if (defined $int_note_details && $int_note_timestamp eq $date_created) {
 
 
-										# only override the curation_tag value based on the standard_format internal note when the curation_status
-										# calculated earlierfrom presence/absence of data matches the expected status for that format internal note
-										# (so don't incorrectly add a tag if the internal note was either added by mistake or the complex phys_int case
-										# where there can be a formatted 'negative' internal note even when there is curated data
-										if ($int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{status} eq $curation_status) {
+								if ($curated_by eq $int_note_details->{curator} && $int_note_details->{currecs} eq $curation_records) {
 
-											if ($int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{tag} ne '') {
-												$curation_status_data->{$pub_id}->{json}->{'curation_tag'} = "$int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{tag}";
 
-											} else {
-												delete $curation_status_data->{$pub_id}->{json}->{'curation_tag'};
+									if (exists $int_note_to_curation_tag_mapping->{$ATP}) {
 
+										foreach my $match_type (sort keys %{$int_note_to_curation_tag_mapping->{$ATP}}) {
+
+											my $string = $int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{regex};
+
+											if ($int_note =~ m|$string|m) {
+
+												$dealt_with++;
+
+
+												if (exists $int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{tag}) {
+
+													unless ($freeze_tag) {
+
+
+														# only override the curation_tag value based on the standard_format internal note when the curation_status
+														# calculated earlierfrom presence/absence of data matches the expected status for that format internal note
+														# (so don't incorrectly add a tag if the internal note was either added by mistake or the complex phys_int case
+														# where there can be a formatted 'negative' internal note even when there is curated data
+														if ($int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{status} eq $curation_status) {
+
+															if ($int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{tag} ne '') {
+																$curation_status_data->{$pub_id}->{json}->{'curation_tag'} = "$int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{tag}";
+
+															} else {
+																delete $curation_status_data->{$pub_id}->{json}->{'curation_tag'};
+
+															}
+
+															if (exists $int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{freeze_tag}) {
+																$freeze_tag++;
+															}
+														}
+													}
+												}
+
+
+												# remove the internal note if either a. it has been converted to a curation_tag above
+												# or b. the presence of the note must be an error as its a 'no data' standard internal note
+												# but there *is* data curated under the paper.
+												if (exists $int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{remove_int_note}) {
+
+													$int_note =~ s/$string//mg;
+
+												}
+
+
+												if (exists $int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{remove_potential_note}) {
+
+													if (exists $curation_status_data->{$pub_id}->{debugging}->{'potential_note'}) {
+
+														delete $curation_status_data->{$pub_id}->{debugging}->{'potential_note'};
+
+													}
+												}
 											}
+										}
 
-											if (exists $int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{freeze_tag}) {
-												$freeze_tag++;
-											}
+										$int_note =~ s/^ +//;
+										$int_note =~ s/ +$//;
+										$int_note =~ s/^\n+//;
+										$int_note =~ s/\n+$//;
+
+
+									} else {
+
+										# always add any non standard format internal notes where the timestamp, curator and curation records information matches
+										$dealt_with++;
+
+									}
+
+
+
+
+
+									# add the internal note info here if its been marked as dealt_with
+									if ($dealt_with && $int_note ne '') {
+										if (exists $curation_status_data->{$pub_id}->{json}->{note}) {
+
+											$curation_status_data->{$pub_id}->{json}->{note} = &clean_note("$curation_status_data->{$pub_id}->{json}->{note}||$int_note");
+
+										} else {
+											$curation_status_data->{$pub_id}->{json}->{note} = &clean_note("$int_note");
 										}
 									}
 								}
+							}
+
+						}
+
+					}
 
 
-								# remove the internal note if either a. it has been converted to a curation_tag above
-								# or b. the presence of the note must be an error as its a 'no data' standard internal note
-								# but there *is* data curated under the paper.
-								if (exists $int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{remove_int_note}) {
-
-									$int_note =~ s/$string//mg;
-
-								}
+					###
+					unless ($dealt_with) {
 
 
-								if (exists $int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{remove_potential_note}) {
+						# then deal with any remaining standard format internal notes (that do not match timestamp of curated_by e.g. if added in .edit record later)
+						# this code is the same as that which deals with standard format internal notes where the timestamp info does match above
+						if (exists $int_note_to_curation_tag_mapping->{$ATP}) {
 
-									if (exists $curation_status_data->{$pub_id}->{debugging}->{'potential_note'}) {
+							foreach my $match_type (sort keys %{$int_note_to_curation_tag_mapping->{$ATP}}) {
 
-										delete $curation_status_data->{$pub_id}->{debugging}->{'potential_note'};
+								my $string = $int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{regex};
 
+								if ($int_note =~ m|$string|m) {
+
+									$dealt_with++;
+
+
+
+									if (exists $int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{tag}) {
+
+										unless ($freeze_tag) {
+
+
+											# only override the curation_tag value based on the standard_format internal note when the curation_status
+											# calculated earlierfrom presence/absence of data matches the expected status for that format internal note
+											# (so don't incorrectly add a tag if the internal note was either added by mistake or the complex phys_int case
+											# where there can be a formatted 'negative' internal note even when there is curated data
+											if ($int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{status} eq $curation_status) {
+
+												if ($int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{tag} ne '') {
+													$curation_status_data->{$pub_id}->{json}->{'curation_tag'} = "$int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{tag}";
+
+												} else {
+													delete $curation_status_data->{$pub_id}->{json}->{'curation_tag'};
+
+												}
+
+												if (exists $int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{freeze_tag}) {
+													$freeze_tag++;
+												}
+											}
+										}
+									}
+
+
+									# remove the internal note if either a. it has been converted to a curation_tag above
+									# or b. the presence of the note must be an error as its a 'no data' standard internal note
+									# but there *is* data curated under the paper.
+									if (exists $int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{remove_int_note}) {
+
+										$int_note =~ s/$string//mg;
+
+									}
+
+
+									if (exists $int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{remove_potential_note}) {
+
+										if (exists $curation_status_data->{$pub_id}->{debugging}->{'potential_note'}) {
+
+											delete $curation_status_data->{$pub_id}->{debugging}->{'potential_note'};
+
+										}
 									}
 								}
 							}
-						}
 
-						$int_note =~ s/^ +//;
-						$int_note =~ s/ +$//;
-						$int_note =~ s/^\n+//;
-						$int_note =~ s/\n+$//;
+							$int_note =~ s/^ +//;
+							$int_note =~ s/ +$//;
+							$int_note =~ s/^\n+//;
+							$int_note =~ s/\n+$//;
 
-						# only add the internal note at this point if it was one of the standard format ones (will deal with others in loop below, as need to check that they have the correct timestamp)
-						if ($dealt_with && $int_note ne '') {
-							if (exists $curation_status_data->{$pub_id}->{json}->{note}) {
+							# only add the internal note at this point if it was one of the standard format ones (will deal with others in loop below, as need to check that they have the correct timestamp)
+							if ($dealt_with && $int_note ne '') {
+								if (exists $curation_status_data->{$pub_id}->{json}->{note}) {
 
-								$curation_status_data->{$pub_id}->{json}->{note} = &clean_note("$curation_status_data->{$pub_id}->{json}->{note}||$int_note");
+									$curation_status_data->{$pub_id}->{json}->{note} = &clean_note("$curation_status_data->{$pub_id}->{json}->{note}||$int_note");
 
 
-							} else {
-								$curation_status_data->{$pub_id}->{json}->{note} = &clean_note("$int_note");
+								} else {
+									$curation_status_data->{$pub_id}->{json}->{note} = &clean_note("$int_note");
+								}
+
 							}
+
 						}
-
 					}
-
-					unless ($dealt_with) {
-						# find ones with matching timestamp here for those that have not already dealt with
-						# here is where will need to make sure have $curated_by etc.
-
-
-					}
-
-
 				}
 			}
 
-			# add any remaining 'potential_note' information
+			# add any remaining 'potential_note' information once finished dealing with internal notes for the publication
 
 			if (exists $curation_status_data->{$pub_id}->{debugging}->{potential_note}) {
 
@@ -1052,7 +1161,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 			#store data for making json later
 			push @{$complete_data->{data}}, $curation_status_data->{$pub_id}->{json};
 
-			# remaining variables needeed for plain output (useful for debugging)
+			# remaining variables needed for plain output (useful for debugging)
 			my $flag = $curation_status_topics->{$ATP}->{'flags'}[0];
 			my $curation_tag = exists $curation_status_data->{$pub_id}->{json}->{'curation_tag'} ? $curation_status_data->{$pub_id}->{json}->{'curation_tag'} : '';
 			my $note = exists $curation_status_data->{$pub_id}->{json}->{note} ? $curation_status_data->{$pub_id}->{json}->{note} : '';
