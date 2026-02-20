@@ -987,8 +987,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 							if (defined $int_note_details && $int_note_timestamp eq $date_created) {
 
+								if ($curated_by eq $int_note_details->{curator} && $int_note_details->{currecs} eq $curation_records && $curation_records ne 'multiple curators for same timestamp' && $curation_records !~ m/ /) {
 
-								if ($curated_by eq $int_note_details->{curator} && $int_note_details->{currecs} eq $curation_records && $curation_records ne 'multiple curators for same timestamp') {
 
 
 									if (exists $int_note_to_curation_tag_mapping->{$ATP}) {
