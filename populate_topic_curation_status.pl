@@ -608,7 +608,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 								my $curation_tag = '';
 								my $note = '';
 								my $potential_note = '';
-
+								my $debugging_note = '';
 
 								if (exists $flag_suffix_mapping->{$suffix}->{note}) {
 
@@ -635,6 +635,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 										$curated_by = "$curator_details->{curator}";
 										$relevant_currecs = "$curator_details->{currecs}";
+										$debugging_note = 'CURATOR: currec matching flag suffix timestamp AND filename format for topic';
 
 									}
 
@@ -768,6 +769,11 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 									}
 
+									if ($debugging_note) {
+										$curation_status_data->{$pub_id}->{debugging}->{'debugging_note'} = $debugging_note;
+
+									}
+
 								}
 
 							} else {
@@ -884,6 +890,9 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 										$curation_status_data->{$pub_id}->{debugging}->{'potential_note'} = $potential_note;
 									}
 
+									$curation_status_data->{$pub_id}->{debugging}->{'debugging_note'} = 'CURATOR: currec matching filename format for topic';
+
+
 								}
 
 
@@ -943,7 +952,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 
 								$curation_status_data->{$pub_id}->{debugging}->{'currecs'} = $relevant_currecs;
-
+								$curation_status_data->{$pub_id}->{debugging}->{'debugging_note'} = "CURATOR: currec matching camcur 'full' filename format";
 
 							}
 
@@ -1212,13 +1221,14 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 			# remaining variables needed for plain output (useful for debugging)
 			my $flag = $curation_status_topics->{$ATP}->{'flags'}[0];
 			my $curation_tag = exists $curation_status_data->{$pub_id}->{json}->{'curation_tag'} ? $curation_status_data->{$pub_id}->{json}->{'curation_tag'} : '';
+			my $debugging_note = exists $curation_status_data->{$pub_id}->{debugging}->{'debugging_note'} ? $curation_status_data->{$pub_id}->{debugging}->{'debugging_note'} : '';
 			my $note = exists $curation_status_data->{$pub_id}->{json}->{note} ? $curation_status_data->{$pub_id}->{json}->{note} : '';
 
 			# form for printing in plain output
 			my $reformatted_note = "$note";
 			$reformatted_note =~ s/\n/ /g;
 
-			print $plain_output_file "DATA:$pub_id\t$FBrf\t$pub_type\t$ATP\t$flag\t$curation_status\t$date_created\t$curation_tag\t$reformatted_note\t$curated_by\t$curation_records\n";
+			print $plain_output_file "DATA:$pub_id\t$FBrf\t$pub_type\t$ATP\t$flag\t$curation_status\t$date_created\t$curation_tag\t$reformatted_note\t$curated_by\t$curation_records\t$debugging_note\n";
 
 		}
 
