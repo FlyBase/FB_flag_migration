@@ -976,8 +976,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 		if (defined $curation_status_data->{$pub_id}->{json}->{'curation_status'}) {
 
 
-			# variables adding internal notes (also used for plain output later)
-			my $curated_by = $curation_status_data->{$pub_id}->{json}->{'created_by'} ? "$curation_status_data->{$pub_id}->{json}->{'created_by'}" : '';
+			# variables used for adding internal notes (also used for plain output later)
+			my $curated_by = exists $curation_status_data->{$pub_id}->{json}->{'created_by'} ? "$curation_status_data->{$pub_id}->{json}->{'created_by'}" : '';
 			my $curation_status = exists $curation_status_data->{$pub_id}->{json}->{'curation_status'} ? $curation_status_data->{$pub_id}->{json}->{'curation_status'} : '';
 			my $date_created = exists $curation_status_data->{$pub_id}->{json}->{'date_created'} ? $curation_status_data->{$pub_id}->{json}->{'date_created'} : '';
 			my $curation_records = exists $curation_status_data->{$pub_id}->{debugging}->{currecs} ? $curation_status_data->{$pub_id}->{debugging}->{currecs} : '';
