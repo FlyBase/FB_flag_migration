@@ -679,6 +679,19 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 												$debugging_note = 'CURATOR: single currec matching filename format for topic, overriding timestamp for flag suffix';
 
 											}
+										} else {
+
+											# if there are multiple curation records for the topic but they are all from the same curator, use the details from the earliest curation record
+											if (scalar keys %{$currecs->{"by_curator"}->{$pub_id}} == 1) {
+
+												unless ($curator_details->{currecs} =~ m/ /) {
+													$curated_by = "$curator_details->{curator}";
+													$relevant_currecs = "$curator_details->{currecs}";
+													$timestamp = "$curator_details->{timestamp}";
+													$debugging_note = 'CURATOR: multiple currec matching filename format for topic but all from ONE curator, so using earliest, overriding timestamp for flag suffix';
+												}
+											}
+
 										}
 									}
 
