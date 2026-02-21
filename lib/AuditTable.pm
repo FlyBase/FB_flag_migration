@@ -552,7 +552,7 @@ Arguments:
 	my $datatype_mapping = {
 
 		# filename types used for topic curation status
-		'cell_line' => '.+?\.(cell|cell_multiple|cell_multi|cell_tsv_multiple_corrected|new_pub_cell)\..+?',
+		'cell_line' => '.+?\.(cell|cell_multiple|cell_multi|cell_tsv_multiple_corrected|new_pub_cell|cell_tsv|new_cell_line)\..+?',
 		'phys_int' => '.+?\.(int|int_miRNA)\..+?',
 		'DO' => '.+?\.DO\..+?',
 		'neur_exp' => '.+?\.vfb\.exp.+?',
