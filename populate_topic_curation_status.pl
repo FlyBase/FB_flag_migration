@@ -629,19 +629,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 								# try to match up timestamp information to relevant curation record
 								my $curator_details = &get_relevant_curator_from_candidate_list($currecs, $pub_id);
 
-								# the publication has a curation record of the expected filename format for the topic
-								if (defined $curator_details) {
 
-									my $curator_timestamp = "$curator_details->{timestamp}";
-									if ($curator_timestamp eq $timestamp && $curator_details->{currecs} ne 'multiple curators for same timestamp') {
-
-										$curated_by = "$curator_details->{curator}";
-										$relevant_currecs = "$curator_details->{currecs}";
-										$debugging_note = 'CURATOR: currec matching flag suffix timestamp AND filename format for topic';
-
-									}
-
-								} else {
+								unless (defined $curator_details) {
 
 									# the publication DOES NOT have a curation record of the expected filename format for the topic (so the data was probably submitted as an edit record).
 									# If appropriate for the topic, see if it is possible to unambiguously identify a single curation record of any format that BOTH matches the flag suffix timestamp
@@ -664,6 +653,18 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 												}
 											}
 										}
+									}
+
+								} else {
+
+									# the publication does have a curation record of the expected filename format for the topic
+									my $curator_timestamp = "$curator_details->{timestamp}";
+									if ($curator_timestamp eq $timestamp && $curator_details->{currecs} ne 'multiple curators for same timestamp') {
+
+										$curated_by = "$curator_details->{curator}";
+										$relevant_currecs = "$curator_details->{currecs}";
+										$debugging_note = 'CURATOR: currec matching flag suffix timestamp AND filename format for topic';
+
 									}
 
 								}
