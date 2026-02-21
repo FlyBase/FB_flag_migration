@@ -546,6 +546,8 @@ my $additional_filters = [
 my $all_candidate_internal_notes = &get_all_pub_internal_notes_for_tet_wf($dbh, $additional_filters);
 my $all_curation_record_data = &get_all_currec_data($dbh);
 
+# get list of all pub_ids that have had plincg (correct) to triage flag data
+my $pubs_with_triage_flag_plingc = &get_pubs_with_triage_flag_plingc($dbh);
 
 
 my $complete_data = {};
@@ -627,7 +629,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 								# try to match up timestamp information to relevant curation record
 								my $curator_details = &get_relevant_curator_from_candidate_list($currecs, $pub_id);
 
-
+								# the publication has a curation record of the expected filename format for the topic
 								if (defined $curator_details) {
 
 									my $curator_timestamp = "$curator_details->{timestamp}";
@@ -637,6 +639,31 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 										$relevant_currecs = "$curator_details->{currecs}";
 										$debugging_note = 'CURATOR: currec matching flag suffix timestamp AND filename format for topic';
 
+									}
+
+								} else {
+
+									# the publication DOES NOT have a curation record of the expected filename format for the topic (so the data was probably submitted as an edit record).
+									# If appropriate for the topic, see if it is possible to unambiguously identify a single curation record of any format that BOTH matches the flag suffix timestamp
+									# AND where the curator *added* a flag::DONE flag straight into that record (because the record contains the curation for that topic).
+									unless (exists $curation_status_topics->{$ATP}->{'exclude_check_any_record_matching_suffix_timestamp'}) {
+
+										unless (exists $pubs_with_triage_flag_plingc->{$pub_id} && exists $pubs_with_triage_flag_plingc->{$pub_id}->{"$curation_status_topics->{$ATP}->{flag_type}"} && exists $pubs_with_triage_flag_plingc->{$pub_id}->{"$curation_status_topics->{$ATP}->{flag_type}"}->{$timestamp}) {
+
+											my $candidate_curator_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $timestamp);
+											if (defined $candidate_curator_details) {
+
+												my $candidate_curator = "$candidate_curator_details->{curator}";
+												my $candidate_currecs = "$candidate_curator_details->{currecs}";
+												if ($candidate_currecs ne 'multiple curators for same timestamp') {
+
+													$curated_by = "$candidate_curator_details->{curator}";
+													$relevant_currecs = "$candidate_curator_details->{currecs}";
+													$debugging_note = 'CURATOR: currec matching flag suffix timestamp ONLY (no record with filename format for topic exists for pub)';
+
+												}
+											}
+										}
 									}
 
 								}

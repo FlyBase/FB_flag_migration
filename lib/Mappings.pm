@@ -272,6 +272,7 @@ sub get_flag_mapping {
 				'ATP_topic' => 'ATP:0000054',
 				'for_curation_status' => {
 					'suffix' => 'only',
+					'exclude_check_any_record_matching_suffix_timestamp' => '1',
 				},
 			},
 
@@ -281,6 +282,7 @@ sub get_flag_mapping {
 					'suffix' => 'use',
 					'use_filename' => 'args',
 					'get_curated_data' => 'genom_feat',
+					'exclude_check_any_record_matching_suffix_timestamp' => '1',
 				},
 
 			},
@@ -291,6 +293,7 @@ sub get_flag_mapping {
 					'suffix' => 'use',
 					'use_filename' => 'args',
 					'get_curated_data' => 'genom_feat',
+					'exclude_check_any_record_matching_suffix_timestamp' => '1',
 				},
 
 			},
