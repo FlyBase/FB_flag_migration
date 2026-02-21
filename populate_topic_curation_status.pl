@@ -660,11 +660,26 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 									# the publication does have a curation record of the expected filename format for the topic
 									my $curator_timestamp = "$curator_details->{timestamp}";
 									if ($curator_timestamp eq $timestamp && $curator_details->{currecs} ne 'multiple curators for same timestamp') {
+									# if the timestamp does match, use the curator details
 
 										$curated_by = "$curator_details->{curator}";
 										$relevant_currecs = "$curator_details->{currecs}";
 										$debugging_note = 'CURATOR: currec matching flag suffix timestamp AND filename format for topic';
 
+									} else {
+									# if the timestamp does not match, see if there is only one curation record of the appropriate filename format for the topic, and if so, use that, updating the timestamp to that of the curation record (so that any internal notes from that record will be pulled in later on)
+										# first check that there is just a single timestamp for matching curation records
+										if (scalar @{$currecs->{"by_timestamp"}->{$pub_id}} == 1) {
+
+											# if there is just a single matching curation record for the topic use that
+											unless ($curator_details->{currecs} =~ m/ /) {
+												$curated_by = "$curator_details->{curator}";
+												$relevant_currecs = "$curator_details->{currecs}";
+												$timestamp = "$curator_details->{timestamp}";
+												$debugging_note = 'CURATOR: single currec matching filename format for topic, overriding timestamp for flag suffix';
+
+											}
+										}
 									}
 
 								}
