@@ -862,8 +862,8 @@ foreach my $pub_id (sort keys %{$workflow_status_data}) {
 		push @{$complete_data->{data}}, $workflow_status_data->{$pub_id}->{$workflow_type}->{json};
 
 		# simple output for testing/debugging
-		my $curated_by = $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'created_by'} ? "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'created_by'}" : '';
-		my $updated_by = $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'updated_by'} ? "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'updated_by'}" : '';
+		my $curated_by = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'created_by'} ? "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'created_by'}" : '';
+		my $updated_by = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'updated_by'} ? "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'updated_by'}" : '';
 
 
 		my $workflow_tag_id = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'workflow_tag_id'} ? $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'workflow_tag_id'} : '';
