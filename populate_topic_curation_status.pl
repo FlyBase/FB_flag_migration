@@ -612,7 +612,11 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 								if (exists $flag_suffix_mapping->{$suffix}->{note}) {
 
-									$note ? $note = "$note||$flag_suffix_mapping->{$suffix}->{note}" : $note = "$flag_suffix_mapping->{$suffix}->{note}";
+									if ($note) {
+										$note = "$note||$flag_suffix_mapping->{$suffix}->{note}";
+									} else {
+										$note = "$flag_suffix_mapping->{$suffix}->{note}";
+									}
 								}
 
 
@@ -685,8 +689,11 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 												}
 
-												$note ? $note = "$note||$note_to_add" : $note = "$note_to_add";
-
+												if ($note) {
+													$note = "$note||$note_to_add";
+												} else {
+													$note = "$note_to_add";
+												}
 											}
 
 										} else {
@@ -695,9 +702,17 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 											if (exists $currecs->{"by_timestamp"}) {
 
 												if (exists $currecs->{"by_timestamp"}->{$pub_id}) {
-													my $note_to_add = "'curated' flag suffix confirmed by presence of currec with expected filename format.";
-													$note ? $note = "$note||$note_to_add" : $note = "$note_to_add";
+
 													$store_status++;
+
+													my $note_to_add = "'curated' flag suffix confirmed by presence of currec with expected filename format.";
+
+													if ($note) {
+														$note = "$note||$note_to_add";
+													} else {
+														$note = "$note_to_add";
+													}
+
 												} else {
 													print $data_error_file "WARNING: DONE style flag but no corresponding currec: topic: $ATP, pub_id: $pub_id, suffix: $suffix, note: $note\n";
 
