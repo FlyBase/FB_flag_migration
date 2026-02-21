@@ -80,7 +80,7 @@ o Output files
 
   o json output file (FB_curation_status_data.json) containing a single json structure for all the data (curation status data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source). Data is printed to this file in all modes except 'test'.
 
- o 'plain' output file (FB_curation_status_data.txt) to aid in debugging - prints the same data as in the json file, but with a single 'DATA:' tsv row for each FBrf+topic combination. Data is printed to this file in all modes except 'production'. In 'test' mode
+ o 'plain' output file (FB_curation_status_data.txt) to aid in debugging - prints the same information as in the json file, but in a more human-readable tsv format with a single row for each FBrf+topic combination, along with additional information useful for debugging. Data is printed to this file in all modes.
 
   o FB_curation_status_data_errors.err - errors in mapping FlyBase data to appropriate Alliance json are printed in this file. Data is printed to this file in all modes.
 
@@ -1203,10 +1203,8 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 			my $reformatted_note = "$note";
 			$reformatted_note =~ s/\n/ /g;
 
+			print $plain_output_file "DATA:$pub_id\t$FBrf\t$pub_type\t$ATP\t$flag\t$curation_status\t$date_created\t$curation_tag\t$reformatted_note\t$curated_by\t$curation_records\n";
 
-			unless ($ENV_STATE eq 'production') {
-				print $plain_output_file "DATA:$pub_id\t$FBrf\t$pub_type\t$ATP\t$flag\t$curation_status\t$date_created\t$curation_tag\t$reformatted_note\t$curated_by\t$curation_records\n";
-			}
 		}
 
 	}
@@ -1254,9 +1252,7 @@ foreach my $flag_type (keys %{$diseaseHP_types}) {
 
 					push @{$complete_data->{data}}, $element;
 
-					unless ($ENV_STATE eq 'production') {
-						print $plain_output_file "DATA:$pub_id\t$FBrf\t$pub_type\t$element->{'topic'}\t$flag\t$element->{'curation_status'}\t$element->{'date_created'}\t$element->{'curation_tag'}\t$note\t$element->{'created_by'}\n";
-					}
+					print $plain_output_file "DATA:$pub_id\t$FBrf\t$pub_type\t$element->{'topic'}\t$flag\t$element->{'curation_status'}\t$element->{'date_created'}\t$element->{'curation_tag'}\t$note\t$element->{'created_by'}\n";
 				}
 
 
