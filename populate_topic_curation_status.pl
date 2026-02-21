@@ -637,6 +637,9 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 									# AND where the curator *added* a flag::DONE flag straight into that record (because the record contains the curation for that topic).
 									unless (exists $curation_status_topics->{$ATP}->{'exclude_check_any_record_matching_suffix_timestamp'}) {
 
+										# set default debugging_note that gets overridden if curator can be reconciled
+										$debugging_note = 'CURATOR: no record with filename format for topic exists for pub (in flag suffix loop) - CANNOT RECONCILE TO SINGLE CURATOR';
+
 										unless (exists $pubs_with_triage_flag_plingc->{$pub_id} && exists $pubs_with_triage_flag_plingc->{$pub_id}->{"$curation_status_topics->{$ATP}->{flag_type}"} && exists $pubs_with_triage_flag_plingc->{$pub_id}->{"$curation_status_topics->{$ATP}->{flag_type}"}->{$timestamp}) {
 
 											my $candidate_curator_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $timestamp);
@@ -669,7 +672,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 									} else {
 									# if the timestamp does not match, see if there is only one curation record of the appropriate filename format for the topic, and if so, use that, updating the timestamp to that of the curation record (so that any internal notes from that record will be pulled in later on)
 										# set default debugging_note that gets overridden if curator can be reconciled
-										$debugging_note = 'CURATOR: multiple currec matching filename format - CANNOT RECONCILE TO SINGLE CURATOR';
+										$debugging_note = 'CURATOR: multiple currec matching filename format (in flag suffix loop) - CANNOT RECONCILE TO SINGLE CURATOR';
 										# first check that there is just a single timestamp for matching curation records
 										if (scalar @{$currecs->{"by_timestamp"}->{$pub_id}} == 1) {
 
