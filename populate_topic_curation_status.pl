@@ -1112,6 +1112,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 			my $curation_status = exists $curation_status_data->{$pub_id}->{json}->{'curation_status'} ? $curation_status_data->{$pub_id}->{json}->{'curation_status'} : '';
 			my $date_created = exists $curation_status_data->{$pub_id}->{json}->{'date_created'} ? $curation_status_data->{$pub_id}->{json}->{'date_created'} : '';
 			my $curation_records = exists $curation_status_data->{$pub_id}->{debugging}->{currecs} ? $curation_status_data->{$pub_id}->{debugging}->{currecs} : '';
+			my $debugging_note = exists $curation_status_data->{$pub_id}->{debugging}->{'debugging_note'} ? $curation_status_data->{$pub_id}->{debugging}->{'debugging_note'} : '';
 
 
 			## 5. adding pub internal notes here
@@ -1136,6 +1137,12 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 								if ($curated_by eq $int_note_details->{curator} && $int_note_details->{currecs} eq $curation_records && $curation_records ne 'multiple curators for same timestamp' && $curation_records !~ m/ /) {
 
 
+									# always use the internal note if all the relevant metadata matches, unless it is a camcur 'full' curation record (those internal notes will go under manual indexing status)
+									unless ($debugging_note && $debugging_note eq 'CURATOR: currec matching camcur \'full\' filename format') {
+
+										$dealt_with++;
+
+									}
 
 									if (exists $int_note_to_curation_tag_mapping->{$ATP}) {
 
@@ -1146,8 +1153,6 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 											if ($int_note =~ m|$string|m) {
 
 												$dealt_with++;
-
-
 												if (exists $int_note_to_curation_tag_mapping->{$ATP}->{$match_type}->{tag}) {
 
 													unless ($freeze_tag) {
@@ -1201,14 +1206,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 										$int_note =~ s/^\n+//;
 										$int_note =~ s/\n+$//;
 
-
-									} else {
-
-										# always add any non standard format internal notes where the timestamp, curator and curation records information matches
-										$dealt_with++;
-
 									}
-
 
 
 
@@ -1343,7 +1341,6 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 			# remaining variables needed for plain output (useful for debugging)
 			my $flag = $curation_status_topics->{$ATP}->{'flags'}[0];
 			my $curation_tag = exists $curation_status_data->{$pub_id}->{json}->{'curation_tag'} ? $curation_status_data->{$pub_id}->{json}->{'curation_tag'} : '';
-			my $debugging_note = exists $curation_status_data->{$pub_id}->{debugging}->{'debugging_note'} ? $curation_status_data->{$pub_id}->{debugging}->{'debugging_note'} : '';
 			my $note = exists $curation_status_data->{$pub_id}->{json}->{note} ? $curation_status_data->{$pub_id}->{json}->{note} : '';
 
 			# form for printing in plain output
