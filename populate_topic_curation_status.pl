@@ -654,7 +654,14 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 														if (exists $curation_status_topics->{$ATP}->{'relax_plingc_constraint_for_any_record_check'}) {
 															$do_check_switch = 2;
+
+															if (exists $curation_status_topics->{$ATP}->{'relax_plingc_constraint_currec_regex'}) {
+																$do_check_switch = 3;
+															}
+
 														}
+
+
 													}
 
 												} else {
@@ -683,14 +690,29 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 												my $candidate_curator = "$candidate_curator_details->{curator}";
 												my $candidate_currecs = "$candidate_curator_details->{currecs}";
+
 												if ($candidate_currecs ne 'multiple curators for same timestamp') {
 
-													$curated_by = "$candidate_curator_details->{curator}";
-													$relevant_currecs = "$candidate_curator_details->{currecs}";
+													if ($do_check_switch == 3) {
 
-													$debugging_note = 'CURATOR: currec matching flag suffix timestamp ONLY (no record with filename format for topic exists for pub)';
-													if ($do_check_switch == 2) {
-														$debugging_note = 'CURATOR: currec matching flag suffix timestamp ONLY (relax plingc constraint) (no record with filename format for topic exists for pub)';
+														if ($candidate_currecs =~ m/$curation_status_topics->{$ATP}->{relax_plingc_constraint_currec_regex}/) {
+
+															$curated_by = "$candidate_curator_details->{curator}";
+															$relevant_currecs = "$candidate_curator_details->{currecs}";
+															$debugging_note = 'CURATOR: currec matching flag suffix timestamp ONLY (relax plingc constraint) (no record with filename format for topic exists for pub)';
+
+														}
+
+													} else {
+
+														$curated_by = "$candidate_curator_details->{curator}";
+														$relevant_currecs = "$candidate_curator_details->{currecs}";
+														$debugging_note = 'CURATOR: currec matching flag suffix timestamp ONLY (no record with filename format for topic exists for pub)';
+														if ($do_check_switch == 2) {
+															$debugging_note = 'CURATOR: currec matching flag suffix timestamp ONLY (relax plingc constraint) (no record with filename format for topic exists for pub)';
+														}
+
+
 													}
 												}
 											}

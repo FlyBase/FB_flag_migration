@@ -359,6 +359,8 @@ sub get_flag_mapping {
 
 				'for_curation_status' => {
 					'suffix' => 'only',
+					'relax_plingc_constraint_for_any_record_check' => '1',
+					'relax_plingc_constraint_currec_regex' => '^(cp|dg|mc|tj)[0-9]{1,}\.edit$',
 				},
 			},
 
