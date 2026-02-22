@@ -135,6 +135,7 @@ sub get_flag_mapping {
 					'suffix' => 'use',
 					'get_curated_data' => 'DO_annotation',
 					'use_filename' => 'DO',
+					'relax_plingc_constraint_for_any_record_check' => '1',
 				},
 
 			},

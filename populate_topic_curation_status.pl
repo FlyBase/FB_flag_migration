@@ -640,7 +640,43 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 										# set default debugging_note that gets overridden if curator can be reconciled
 										$debugging_note = 'CURATOR: no record with filename format for topic exists for pub (in flag suffix loop) - CANNOT RECONCILE TO SINGLE CURATOR';
 
-										unless (exists $pubs_with_triage_flag_plingc->{$pub_id} && exists $pubs_with_triage_flag_plingc->{$pub_id}->{"$curation_status_topics->{$ATP}->{flag_type}"} && exists $pubs_with_triage_flag_plingc->{$pub_id}->{"$curation_status_topics->{$ATP}->{flag_type}"}->{$timestamp}) {
+										## determine whether appropriate to try to identify matching curation record
+										my $do_check_switch = 0;
+
+										if (exists $pubs_with_triage_flag_plingc->{$pub_id}) {
+
+											if (exists $pubs_with_triage_flag_plingc->{$pub_id}->{"$curation_status_topics->{$ATP}->{flag_type}"}) {
+
+												if (exists $pubs_with_triage_flag_plingc->{$pub_id}->{"$curation_status_topics->{$ATP}->{flag_type}"}->{$timestamp}) {
+
+													# if the flag_with_suffix was being plingc-ed, only do the check if appropriate for the topic and if this publication is the *ONLY* time it was plingc-ed
+													if (scalar keys %{$pubs_with_triage_flag_plingc->{$pub_id}->{"$curation_status_topics->{$ATP}->{flag_type}"}} == 1) {
+
+														if (exists $curation_status_topics->{$ATP}->{'relax_plingc_constraint_for_any_record_check'}) {
+															$do_check_switch = 2;
+														}
+													}
+
+												} else {
+													# the flag_with_suffix was being added, NOT plingc-ed so do the check
+													$do_check_switch = 1;
+												}
+
+
+											} else {
+
+												# no plingc for the triage flag type for the pub so do the check
+												$do_check_switch = 1;
+											}
+
+										} else {
+											# no plingc for the pub so do the check
+											$do_check_switch = 1;
+
+										}
+										##
+
+										if ($do_check_switch) {
 
 											my $candidate_curator_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $timestamp);
 											if (defined $candidate_curator_details) {
@@ -651,8 +687,11 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 													$curated_by = "$candidate_curator_details->{curator}";
 													$relevant_currecs = "$candidate_curator_details->{currecs}";
-													$debugging_note = 'CURATOR: currec matching flag suffix timestamp ONLY (no record with filename format for topic exists for pub)';
 
+													$debugging_note = 'CURATOR: currec matching flag suffix timestamp ONLY (no record with filename format for topic exists for pub)';
+													if ($do_check_switch == 2) {
+														$debugging_note = 'CURATOR: currec matching flag suffix timestamp ONLY (relax plingc constraint) (no record with filename format for topic exists for pub)';
+													}
 												}
 											}
 										}
