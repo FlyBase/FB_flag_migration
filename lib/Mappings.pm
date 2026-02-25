@@ -76,7 +76,6 @@ sub get_flag_mapping {
 				'for_curation_status' => {
 					'get_curated_data' => 'phenotype',
 					'use_filename' => 'phen',
-					'relevant_internal_note' => 'only pheno_chem data in paper|No phenotypic data in paper|phen_cur: CV annotations only',
 					'use_cam_full_filename' => '1',
 				},
 			},
@@ -252,7 +251,6 @@ sub get_flag_mapping {
 					'suffix' => 'use',
 					'get_curated_data' => 'humanhealth',
 					'use_filename' => 'humanhealth',
-					'relevant_internal_note' => 'HDM flag not applicable',
 				},
 			},
 
@@ -265,7 +263,6 @@ sub get_flag_mapping {
 					'suffix' => 'use',
 					'get_curated_data' => 'humanhealth',
 					'use_filename' => 'humanhealth',
-					'relevant_internal_note' => 'HDM flag not applicable',
 				},
 			},
 
@@ -311,7 +308,6 @@ sub get_flag_mapping {
 					'suffix' => 'use',
 					'get_curated_data' => 'phys_int',
 					'use_filename' => 'phys_int',
-					'relevant_internal_note' => 'phys_int not curated',
 				},
 
 			},
