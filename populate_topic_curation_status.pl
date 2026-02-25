@@ -521,6 +521,17 @@ my $int_note_to_curation_tag_mapping = {
 
 	},
 
+	'ATP:0000151' => {
+
+		'1' => {
+
+			'regex' =>'^FTA: DOcur genotype - need to check for missing drivers$',
+			'status' => 'ATP:0000239',
+		},
+
+	},
+
+
 };
 
 
