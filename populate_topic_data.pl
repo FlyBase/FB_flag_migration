@@ -456,7 +456,7 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 								my $json_data = $json_encoder->encode($data);
 
 								# plain text output useful for testing
-								print $plain_output_file "DATA: $FBrf\t$flag_type\t$flag\t$curator\t$file;\t$flag_audit_timestamp\n";
+								print $plain_output_file "DATA: $FBrf\t$flag_type\t$flag\t$curator\t$file\t$flag_audit_timestamp\n";
 
 
 								unless ($ENV_STATE eq "test") {
