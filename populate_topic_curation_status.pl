@@ -950,15 +950,17 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 							$curated_by = "$curator_details->{curator}";
 							$relevant_currecs = "$curator_details->{currecs}";
 
+
+							my $curation_status = '';
+							my $potential_note = '';
+							my $curation_tag = '';
+
+							my $store_status = 0;
+
+
 							if (defined $has_curated_data) {
 
 
-								my $curation_status = '';
-								my $potential_note = '';
-
-								my $curation_tag = '';
-
-								my $store_status = 0;
 
 								if (exists $has_curated_data->{$pub_id}) {
 
@@ -987,38 +989,39 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 								}
 
 
-								if ($store_status) {
-
-									$curation_status_data->{$pub_id}->{json}->{'date_created'} = $timestamp;
-									$curation_status_data->{$pub_id}->{json}->{'date_updated'} = $timestamp;
-									$curation_status_data->{$pub_id}->{json}->{'curation_status'} = $curation_status;
+							}
 
 
-									$curation_status_data->{$pub_id}->{json}->{'created_by'} = $curated_by;
-									$curation_status_data->{$pub_id}->{json}->{'updated_by'} = $curated_by;
-									$curation_status_data->{$pub_id}->{json}->{'mod_abbreviation'} = "FB";
-									my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
-									$curation_status_data->{$pub_id}->{json}->{'reference_curie'} = "FB:$FBrf";
+							if ($store_status) {
 
-									$curation_status_data->{$pub_id}->{json}->{'topic'} = $ATP;
-
-									if ($curation_tag) {
-										$curation_status_data->{$pub_id}->{json}->{'curation_tag'} = $curation_tag;
-									}
-
-									$curation_status_data->{$pub_id}->{debugging}->{'currecs'} = $relevant_currecs;
-
-									if ($potential_note) {
-										$curation_status_data->{$pub_id}->{debugging}->{'potential_note'} = $potential_note;
-									}
-
-									$curation_status_data->{$pub_id}->{debugging}->{'debugging_note'} = 'CURATOR: currec matching filename format for topic';
+								$curation_status_data->{$pub_id}->{json}->{'date_created'} = $timestamp;
+								$curation_status_data->{$pub_id}->{json}->{'date_updated'} = $timestamp;
+								$curation_status_data->{$pub_id}->{json}->{'curation_status'} = $curation_status;
 
 
+								$curation_status_data->{$pub_id}->{json}->{'created_by'} = $curated_by;
+								$curation_status_data->{$pub_id}->{json}->{'updated_by'} = $curated_by;
+								$curation_status_data->{$pub_id}->{json}->{'mod_abbreviation'} = "FB";
+								my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
+								$curation_status_data->{$pub_id}->{json}->{'reference_curie'} = "FB:$FBrf";
+
+								$curation_status_data->{$pub_id}->{json}->{'topic'} = $ATP;
+
+								if ($curation_tag) {
+									$curation_status_data->{$pub_id}->{json}->{'curation_tag'} = $curation_tag;
 								}
+
+								$curation_status_data->{$pub_id}->{debugging}->{'currecs'} = $relevant_currecs;
+
+								if ($potential_note) {
+									$curation_status_data->{$pub_id}->{debugging}->{'potential_note'} = $potential_note;
+								}
+
+								$curation_status_data->{$pub_id}->{debugging}->{'debugging_note'} = 'CURATOR: currec matching filename format for topic';
 
 
 							}
+
 
 						}
 
