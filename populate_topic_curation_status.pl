@@ -738,16 +738,16 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 
 														if ($candidate_currecs =~ m/$curation_status_topics->{$ATP}->{relax_plingc_constraint_currec_regex}/) {
 
-															$curated_by = "$candidate_curator_details->{curator}";
-															$relevant_currecs = "$candidate_curator_details->{currecs}";
+															$curated_by = "$candidate_curator";
+															$relevant_currecs = "$candidate_currecs";
 															$debugging_note = 'CURATOR: currec matching flag suffix timestamp ONLY (relax plingc constraint) (no record with filename format for topic exists for pub)';
 
 														}
 
 													} else {
 
-														$curated_by = "$candidate_curator_details->{curator}";
-														$relevant_currecs = "$candidate_curator_details->{currecs}";
+														$curated_by = "$candidate_curator";
+														$relevant_currecs = "$candidate_currecs";
 														$debugging_note = 'CURATOR: currec matching flag suffix timestamp ONLY (no record with filename format for topic exists for pub)';
 														if ($do_check_switch == 2) {
 															$debugging_note = 'CURATOR: currec matching flag suffix timestamp ONLY (relax plingc constraint) (no record with filename format for topic exists for pub)';
