@@ -5,7 +5,7 @@ use warnings;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw(get_relevant_curator get_all_currec_data get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_flaglist_with_suffix get_timestamps_for_pubprop_value get_relevant_currec_for_datatype get_matching_pubprop_value_with_timestamps get_all_flag_info_with_timestamps get_all_pub_internal_notes_for_tet_wf get_pubs_with_triage_flag_plingc);
+our @EXPORT = qw(get_relevant_curator get_all_currec_data get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_flaglist_with_suffix get_timestamps_for_flaglist get_timestamps_for_pubprop_value get_relevant_currec_for_datatype get_matching_pubprop_value_with_timestamps get_all_flag_info_with_timestamps get_all_pub_internal_notes_for_tet_wf get_pubs_with_triage_flag_plingc);
 
 
 =head1 MODULE: AuditTable
@@ -455,6 +455,89 @@ o $data->{$pub_id}->{$suffix}->{flags}
 	return $data;
 
 }
+
+sub get_timestamps_for_flaglist {
+
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    get_timestamps_for_flaglist
+	Usage:    get_timestamps_for_flaglist(database_handle,$flag_type, \@flag_list);
+	Function: Gets timestamp information for the list of flag(s) specified in the \@flag_list reference in the third argument.
+	Example:  my $thincur_flags = &get_timestamps_for_flaglist($dbh,'cam_flag',\@thincur_flags);
+	Example:  my $rename_flags = &get_timestamps_for_flaglist($dbh,'cam_flag',\@rename_flags);
+
+Arguments:
+
+o $flag_type is the type of pubprop in chado that the list of flags in \@flag_list are stored under (ie. one of cam_flag, harv_flag, dis_flag, onto_flag)
+
+o \@flag_list is an array reference containing the flag(s) to return data for.
+
+The subroutine looks for exact matches for each of the strings in the @flag_list, so if the list contains 'plain' flags without any :: suffix, only matches without a suffix will be returned, whereas if the list contains a flag with a suffix, only matches to that particular flag::suffix string will be returned.
+
+
+Returns:
+
+The returned hash reference has the following structure:
+
+
+o @{$data->{$pub_id}}, $audit_timestamp
+
+
+Details:
+
+o $pub_id is the pub_id of the reference. It references an array that:
+
+  o contains all the timestamp(s) from the audit_chado table for the corresponding suffix.
+
+  o The timestamp values are sorted earliest to latest within the array.
+
+  o It includes timestamps for both 'I' (for insert) or 'U' (for update) audit_transaction.
+
+
+
+=cut
+
+
+	unless (@_ == 3) {
+
+		die "Wrong number of parameters passed to the get_timestamps_for_flaglist subroutine\n";
+	}
+
+
+	my ($dbh, $flag_type, $flag_list) = @_;
+
+	unless ($flag_type eq 'cam_flag' || $flag_type eq 'harv_flag' || $flag_type eq 'dis_flag' || $flag_type eq 'onto_flag') {
+
+		die "unexpected triage flag type $flag_type (must be one of 'cam_flag', 'harv_flag', 'dis_flag' or 'onto_flag'\n";
+
+	}
+
+
+	my $data = {};
+
+	foreach my $flag (@{$flag_list}) {
+
+
+		my $sql_query = sprintf("select distinct pp.pub_id, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value = '%s' and c.cvterm_id=pp.type_id  and c.name ='%s' and ac.audited_table='pubprop' and ac.audit_transaction in ('I', 'U') and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp",$flag, $flag_type);
+		my $db_query = $dbh->prepare($sql_query);
+		$db_query->execute or die "WARNING: ERROR: Unable to execute get_timestamps_for_flaglist query ($!)\n";
+
+
+		while (my ($pub_id, $audit_timestamp) = $db_query->fetchrow_array) {
+
+			push @{$data->{$pub_id}}, $audit_timestamp;
+		}
+
+	}
+
+	return $data;
+
+}
+
 
 sub get_timestamps_for_pubprop_value {
 
