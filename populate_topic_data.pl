@@ -297,6 +297,9 @@ foreach my $flag_type (keys %{$negative_flags}) {
 # get all triage flag info
 my $flag_info = &get_all_flag_info_with_timestamps($dbh);
 
+# get all curation record info
+my $all_curation_record_data = &get_all_currec_data($dbh);
+
 my $complete_data = {};
 
 
@@ -376,49 +379,29 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 
 
 							# 2. try to find the relevant curator (from curated_by pubprop) using audit table timestamp information
-							my $curator_data = &get_relevant_curator($dbh, $pub_id, $flag_audit_timestamp);
-
+							my $candidate_curator_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $flag_audit_timestamp);
 
 							my $curator = ''; # this will be the relevant curator with a matching timestamp.
 							my $file = ''; # this will be the relevant curation record. Not submitted to the Alliance, but useful for plain text output (DATA: lines) when testing.
 
 ###
 
-							if (defined $curator_data) {
+							if (defined $candidate_curator_details) {
 
-								# simple case, only one matching curated_by pubprop
-								if ($curator_data->{count} == 1) {
 
-									$curator = $curator_data->{relevant_curator};
-									$file = $curator_data->{relevant_record};
+								my $candidate_curator = "$candidate_curator_details->{curator}";
+								my $candidate_currecs = "$candidate_curator_details->{currecs}";
+
+								if ($candidate_currecs ne 'ERROR:unable to reconcile curator') {
+									$curator = "$candidate_curator";
+									$file = "$candidate_currecs";
 
 								} else {
+									print $data_error_file "ERROR: multiple different curators that cannot reconcile, not adding: $FBrf\t$flag_type\t$flag\t$candidate_curator\t$candidate_currecs\t$flag_audit_timestamp\n";
 
-									# multiple records for same FBrf submitted in same week by same curator
-									if (scalar keys %{$curator_data->{curator}} == 1) {
-
-										$curator = join '', keys %{$curator_data->{curator}};
-										$file = join ', ', sort keys %{$curator_data->{curator}->{$curator}};
-
-									} else {
-
-										# flag info must have been submitted/looked at by a curator rather than just multiple user curation, so set curator to the generic 'FB_curator'
-										if (exists $flag_mapping->{$flag_type}->{$flag}->{curator_only} || $flag_suffix ne '' || (exists $curator_data->{FB_curator_count} && !exists $curator_data->{community_curation_count})) {
-											$curator = 'FB_curator';
-
-										} else {
-											print $data_error_file "ERROR: multiple different curators that cannot reconcile, not adding: $FBrf\t$flag_type\t$flag\t" . (join ', ', keys %{$curator_data->{curator}}) . "\t" . (join ', ', keys %{$curator_data->{curator}->{$curator}}) . "\t$flag_audit_timestamp\n";
-
-										}
-
-									}
 
 								}
 
-								# convert all unknown style curators to the same 'FB_curator' name that is used for persistent store submissions
-								if ($curator eq 'Unknown' || $curator eq 'Unknown Curator' || $curator eq 'Generic Curator' || $curator eq 'P. Leyland') {
-									$curator = 'FB_curator';
-								}
 
 							} else {
 
@@ -566,7 +549,10 @@ foreach my $pub_id (sort keys %{$dataset_pheno_note}) {
 	foreach my $line (sort keys %{$dataset_pheno_note->{$pub_id}}) {
 
 		my $line_timestamp = $dataset_pheno_note->{$pub_id}->{$line}[0];
-		my $curator_data = &get_relevant_curator($dbh, $pub_id, $line_timestamp);
+
+		my $candidate_curator_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $line_timestamp);
+
+
 		my $curator = ''; # this will be the relevant curator with a matching timestamp.
 		my $file = ''; # this will be the relevant curation record. Not submitted to the Alliance, but useful for plain text output (DATA: lines) when testing.
 
@@ -579,40 +565,19 @@ foreach my $pub_id (sort keys %{$dataset_pheno_note}) {
 		$note =~ s/^ +//;
 
 
-		if (defined $curator_data) {
+		if (defined $candidate_curator_details) {
 
-			# simple case, only one matching curated_by pubprop
-			if ($curator_data->{count} == 1) {
+			my $candidate_curator = "$candidate_curator_details->{curator}";
+			my $candidate_currecs = "$candidate_curator_details->{currecs}";
 
-				$curator = $curator_data->{relevant_curator};
-				$file = $curator_data->{relevant_record};
+			if ($candidate_currecs ne 'ERROR:unable to reconcile curator') {
+				$curator = "$candidate_curator";
+				$file = "$candidate_currecs";
 
 			} else {
+				print $data_error_file "ERROR: multiple different curators that cannot reconcile, not adding: $pub_id\t$line\t$candidate_curator\t$candidate_currecs\t$line_timestamp\n";
 
-				# multiple records for same FBrf submitted in same week by same curator
-				if (scalar keys %{$curator_data->{curator}} == 1) {
 
-					$curator = join '', keys %{$curator_data->{curator}};
-					$file = join ', ', sort keys %{$curator_data->{curator}->{$curator}};
-
-				} else {
-
-					# flag info must have been submitted/looked at by a curator rather than just multiple user curation, so set curator to the generic 'FB_curator'
-					if (exists $curator_data->{FB_curator_count} && !exists $curator_data->{community_curation_count}) {
-						$curator = 'FB_curator';
-
-					} else {
-						print $data_error_file "ERROR: multiple different curators that cannot reconcile, not adding: $pub_id\t$line\t" . (join ', ', keys %{$curator_data->{curator}}) . "\t" . (join ', ', keys %{$curator_data->{curator}->{$curator}}) . "\t$line_timestamp\n";
-
-					}
-
-				}
-
-			}
-
-			# convert all unknown style curators to the same 'FB_curator' name that is used for persistent store submissions
-			if ($curator eq 'Unknown' || $curator eq 'Unknown Curator' || $curator eq 'Generic Curator' || $curator eq 'P. Leyland') {
-				$curator = 'FB_curator';
 			}
 
 		} else {
