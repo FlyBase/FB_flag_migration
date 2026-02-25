@@ -49,12 +49,20 @@ sub get_flag_mapping {
 				'ATP_topic' => 'ATP:0000006',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 				'data_novelty' => 'ATP:0000229', # new to field
+				'for_curation_status' => {
+					'use_thin_cur_status' => 'thin|cam_full',
+					'do_not_add_internal_note'  => '1',
+				},
 			},
 
 			'new_allele' => {
 				'ATP_topic' => 'ATP:0000006',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 				'data_novelty' => 'ATP:0000229', # new to field
+				'for_curation_status' => {
+					'use_thin_cur_status' => 'thin|cam_full',
+					'do_not_add_internal_note'  => '1',
+				},
 			},
 
 			'new_transg' => {
@@ -62,6 +70,10 @@ sub get_flag_mapping {
 				'ATP_topic' => 'ATP:0000013',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 				'data_novelty' => 'ATP:0000229', # new to field
+				'for_curation_status' => {
+					'use_thin_cur_status' => 'thin|cam_full',
+					'do_not_add_internal_note'  => '1',
+				},
 			},
 
 			'pert_exp' => {
@@ -98,13 +110,21 @@ sub get_flag_mapping {
 
 				'ATP_topic' => 'ATP:0000048',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
+				'for_curation_status' => {
+					'use_thin_cur_status' => 'thin|cam_full',
+					'do_not_add_internal_note'  => '1',
+				},
 			},
 
 			'merge' => {
 
+				# not curator only - was in original version of FTYP
 				'ATP_topic' => 'ATP:0000340',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
-				# not curator only - was in original version of FTYP
+				'for_curation_status' => {
+					'use_thin_cur_status' => 'thin|cam_full',
+					'do_not_add_internal_note'  => '1',
+				},
 			},
 
 			'split' => {
@@ -117,6 +137,10 @@ sub get_flag_mapping {
 
 				'ATP_topic' => 'ATP:0000339',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
+				'for_curation_status' => {
+					'use_thin_cur_status' => 'thin|cam_full',
+					'do_not_add_internal_note'  => '1',
+				},
 			},
 
 		},
