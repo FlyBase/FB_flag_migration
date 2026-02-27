@@ -7,7 +7,7 @@ Scripts to handle export of FlyBase triage flag and curation status data into th
 
 1. `populate_topic_data.pl`  
 
-  Generates json for loading FlyBase triage flag information into the Topic Entity Tag tables in the Alliance ABC literature database.  
+   Generates json for loading FlyBase triage flag information into the Topic Entity Tag tables in the Alliance ABC literature database.  
   Requires an access token (6th argument when run script) to query for correct topic_entity_tag_source_id
 
 2. `populate_topic_curation_status.pl`  
@@ -16,7 +16,7 @@ Scripts to handle export of FlyBase triage flag and curation status data into th
 
 3. `populate_workflow_status.pl`  
 
-   Generates json for loading *worklfow status* information for user, skim and thin curation into the Workflow tables in the Alliance ABC literature database.  
+   Generates json for loading *workflow status* information for user, skim and thin curation into the Workflow tables in the Alliance ABC literature database.  
 
 4. `ticket_scrum-3147-retrieve_deleted_topic.pl`  
 
