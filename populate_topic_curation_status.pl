@@ -996,7 +996,7 @@ foreach my $ATP (sort keys %{$curation_status_topics}) {
 								$curated_by = "$curator_details->{curator}";
 
 								$relevant_currecs = "$curator_details->{currecs}";
-								my $curation_status = 'ATP:0000239'; # 'curated'
+								$curation_status = 'ATP:0000239'; # 'curated'
 
 								if ($record_type eq 'cam_full') {
 
