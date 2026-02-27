@@ -322,7 +322,7 @@ open my $plain_output_file, '>', "FB_curation_status_data.txt"
 binmode($plain_output_file, ":utf8");
 
 
-print STDERR "##Starting processing: " . (scalar localtime) . "\n";
+print $plain_output_file "##Starting processing: " . (scalar localtime) . "\n";
 
 
 
@@ -1619,7 +1619,7 @@ unless ($ENV_STATE eq "test") {
 
 }
 
-print STDERR "##Finished processing: " . (scalar localtime) . "\n";
+print $plain_output_file "##Finished processing: " . (scalar localtime) . "\n";
 
 
 close $json_output_file;

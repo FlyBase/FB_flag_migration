@@ -270,7 +270,7 @@ open my $plain_output_file, '>', "FB_workflow_status_data.txt"
 binmode($plain_output_file, ":utf8");
 
 
-print STDERR "##Starting processing: " . (scalar localtime) . "\n";
+print $plain_output_file "##Starting processing: " . (scalar localtime) . "\n";
 
 my $all_curation_record_data = &get_all_currec_data($dbh);
 
@@ -934,6 +934,6 @@ close $data_error_file;
 close $process_error_file;
 close $plain_output_file;
 
-print STDERR "##Ended processing: " . (scalar localtime) . "\n";
+print $plain_output_file "##Ended processing: " . (scalar localtime) . "\n";
 
 
