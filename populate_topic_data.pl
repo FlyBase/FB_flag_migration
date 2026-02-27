@@ -144,10 +144,8 @@ if (! grep( /^$ENV_STATE$/, @STATE ) ) {
     exit;
 }
 
-# Sanity check if state is not test, make sure the user wants to
-# save the data to the database
-unless ($ENV_STATE eq "dev") {
-	print STDERR "You are about to write data to $ENV_STATE Alliance literature server\n";
+if ($ENV_STATE eq "test") {
+	print STDERR "You are about to write data to stage Alliance literature server\n";
 	print STDERR "Type y to continue else anything else to stop:\n";
 	my $continue = <STDIN>;
 	chomp $continue;
