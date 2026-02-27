@@ -50,9 +50,6 @@ o dev mode
 
   o single FBrf mode: asks user for FBrf number (can also use a regular expression to test multiple FBrfs in this mode).
 
-  o makes a json output file (FB_topic_data.stage.json) containing a single json structure for all the data (topic data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source).
-  o makes error files (see below) to record any errors.
-
 
 o test mode
 
@@ -60,30 +57,27 @@ o test mode
 
   o uses curl to try to POST data to the Alliance ABC stage server (so asks user for okta token for Alliance ABC stage server).
 
-  o makes a txt output file (FB_topic_data.stage.txt) - prints a 'DATA:' tsv row for each FBrf+topic combination. For each successful curl POST event, the successfully loaded json element is printed in this file.
-  o also makes error files (see below) to record any errors.
-
 o stage mode
 
   o makes data for all FBrfs in chado, with source ids correct for the ABC *stage* database.
-
-  o makes a json output file (FB_topic_data.stage.json) containing a single json structure for all the data (topic data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source).
-  o also makes error files (see below) to record any errors.
 
 o production mode
 
   o makes data for all FBrfs in chado, with source ids correct for the ABC *production* database.
 
-  o makes a json output file (FB_topic_data.production.json) containing a single json structure for all the data (topic data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source).
-  o also makes error files (see below) to record any errors.
-
-o error files (made for all modes)
+Output files:
 
   o file names include the intended "destination" ABC database - this is 'production' for production mode, and 'stage' for all other modes (this is needed because the id for source information for the topics can be different in production vs stage ABC).
 
-  o FB_topic_data_errors.<destination>.err - errors in mapping FlyBase data to appropriate Alliance json are printed in this file.
+  o The same four files are made in each mode:
 
-  o FB_topic_process_errors.<processing>.err - processing errors - if a curl POST fails in test mode, the failed json element and the reason for the failure are printed in this file. Expected to be empty for all other modes.
+    o json output file (FB_topic_data.<destination>.json) - in all modes except 'test' contains a single json structure for all the data (topic data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source). In test mode, successfully submitted json elements are printed in this file.
+
+    o 'plain' output file (FB_topic_data.<destination>.txt) to aid in debugging - prints the same data as in the json file, but with a single 'DATA:' tsv row for each FBrf+topic combination.
+
+    o FB_topic_data_errors.<destination>.err - errors in mapping FlyBase data to appropriate Alliance json are printed in this file.
+
+    o FB_topic_process_errors.<processing>.err - processing errors - if a curl POST fails in test mode, the failed json element and the reason for the failure are printed in this file. Expected to be empty for all other modes.
 
 
 Mapping hashes:
@@ -118,10 +112,11 @@ Script logic:
 
 3c. If a matching curator was successfully identified, a data structure with the relevant information is made for that flag+FBrf combination, using the flag timestamp from audit_chado and mapping information in the $flag_mapping hash to fill out the data structure.
 
+3d. Any internal note relevant to the topic is also added.
 
-4. gets internal notes that contain 'Dataset: pheno' information, tries to identify the relevant curator (using same logic as for triage flags in 3.) and if a matching curator is successfully identified, adds the relevant information for each flag+FBrf combination to the same data structure used to store triage flag information in 3.
 
-5. the data structure containing triage flag and 'Dataset: pheno' information is then converted to json, and either submitted to the appropriate ABC server using POST (test mode) or printed (all other modes).
+4. Using internal notes that contain 'Dataset: pheno' information, tries to identify the relevant curator (using same logic as for triage flags in 3.) and if a matching curator is successfully identified, adds the relevant information for each flag+FBrf combination to the same data structure used to store triage flag information in 3.
+
 
 
 =cut
@@ -149,10 +144,8 @@ if (! grep( /^$ENV_STATE$/, @STATE ) ) {
     exit;
 }
 
-# Sanity check if state is not test, make sure the user wants to
-# save the data to the database
-unless ($ENV_STATE eq "dev") {
-	print STDERR "You are about to write data to $ENV_STATE Alliance literature server\n";
+if ($ENV_STATE eq "test") {
+	print STDERR "You are about to write data to stage Alliance literature server\n";
 	print STDERR "Type y to continue else anything else to stop:\n";
 	my $continue = <STDIN>;
 	chomp $continue;
@@ -177,13 +170,13 @@ my $curator_source_data = {};
 
 if ($ENV_STATE eq "dev" || $ENV_STATE eq "test") {
 
-	$author_source_data = &get_topic_entity_tag_source_data('stage', 'author');
-	$curator_source_data = &get_topic_entity_tag_source_data('stage', 'curator');
+	$author_source_data = &get_topic_entity_tag_source_data('stage', 'author', $access_token);
+	$curator_source_data = &get_topic_entity_tag_source_data('stage', 'curator', $access_token);
 
 } else {
 
-	$author_source_data = &get_topic_entity_tag_source_data($ENV_STATE, 'author');
-	$curator_source_data = &get_topic_entity_tag_source_data($ENV_STATE, 'curator');
+	$author_source_data = &get_topic_entity_tag_source_data($ENV_STATE, 'author', $access_token);
+	$curator_source_data = &get_topic_entity_tag_source_data($ENV_STATE, 'curator', $access_token);
 
 }
 
@@ -250,15 +243,16 @@ if ($ENV_STATE eq 'production') {
 
 }
 
-my $output_file_type = 'json';
-if ($ENV_STATE eq 'test') {
 
-	$output_file_type = 'txt';
+open my $json_output_file, '>', "FB_topic_data.${destination}.json"
+	or die "Can't open json output file ($!)\n";
+binmode($json_output_file, ":utf8");
 
-}
 
-open my $output_file, '>', "FB_topic_data.${destination}.${output_file_type}"
-	or die "Can't open output file ($!)\n";
+
+open my $plain_output_file, '>', "FB_topic_data.${destination}.txt"
+	or die "Can't open plain output file ($!)\n";
+binmode($plain_output_file, ":utf8");
 
 
 open my $data_error_file, '>', "FB_topic_data_errors.${destination}.err"
@@ -301,6 +295,90 @@ foreach my $flag_type (keys %{$negative_flags}) {
 
 # get all triage flag info
 my $flag_info = &get_all_flag_info_with_timestamps($dbh);
+
+# get all curation record info
+my $all_curation_record_data = &get_all_currec_data($dbh);
+
+# get internal note information that should be added to relevant topics
+my $additional_filters = [
+
+
+	# filter to remove lines that would be better converted into a note when submit curation record filename info.
+	'^Curation record .*? is to add the allele phendesc data originally curated in .+$',
+	'^Curation record .*? is to fix data for MI4 .+$',
+	'^Curation record .*? generated by hand to fix MI4 ticket.+$',
+
+	# filter to remove preliminary data that will not be submitted to the Alliance
+	'^HDM flag future.+$',
+
+
+];
+
+my $all_candidate_internal_notes = &get_all_pub_internal_notes_for_tet_wf($dbh, $additional_filters);
+
+my $topic_to_note = {
+
+
+	'ATP:0000008' => {
+
+		'in' => '^FTYP cell line:.+$',
+
+	},
+
+	'ATP:0000069' => {
+
+		'in' => '^(The phys_int flag inferred from|The phys_int flag is inferred from|The phys_int flag was inferred).+$',
+
+	},
+
+	'ATP:0000150' => {
+
+		'in' => '^(D|d)ataset:.+$',
+		'out' => '^(D|d)ataset: ?pheno',
+
+	},
+
+	'ATP:0000085' => {
+
+		'in' => '^(D|d)ataset: ?pheno',
+
+
+	},
+};
+
+
+my $topic_notes =  {};
+
+foreach my $pub_id (sort keys %{$all_candidate_internal_notes}) {
+
+	foreach my $int_note (keys %{$all_candidate_internal_notes->{$pub_id}}) {
+
+		foreach my $topic (sort keys %{$topic_to_note}) {
+
+			my $string = $topic_to_note->{$topic}->{'in'};
+
+			if ($int_note =~ m|$string|m) {
+
+				my @lines = split /\n/m, $int_note;
+
+				foreach my $line (@lines) {
+					if ($line =~ m/$string/) {
+
+						if (exists $topic_to_note->{$topic}->{'out'} && $line =~ m/$topic_to_note->{$topic}->{'out'}/) {
+
+
+						} else {
+							$topic_notes->{$topic}->{$pub_id}->{$line} = $all_candidate_internal_notes->{$pub_id}->{$int_note};
+
+
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 
 my $complete_data = {};
 
@@ -381,49 +459,29 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 
 
 							# 2. try to find the relevant curator (from curated_by pubprop) using audit table timestamp information
-							my $curator_data = &get_relevant_curator($dbh, $pub_id, $flag_audit_timestamp);
-
+							my $candidate_curator_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $flag_audit_timestamp);
 
 							my $curator = ''; # this will be the relevant curator with a matching timestamp.
-							my $file = ''; # this will be the relevant curation record. Not submitted to the Alliance, but useful for plain text output (DATA: lines) when testing.
+							my $currecs = ''; # this will be the relevant curation record. Not submitted to the Alliance, but useful for plain text output (DATA: lines) when testing.
 
 ###
 
-							if (defined $curator_data) {
+							if (defined $candidate_curator_details) {
 
-								# simple case, only one matching curated_by pubprop
-								if ($curator_data->{count} == 1) {
 
-									$curator = $curator_data->{relevant_curator};
-									$file = $curator_data->{relevant_record};
+								my $candidate_curator = "$candidate_curator_details->{curator}";
+								my $candidate_currecs = "$candidate_curator_details->{currecs}";
+
+								if ($candidate_currecs ne 'ERROR:unable to reconcile curator') {
+									$curator = "$candidate_curator";
+									$currecs = "$candidate_currecs";
 
 								} else {
+									print $data_error_file "ERROR: multiple different curators that cannot reconcile, not adding: $FBrf\t$flag_type\t$flag\t$candidate_curator\t$candidate_currecs\t$flag_audit_timestamp\n";
 
-									# multiple records for same FBrf submitted in same week by same curator
-									if (scalar keys %{$curator_data->{curator}} == 1) {
-
-										$curator = join '', keys %{$curator_data->{curator}};
-										$file = join ', ', sort keys %{$curator_data->{curator}->{$curator}};
-
-									} else {
-
-										# flag info must have been submitted/looked at by a curator rather than just multiple user curation, so set curator to the generic 'FB_curator'
-										if (exists $flag_mapping->{$flag_type}->{$flag}->{curator_only} || $flag_suffix ne '' || (exists $curator_data->{FB_curator_count} && !exists $curator_data->{community_curation_count})) {
-											$curator = 'FB_curator';
-
-										} else {
-											print $data_error_file "ERROR: multiple different curators that cannot reconcile, not adding: $FBrf\t$flag_type\t$flag\t" . (join ', ', keys %{$curator_data->{curator}}) . "\t" . (join ', ', keys %{$curator_data->{curator}->{$curator}}) . "\t$flag_audit_timestamp\n";
-
-										}
-
-									}
 
 								}
 
-								# convert all unknown style curators to the same 'FB_curator' name that is used for persistent store submissions
-								if ($curator eq 'Unknown' || $curator eq 'Unknown Curator' || $curator eq 'Generic Curator' || $curator eq 'P. Leyland') {
-									$curator = 'FB_curator';
-								}
 
 							} else {
 
@@ -458,9 +516,12 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 								$data->{date_created} = $flag_audit_timestamp;
 								$data->{date_updated} = $flag_audit_timestamp;
 
+								my $reformatted_note = '';
+
 
 								# set other parameters for the flag based on $flag_mapping hash or set the relevant default if the key does not exist in the mapping hash for that flag
-								$data->{topic} = $flag_mapping->{$flag_type}->{$flag}->{ATP_topic};
+								my $ATP = "$flag_mapping->{$flag_type}->{$flag}->{ATP_topic}";
+								$data->{topic} = $ATP;
 
 								$data->{species} = exists $flag_mapping->{$flag_type}->{$flag}->{species} ? $flag_mapping->{$flag_type}->{$flag}->{species} : 'NCBITaxon:7227';
 								$data->{negated} = exists $flag_mapping->{$flag_type}->{$flag}->{negated} ? TRUE : FALSE;
@@ -474,8 +535,22 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 									$data->{topic_entity_tag_source_id} = $curator_source_data->{topic_entity_tag_source_id};
 								}
 
+								# add internal note if appropriate. don't worry about timestamp as want to add the internal note in all cases
+								if (exists $topic_notes->{$ATP} && exists $topic_notes->{$ATP}->{$pub_id}) {
+
+									my $note = join '||', sort keys %{$topic_notes->{$ATP}->{$pub_id}};
+
+									$data->{note} = &clean_note("$note");
+									$reformatted_note = &clean_note("$note");
+									$reformatted_note =~ s/\n/ /g;
+
+								}
+
 
 								my $json_data = $json_encoder->encode($data);
+
+								# plain text output useful for testing
+								print $plain_output_file "DATA: $FBrf\t$flag_type\t$flag\t$curator\t$currecs\t$flag_audit_timestamp\t$reformatted_note\n";
 
 
 								unless ($ENV_STATE eq "test") {
@@ -487,20 +562,16 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 									my $result = $json_encoder->decode($raw_result);
 
 
-									# plain text output useful for testing
-									print $output_file "DATA: $FBrf\t$flag_type\t$flag\t$curator\t$file;\t$flag_audit_timestamp\n";
 
 									if (exists $result->{'status'} && $result->{'status'} eq 'success') {
-							
-										print $output_file "json post success\nJSON:\n$json_data\n\n";
+
+										print $json_output_file "json post success\nJSON:\n$json_data\n\n";
 
 									} else {
 
 										print $process_error_file "json post failed\nJSON:\n$json_data\nREASON:\n$raw_result\n#################################\n\n";
 
 									}
-						
-						
 								}
 
 
@@ -529,14 +600,11 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 }
 
 # add data for 'Dataset: pheno' topic
-my $dataset_pheno_flag = 'Dataset: pheno';
-my $dataset_pheno_note = &get_matching_pubprop_value_with_timestamps($dbh,'internalnotes',$dataset_pheno_flag);
 
 
 # get relevant data for 'Dataset: pheno'
-my $dataset_pheno_data = {};
 
-foreach my $pub_id (sort keys %{$dataset_pheno_note}) {
+foreach my $pub_id (sort keys %{$topic_notes->{'ATP:0000085'}}) {
 
 
 	# loop to ensure
@@ -564,200 +632,156 @@ foreach my $pub_id (sort keys %{$dataset_pheno_note}) {
 
 	}
 
-	my $flag_count = 0; # count of whether there has been a plain 'Dataset: pheno' flag (with a datestamp if it exists) for this publication
+	# hash to store all information for the pub_id
+	my $data = undef;
+
+	my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
+
+	my $flag_type = 'camcur';
+	my $flag = 'Dataset: pheno';
+
+	foreach my $int_note (sort keys %{$topic_notes->{'ATP:0000085'}->{$pub_id}}) {
+
+		my $line_timestamp = $topic_notes->{'ATP:0000085'}->{$pub_id}->{$int_note}[0];
+		my $candidate_curator_details = &get_relevant_curator_from_candidate_list_using_pub_and_timestamp($all_curation_record_data, $pub_id, $line_timestamp);
 
 
-	foreach my $line (sort keys %{$dataset_pheno_note->{$pub_id}}) {
+		my $curator = '';
+		my $currecs = '';
+		my $note = '';
 
-		my $line_timestamp = $dataset_pheno_note->{$pub_id}->{$line}[0];
-		my $curator_data = &get_relevant_curator($dbh, $pub_id, $line_timestamp);
-		my $curator = ''; # this will be the relevant curator with a matching timestamp.
-		my $file = ''; # this will be the relevant curation record. Not submitted to the Alliance, but useful for plain text output (DATA: lines) when testing.
+		# 1. work out curator details
+		if (defined $candidate_curator_details) {
+			my $candidate_curator = "$candidate_curator_details->{curator}";
+			my $candidate_currecs = "$candidate_curator_details->{currecs}";
 
-		my $note = $line;
-		$note =~ s/(Author|User): .*? \<.*?\>\. ?//; # get rid of any author details that have crept in in error
-		# get rid of notes that are just the Dataset: pheno flag (and a datestamp if it exists), so that only end up with anything to add to note if there is additional info
+				if ($candidate_currecs ne 'ERROR:unable to reconcile curator') {
+					$curator = "$candidate_curator";
+					$currecs = "$candidate_currecs";
+
+				} else {
+					print $data_error_file "ERROR: multiple different curators that cannot reconcile, not adding: $FBrf\t$flag_type\$flag\t$candidate_curator\t$candidate_currecs\t$line_timestamp\n";
+
+
+				}
+
+		} else {
+			print $data_error_file "ERROR: unable to find who curated for $flag_type\$flag\t$FBrf\n";
+
+		}
+
+		# 2. if there is additional information in the internal note apart from just the Dataset: pheno flag (and a datestamp if it exists) add that into the note in the json
+		$note = "$int_note";
+		my $dataset_pheno_flag = '(D|d)ataset: ?pheno';
 		$note =~ s/^$dataset_pheno_flag\.?$//;
 		$note =~ s/^$dataset_pheno_flag\. ?-?[a-z]{1,} ?[0-9]{6}(\.)?$//;
 		$note =~ s/^$dataset_pheno_flag\. [0-9]{6}[a-z]{1,}\.$//;
 		$note =~ s/^ +//;
 
 
-		if (defined $curator_data) {
-
-			# simple case, only one matching curated_by pubprop
-			if ($curator_data->{count} == 1) {
-
-				$curator = $curator_data->{relevant_curator};
-				$file = $curator_data->{relevant_record};
-
-			} else {
-
-				# multiple records for same FBrf submitted in same week by same curator
-				if (scalar keys %{$curator_data->{curator}} == 1) {
-
-					$curator = join '', keys %{$curator_data->{curator}};
-					$file = join ', ', sort keys %{$curator_data->{curator}->{$curator}};
-
-				} else {
-
-					# flag info must have been submitted/looked at by a curator rather than just multiple user curation, so set curator to the generic 'FB_curator'
-					if (exists $curator_data->{FB_curator_count} && !exists $curator_data->{community_curation_count}) {
-						$curator = 'FB_curator';
-
-					} else {
-						print $data_error_file "ERROR: multiple different curators that cannot reconcile, not adding: $pub_id\t$line\t" . (join ', ', keys %{$curator_data->{curator}}) . "\t" . (join ', ', keys %{$curator_data->{curator}->{$curator}}) . "\t$line_timestamp\n";
-
-					}
-
-				}
-
-			}
-
-			# convert all unknown style curators to the same 'FB_curator' name that is used for persistent store submissions
-			if ($curator eq 'Unknown' || $curator eq 'Unknown Curator' || $curator eq 'Generic Curator' || $curator eq 'P. Leyland') {
-				$curator = 'FB_curator';
-			}
-
-		} else {
-
-
-			print $data_error_file "ERROR: unable to find who curated for $pub_id: $line\n";
-		}
-
+		# 3. if a curator has been assigned, make a json structure
 		if ($curator ne '') {
 
-			unless (exists $dataset_pheno_data->{$pub_id}) {
 
-				$dataset_pheno_data->{$pub_id}->{created_by} = $curator;
-				$dataset_pheno_data->{$pub_id}->{date_created} = $line_timestamp;
-				$dataset_pheno_data->{$pub_id}->{date_updated} = $line_timestamp;
+			unless (defined $data) {
+
+				# set basic information for this particular flag and FBrf combination
+				my $FBrf_with_prefix="FB:".$FBrf;
+				$data->{json}->{reference_curie} = $FBrf_with_prefix;
+
+				my $ATP = "ATP:0000085";
+				$data->{json}->{topic} = $ATP;
+				$data->{json}->{species} = 'NCBITaxon:7214';  # Drosophilidae
+				$data->{json}->{negated} = FALSE;
+				$data->{json}->{data_novelty} = 'ATP:0000335'; # if the mapping hash has no specific data novelty term set, the parent term (ATP:0000335 = 'data novelty') must be added for ABC validation purposes
+
+
+				$data->{json}->{created_by} = $curator;
+				$data->{json}->{date_created} = $line_timestamp;
+				$data->{json}->{date_updated} = $line_timestamp;
+
+				$data->{debugging}->{currecs} = $currecs;
 
 				if ($note ne '') {
-					$dataset_pheno_data->{$pub_id}->{note} = $note;
+					$data->{json}->{note} = &clean_note("$note");
+
 				}
 
 			} else {
 
+				my $existing_note = exists $data->{note} ? $data->{note} : '';
 
-				my $existing_note = exists $dataset_pheno_data->{$pub_id}->{note} ? $dataset_pheno_data->{$pub_id}->{note} : '';
+				my $existing_curator = "$data->{json}->{created_by}";
 
-				# not had an internal note that just added 'Dataset: pheno' yet, but have had some other comment
-				# in this case, change the created info to the current datestamp as it should be earlier than the other comment
-				# also add any additional note text
-				if ($flag_count == 0) {
+				my $override = 0;
 
-					$dataset_pheno_data->{$pub_id}->{updated_by} = "$dataset_pheno_data->{$pub_id}->{created_by}";
-					$dataset_pheno_data->{$pub_id}->{created_by} = $curator;
-					$dataset_pheno_data->{$pub_id}->{date_updated} = "$dataset_pheno_data->{$pub_id}->{date_created}";
-					$dataset_pheno_data->{$pub_id}->{date_created} = $line_timestamp;
+				if (($existing_curator eq 'Author Submission' || $existing_curator eq 'User Submission') && ($curator ne 'Author Submission' && $curator ne 'User Submission')) {
 
-					if ($note ne '') {
-
-						$dataset_pheno_data->{$pub_id}->{note} = ($existing_note) ? ($existing_note . " " . $note) : $note;
-
-					}
-
-				# have already had an internal note that just added 'Dataset: pheno' with no additional info.
-				# in this case, only want to change the updated info (plus add note text) if there is additional note text to add
-				} else {
-
-					if ($note ne '') {
-
-						$dataset_pheno_data->{$pub_id}->{updated_by} = $curator;
-						$dataset_pheno_data->{$pub_id}->{date_updated} = $line_timestamp;
-						$dataset_pheno_data->{$pub_id}->{note} = ($existing_note) ? ($existing_note . " " . $note) : $note;
-
-					}
+					$override++;
 
 				}
 
+				if ($existing_note eq '' && $note ne '') {
+					$override++;
+				}
+
+				# overwrite the original information with the new information as it has more detail.
+				if ($override) {
+
+					$data->{json}->{created_by} = $curator;
+					$data->{json}->{date_created} = $line_timestamp;
+					$data->{json}->{date_updated} = $line_timestamp;
+					$data->{debugging}->{currecs} = $currecs;
+
+					if ($note ne '') {
+						$data->{json}->{note} = ($existing_note) ? ($existing_note . "||" . $note) : $note;
+
+					}
+
+
+				}
 			}
 		}
-
-
-		# add to the count if the internal note was a plain 'Dataset: pheno' flag
-		if ($note eq '') {
-
-			$flag_count++;
-		}
-
 
 
 	}
 
+	# add source information based on final value of created_by
+	if ($data->{json}->{created_by} eq "Author Submission" || $data->{json}->{created_by} eq "User Submission"){
+		$data->{json}->{topic_entity_tag_source_id} = $author_source_data->{topic_entity_tag_source_id};
+	} else {
+		$data->{json}->{topic_entity_tag_source_id} = $curator_source_data->{topic_entity_tag_source_id};
+	}
 
-}
+	# plain text output useful for testing
+	my $reformatted_note = exists $data->{json}->{note} ? $data->{json}->{note} : '';
+	$reformatted_note =~ s/\n/ /g;
+	print $plain_output_file "DATA: $FBrf\t$flag_type\t$flag\t$data->{json}->{created_by}\t$data->{debugging}->{currecs}\t$data->{json}->{date_created}\t$reformatted_note\n";
 
-# add Dataset: pheno info to the $complete_data hash
-
-foreach my $pub_id (sort keys %{$dataset_pheno_data}) {
-
-
-
-	if (exists $pub_id_to_FBrf->{$pub_id}) {
-
-		# build reference with information for this publication
-		my $data = {};
-
-		# set basic information for this particular flag and FBrf combination
-		my $FBrf = $pub_id_to_FBrf->{$pub_id}->{'FBrf'};
-		my $FBrf_with_prefix="FB:".$FBrf;
-		$data->{reference_curie} = $FBrf_with_prefix;
-		$data->{topic} = "ATP:0000085";
-		$data->{species} = 'NCBITaxon:7214', # Drosophilidae
-		$data->{data_novelty} = 'ATP:0000335'; # if the mapping hash has no specific data novelty term set, the parent term (ATP:0000335 = 'data novelty') must be added for ABC validation purposes
-		$data->{negated} = FALSE;
-
-		foreach my $key (keys %{$dataset_pheno_data->{$pub_id}}) {
-
-			$data->{$key} = $dataset_pheno_data->{$pub_id}->{$key};
-
-		}
-		if ($data->{created_by} eq "Author Submission" || $data->{created_by} eq "User Submission"){
-			$data->{topic_entity_tag_source_id} = $author_source_data->{topic_entity_tag_source_id};
-		} else {
-			$data->{topic_entity_tag_source_id} = $curator_source_data->{topic_entity_tag_source_id};
-		}
-
-		unless ($ENV_STATE eq "test") {
-			push @{$complete_data->{data}}, $data;
-
-		} else {
-
-
-			my $json_data = $json_encoder->encode($data);
-
-			my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/'  -H 'accept: application/json'  -H 'Authorization: Bearer $access_token' -H 'Content-Type: application/json'  -d '$json_data'";
-			my $raw_result = `$cmd`;
-			my $result = $json_encoder->decode($raw_result);
-
-			# plain text output useful for testing
-			print $output_file "DATA: $FBrf\tDataset: pheno information\n";
-
-			if (exists $result->{'status'} && $result->{'status'} eq 'success') {
-
-				print $output_file "json post success\nJSON:\n$json_data\n\n";
-
-			} else {
-
-				print $process_error_file "json post failed\nJSON:\n$json_data\nREASON:\n$raw_result\n#################################\n\n";
-
-			}
-
-
-		}
-
-
+	# add data for the pub to the json data/submit depending on mode
+	unless ($ENV_STATE eq "test") {
+		push @{$complete_data->{data}}, $data->{json};
 
 	} else {
+		my $json_data = $json_encoder->encode($data);
 
-		print $data_error_file "ERROR: 'Dataset: pheno '$pub_id with no FBrf in final mapping\n";
+		my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/$api_endpoint/'  -H 'accept: application/json'  -H 'Authorization: Bearer $access_token' -H 'Content-Type: application/json'  -d '$json_data'";
+		my $raw_result = `$cmd`;
+		my $result = $json_encoder->decode($raw_result);
+
+		if (exists $result->{'status'} && $result->{'status'} eq 'success') {
+
+			print $json_output_file "json post success\nJSON:\n$json_data\n\n";
+
+		} else {
+
+			print $process_error_file "json post failed\nJSON:\n$json_data\nREASON:\n$raw_result\n#################################\n\n";
+
+		}
 
 	}
-}
 
-###
+}
 
 unless ($ENV_STATE eq "test") {
 
@@ -765,13 +789,14 @@ unless ($ENV_STATE eq "test") {
 	$complete_data->{"metaData"} = $json_metadata;
 	my $complete_json_data = $json_encoder->encode($complete_data);
 
-	print $output_file $complete_json_data;
+	print $json_output_file $complete_json_data;
 
 
 
 }
 
 
-close $output_file;
+close $json_output_file;
+close $plain_output_file;
 close $data_error_file;
 close $process_error_file;

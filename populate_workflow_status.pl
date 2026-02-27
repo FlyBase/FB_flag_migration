@@ -270,7 +270,7 @@ open my $plain_output_file, '>', "FB_workflow_status_data.txt"
 binmode($plain_output_file, ":utf8");
 
 
-print STDERR "##Starting processing: " . (scalar localtime) . "\n";
+print $plain_output_file "##Starting processing: " . (scalar localtime) . "\n";
 
 my $all_curation_record_data = &get_all_currec_data($dbh);
 
@@ -862,8 +862,8 @@ foreach my $pub_id (sort keys %{$workflow_status_data}) {
 		push @{$complete_data->{data}}, $workflow_status_data->{$pub_id}->{$workflow_type}->{json};
 
 		# simple output for testing/debugging
-		my $curated_by = $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'created_by'} ? "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'created_by'}" : '';
-		my $updated_by = $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'updated_by'} ? "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'updated_by'}" : '';
+		my $curated_by = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'created_by'} ? "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'created_by'}" : '';
+		my $updated_by = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'updated_by'} ? "$workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'updated_by'}" : '';
 
 
 		my $workflow_tag_id = exists $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'workflow_tag_id'} ? $workflow_status_data->{$pub_id}->{$workflow_type}->{json}->{'workflow_tag_id'} : '';
@@ -927,6 +927,7 @@ unless ($ENV_STATE eq "test") {
 
 }
 
+print $plain_output_file "##Ended processing: " . (scalar localtime) . "\n";
 
 
 close $json_output_file;
@@ -934,6 +935,5 @@ close $data_error_file;
 close $process_error_file;
 close $plain_output_file;
 
-print STDERR "##Ended processing: " . (scalar localtime) . "\n";
 
 

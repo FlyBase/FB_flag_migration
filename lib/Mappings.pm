@@ -49,12 +49,20 @@ sub get_flag_mapping {
 				'ATP_topic' => 'ATP:0000006',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 				'data_novelty' => 'ATP:0000229', # new to field
+				'for_curation_status' => {
+					'use_thin_cur_status' => 'thin|cam_full',
+					'do_not_add_internal_note'  => '1',
+				},
 			},
 
 			'new_allele' => {
 				'ATP_topic' => 'ATP:0000006',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 				'data_novelty' => 'ATP:0000229', # new to field
+				'for_curation_status' => {
+					'use_thin_cur_status' => 'thin|cam_full',
+					'do_not_add_internal_note'  => '1',
+				},
 			},
 
 			'new_transg' => {
@@ -62,6 +70,10 @@ sub get_flag_mapping {
 				'ATP_topic' => 'ATP:0000013',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
 				'data_novelty' => 'ATP:0000229', # new to field
+				'for_curation_status' => {
+					'use_thin_cur_status' => 'thin|cam_full',
+					'do_not_add_internal_note'  => '1',
+				},
 			},
 
 			'pert_exp' => {
@@ -76,7 +88,6 @@ sub get_flag_mapping {
 				'for_curation_status' => {
 					'get_curated_data' => 'phenotype',
 					'use_filename' => 'phen',
-					'relevant_internal_note' => 'only pheno_chem data in paper|No phenotypic data in paper|phen_cur: CV annotations only',
 					'use_cam_full_filename' => '1',
 				},
 			},
@@ -99,13 +110,21 @@ sub get_flag_mapping {
 
 				'ATP_topic' => 'ATP:0000048',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
+				'for_curation_status' => {
+					'use_thin_cur_status' => 'thin|cam_full',
+					'do_not_add_internal_note'  => '1',
+				},
 			},
 
 			'merge' => {
 
+				# not curator only - was in original version of FTYP
 				'ATP_topic' => 'ATP:0000340',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
-				# not curator only - was in original version of FTYP
+				'for_curation_status' => {
+					'use_thin_cur_status' => 'thin|cam_full',
+					'do_not_add_internal_note'  => '1',
+				},
 			},
 
 			'split' => {
@@ -118,6 +137,10 @@ sub get_flag_mapping {
 
 				'ATP_topic' => 'ATP:0000339',
 				'species' => 'NCBITaxon:7214', # Drosophilidae
+				'for_curation_status' => {
+					'use_thin_cur_status' => 'thin|cam_full',
+					'do_not_add_internal_note'  => '1',
+				},
 			},
 
 		},
@@ -135,6 +158,7 @@ sub get_flag_mapping {
 					'suffix' => 'use',
 					'get_curated_data' => 'DO_annotation',
 					'use_filename' => 'DO',
+					'relax_plingc_constraint_for_any_record_check' => '1',
 				},
 
 			},
@@ -251,7 +275,6 @@ sub get_flag_mapping {
 					'suffix' => 'use',
 					'get_curated_data' => 'humanhealth',
 					'use_filename' => 'humanhealth',
-					'relevant_internal_note' => 'HDM flag not applicable',
 				},
 			},
 
@@ -264,7 +287,6 @@ sub get_flag_mapping {
 					'suffix' => 'use',
 					'get_curated_data' => 'humanhealth',
 					'use_filename' => 'humanhealth',
-					'relevant_internal_note' => 'HDM flag not applicable',
 				},
 			},
 
@@ -272,6 +294,7 @@ sub get_flag_mapping {
 				'ATP_topic' => 'ATP:0000054',
 				'for_curation_status' => {
 					'suffix' => 'only',
+					'exclude_check_any_record_matching_suffix_timestamp' => '1',
 				},
 			},
 
@@ -281,6 +304,7 @@ sub get_flag_mapping {
 					'suffix' => 'use',
 					'use_filename' => 'args',
 					'get_curated_data' => 'genom_feat',
+					'exclude_check_any_record_matching_suffix_timestamp' => '1',
 				},
 
 			},
@@ -291,6 +315,7 @@ sub get_flag_mapping {
 					'suffix' => 'use',
 					'use_filename' => 'args',
 					'get_curated_data' => 'genom_feat',
+					'exclude_check_any_record_matching_suffix_timestamp' => '1',
 				},
 
 			},
@@ -307,7 +332,6 @@ sub get_flag_mapping {
 					'suffix' => 'use',
 					'get_curated_data' => 'phys_int',
 					'use_filename' => 'phys_int',
-					'relevant_internal_note' => 'phys_int not curated',
 				},
 
 			},
@@ -355,6 +379,8 @@ sub get_flag_mapping {
 
 				'for_curation_status' => {
 					'suffix' => 'only',
+					'relax_plingc_constraint_for_any_record_check' => '1',
+					'relax_plingc_constraint_currec_regex' => '^(cp|dg|mc|tj)[0-9]{1,}\.edit$',
 				},
 			},
 

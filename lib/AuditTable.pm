@@ -5,7 +5,7 @@ use warnings;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw(get_relevant_curator get_all_currec_data get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_flaglist_with_suffix get_timestamps_for_pubprop_value get_relevant_currec_for_datatype get_matching_pubprop_value_with_timestamps get_all_flag_info_with_timestamps get_all_pub_internal_notes_for_tet_wf);
+our @EXPORT = qw(get_relevant_curator get_all_currec_data get_flag_info_with_audit_data get_timestamps_for_flag_with_suffix get_timestamps_for_flaglist_with_suffix get_timestamps_for_flaglist get_timestamps_for_pubprop_value get_relevant_currec_for_datatype get_matching_pubprop_value_with_timestamps get_all_flag_info_with_timestamps get_all_pub_internal_notes_for_tet_wf get_pubs_with_triage_flag_plingc);
 
 
 =head1 MODULE: AuditTable
@@ -456,6 +456,89 @@ o $data->{$pub_id}->{$suffix}->{flags}
 
 }
 
+sub get_timestamps_for_flaglist {
+
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    get_timestamps_for_flaglist
+	Usage:    get_timestamps_for_flaglist(database_handle,$flag_type, \@flag_list);
+	Function: Gets timestamp information for the list of flag(s) specified in the \@flag_list reference in the third argument.
+	Example:  my $thincur_flags = &get_timestamps_for_flaglist($dbh,'cam_flag',\@thincur_flags);
+	Example:  my $rename_flags = &get_timestamps_for_flaglist($dbh,'cam_flag',\@rename_flags);
+
+Arguments:
+
+o $flag_type is the type of pubprop in chado that the list of flags in \@flag_list are stored under (ie. one of cam_flag, harv_flag, dis_flag, onto_flag)
+
+o \@flag_list is an array reference containing the flag(s) to return data for.
+
+The subroutine looks for exact matches for each of the strings in the @flag_list, so if the list contains 'plain' flags without any :: suffix, only matches without a suffix will be returned, whereas if the list contains a flag with a suffix, only matches to that particular flag::suffix string will be returned.
+
+
+Returns:
+
+The returned hash reference has the following structure:
+
+
+o @{$data->{$pub_id}}, $audit_timestamp
+
+
+Details:
+
+o $pub_id is the pub_id of the reference. It references an array that:
+
+  o contains all the timestamp(s) from the audit_chado table for the corresponding suffix.
+
+  o The timestamp values are sorted earliest to latest within the array.
+
+  o It includes timestamps for both 'I' (for insert) or 'U' (for update) audit_transaction.
+
+
+
+=cut
+
+
+	unless (@_ == 3) {
+
+		die "Wrong number of parameters passed to the get_timestamps_for_flaglist subroutine\n";
+	}
+
+
+	my ($dbh, $flag_type, $flag_list) = @_;
+
+	unless ($flag_type eq 'cam_flag' || $flag_type eq 'harv_flag' || $flag_type eq 'dis_flag' || $flag_type eq 'onto_flag') {
+
+		die "unexpected triage flag type $flag_type (must be one of 'cam_flag', 'harv_flag', 'dis_flag' or 'onto_flag'\n";
+
+	}
+
+
+	my $data = {};
+
+	foreach my $flag (@{$flag_list}) {
+
+
+		my $sql_query = sprintf("select distinct pp.pub_id, ac.transaction_timestamp from pubprop pp, cvterm c, audit_chado ac where pp.value = '%s' and c.cvterm_id=pp.type_id  and c.name ='%s' and ac.audited_table='pubprop' and ac.audit_transaction in ('I', 'U') and pp.pubprop_id=ac.record_pkey order by ac.transaction_timestamp",$flag, $flag_type);
+		my $db_query = $dbh->prepare($sql_query);
+		$db_query->execute or die "WARNING: ERROR: Unable to execute get_timestamps_for_flaglist query ($!)\n";
+
+
+		while (my ($pub_id, $audit_timestamp) = $db_query->fetchrow_array) {
+
+			push @{$data->{$pub_id}}, $audit_timestamp;
+		}
+
+	}
+
+	return $data;
+
+}
+
+
 sub get_timestamps_for_pubprop_value {
 
 
@@ -552,7 +635,7 @@ Arguments:
 	my $datatype_mapping = {
 
 		# filename types used for topic curation status
-		'cell_line' => '.+?\.(cell|cell_multiple|cell_multi)\..+?',
+		'cell_line' => '.+?\.(cell|cell_multiple|cell_multi|cell_tsv_multiple_corrected|new_pub_cell|cell_tsv|new_cell_line)\..+?',
 		'phys_int' => '.+?\.(int|int_miRNA)\..+?',
 		'DO' => '.+?\.DO\..+?',
 		'neur_exp' => '.+?\.vfb\.exp.+?',
@@ -931,3 +1014,81 @@ This means that any regex in $additional_filters should typically be specified t
 
 }
 
+
+
+sub get_pubs_with_triage_flag_plingc {
+
+=head1 SUBROUTINE:
+=cut
+
+=head1
+
+	Title:    get_pubs_with_triage_flag_plingc
+	Usage:    get_pubs_with_triage_flag_plingc(database handle);
+	Function: The get_pubs_with_triage_flag_plingc subroutine gets a list of pub_ids that have had a plingc (correction) done on triage data, along with a list of the corresponding timestamps when the correction occurred.
+	Example: my $pubs_with_triage_flag_plingc = &get_pubs_with_triage_flag_plingc($dbh);
+
+
+The subroutine uses audit_chado to get a list of pub_ids which have had a plingc (correction) done on triage data by getting all pub_ids for which there is a audit_transaction of type 'D' for the pubprop table, where the deleted data is for one of the four possible triage flag types ('cam_flag', 'harv_flag', 'dis_flag', 'onto_flag').
+
+
+The returned data has the format:
+
+$data->{$pub_id}->{$flag_type}->{$timestamp}++;
+
+
+where $flag_type is one of 'cam_flag', 'harv_flag', 'dis_flag', 'onto_flag'.
+
+$timestamp is the timestamp of each 'D' type audit_transaction.
+
+=cut
+
+	unless (@_ == 1) {
+
+		die "Wrong number of parameters passed to the get_pubs_with_triage_flag_plingc subroutine\n";
+	}
+
+
+	my ($dbh) = @_;
+
+	my $data = {};
+
+	my @flag_types = ('cam_flag', 'harv_flag', 'dis_flag', 'onto_flag');
+
+	foreach my $flag_type (@flag_types) {
+
+		my $flag_type_query = sprintf("select cvterm_id from cvterm where name = '%s' and is_obsolete = '0'", $flag_type);
+		my $flag_type_db_query = $dbh->prepare($flag_type_query);
+		$flag_type_db_query->execute or die "WARNING: ERROR: Unable to execute get_pubs_with_triage_flag_plingc flag_type_query ($!)\n";
+
+		my $cvterm_id = '';
+		while (my ($id) = $flag_type_db_query->fetchrow_array) {
+
+			$cvterm_id = $id;
+
+		}
+
+
+		my $sql_query = sprintf("select distinct transaction_timestamp, record_ukey_vals from audit_chado where audited_table = 'pubprop' and audit_transaction = 'D' and record_ukey_cols = 'pub_id<audit_delimiter>type_id<audit_delimiter>rank' and record_ukey_vals ~ '<audit_delimiter>%s<audit_delimiter>'", $cvterm_id);
+		my $db_query = $dbh->prepare($sql_query);
+		$db_query->execute or die "WARNING: ERROR: Unable to execute get_pubs_with_triage_flag_plingc data query ($!)\n";
+
+
+		while (my ($timestamp, $record_ukey_vals) = $db_query->fetchrow_array) {
+
+			if ($record_ukey_vals =~ m/^(\d+)<audit_delimiter>$cvterm_id<audit_delimiter>/) {
+
+				my $pub_id = $1;
+
+				$data->{$pub_id}->{$flag_type}->{$timestamp}++;
+
+			}
+		}
+
+
+	}
+
+	return $data;
+
+
+}
