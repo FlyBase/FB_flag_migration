@@ -927,6 +927,7 @@ unless ($ENV_STATE eq "test") {
 
 }
 
+print $plain_output_file "##Ended processing: " . (scalar localtime) . "\n";
 
 
 close $json_output_file;
@@ -934,6 +935,5 @@ close $data_error_file;
 close $process_error_file;
 close $plain_output_file;
 
-print $plain_output_file "##Ended processing: " . (scalar localtime) . "\n";
 
 
