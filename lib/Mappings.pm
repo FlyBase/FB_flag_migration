@@ -5,7 +5,7 @@ use warnings;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw(get_flag_mapping get_flags_to_ignore FB_to_ABC_curator_mapping);
+our @EXPORT = qw(get_flag_mapping get_flags_to_ignore);
 
 use JSON::PP;
 
@@ -467,27 +467,3 @@ sub get_flags_to_ignore {
 
 
 
-sub FB_to_ABC_curator_mapping {
-
-
-=head1
-
-	Title:    FB_to_ABC_curator_mapping
-	Usage:    FB_to_ABC_curator_mapping()
-	Function: Returns a mapping of FB curator names to the corresponding ABC name for the small number of cases where the ABC curator name is not identical to the FB one.
-	Example:  my $FB_to_ABC_curator_mapping = &FB_to_ABC_curator_mapping();
-	Args   :  none
-
-=cut
-
-
-	my $cur_mapping = {
-
-		'Author Submission' => 'FB Author Submission',
-		'User Submission' => 'FB User Submission',
-		'Virtual Fly Brain' => 'FB Virtual Fly Brain',
-
-	};
-
-	return $cur_mapping;
-}
