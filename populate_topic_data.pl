@@ -547,7 +547,6 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 								}
 
 
-								my $json_data = $json_encoder->encode($data);
 
 								# plain text output useful for testing
 								print $plain_output_file "DATA: $FBrf\t$flag_type\t$flag\t$curator\t$currecs\t$flag_audit_timestamp\t$reformatted_note\n";
@@ -557,6 +556,9 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 									push @{$complete_data->{data}}, $data;
 
 								} else {
+
+									my $json_data = $json_encoder->encode($data);
+
 									my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/$api_endpoint/'  -H 'accept: application/json'  -H 'Authorization: Bearer $access_token' -H 'Content-Type: application/json'  -d '$json_data'";
 									my $raw_result = `$cmd`;
 									my $result = $json_encoder->decode($raw_result);
@@ -763,7 +765,7 @@ foreach my $pub_id (sort keys %{$topic_notes->{'ATP:0000085'}}) {
 		push @{$complete_data->{data}}, $data->{json};
 
 	} else {
-		my $json_data = $json_encoder->encode($data);
+		my $json_data = $json_encoder->encode($data->{json});
 
 		my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/$api_endpoint/'  -H 'accept: application/json'  -H 'Authorization: Bearer $access_token' -H 'Content-Type: application/json'  -d '$json_data'";
 		my $raw_result = `$cmd`;
