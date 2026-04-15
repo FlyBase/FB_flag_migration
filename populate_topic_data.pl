@@ -547,7 +547,6 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 								}
 
 
-								my $json_data = $json_encoder->encode($data);
 
 								# plain text output useful for testing
 								print $plain_output_file "DATA: $FBrf\t$flag_type\t$flag\t$curator\t$currecs\t$flag_audit_timestamp\t$reformatted_note\n";
@@ -557,6 +556,10 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 									push @{$complete_data->{data}}, $data;
 
 								} else {
+									$data = &convert_curator_names_for_single_element($data);
+
+									my $json_data = $json_encoder->encode($data);
+
 									my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/$api_endpoint/'  -H 'accept: application/json'  -H 'Authorization: Bearer $access_token' -H 'Content-Type: application/json'  -d '$json_data'";
 									my $raw_result = `$cmd`;
 									my $result = $json_encoder->decode($raw_result);
@@ -763,7 +766,9 @@ foreach my $pub_id (sort keys %{$topic_notes->{'ATP:0000085'}}) {
 		push @{$complete_data->{data}}, $data->{json};
 
 	} else {
-		my $json_data = $json_encoder->encode($data);
+
+		$data->{json} = &convert_curator_names_for_single_element($data->{json});
+		my $json_data = $json_encoder->encode($data->{json});
 
 		my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/$api_endpoint/'  -H 'accept: application/json'  -H 'Authorization: Bearer $access_token' -H 'Content-Type: application/json'  -d '$json_data'";
 		my $raw_result = `$cmd`;
@@ -785,6 +790,7 @@ foreach my $pub_id (sort keys %{$topic_notes->{'ATP:0000085'}}) {
 
 unless ($ENV_STATE eq "test") {
 
+	$complete_data->{data} = &convert_curator_names_bulk($complete_data->{data});
 	my $json_metadata = &make_abc_json_metadata($db, $api_endpoint);
 	$complete_data->{"metaData"} = $json_metadata;
 	my $complete_json_data = $json_encoder->encode($complete_data);

@@ -1576,7 +1576,8 @@ foreach my $flag_type (keys %{$diseaseHP_types}) {
 
 # convert stored data into json for submitting to the Alliance
 
-
+# first convert any curator names as needed
+$complete_data->{data} = &convert_curator_names_bulk($complete_data->{data});
 
 
 unless ($ENV_STATE eq "test") {
