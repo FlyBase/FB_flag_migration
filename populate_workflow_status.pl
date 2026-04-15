@@ -885,6 +885,8 @@ foreach my $pub_id (sort keys %{$workflow_status_data}) {
 
 #print Dumper ($complete_data);
 
+# convert any curator names as needed
+$complete_data->{data} = &convert_curator_names_bulk($complete_data->{data});
 
 unless ($ENV_STATE eq "test") {
 
