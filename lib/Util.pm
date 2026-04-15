@@ -5,7 +5,7 @@ use warnings;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw(make_abc_json_metadata get_yyyymmdd_date_stamp pub_has_curated_data get_relevant_curator_from_candidate_list get_relevant_curator_from_candidate_list_using_pub_and_timestamp check_and_validate_nocur clean_note);
+our @EXPORT = qw(make_abc_json_metadata get_yyyymmdd_date_stamp pub_has_curated_data get_relevant_curator_from_candidate_list get_relevant_curator_from_candidate_list_using_pub_and_timestamp check_and_validate_nocur clean_note convert_curator_names_for_single_element convert_curator_names_bulk);
 
 use JSON::PP;
 
@@ -719,3 +719,101 @@ sub degreek {
 
 }
 
+sub convert_curator_names_bulk {
+
+
+=head1
+
+	Title:    convert_curator_names_bulk
+	Function: Takes a hash that contains an array of elements, where each element represent a single data item to be submitted to the ABC, and for each element converts curator names in any created_by or updated_by keys in the element to the corresponding ABC curator name (for the small number of cases where the ABC curator name is not identical to the FB curator name). Designed for use in any mode other than test where all data is gathered in a single hash of array elements before converting to a single json file.
+	Example:  my $complete_data = &convert_curator_names_bulk($complete_data);
+	Args   :  none
+
+=cut
+
+
+	my $cur_mapping = {
+
+		'Author Submission' => 'FB Author Submission',
+		'User Submission' => 'FB User Submission',
+		'Virtual Fly Brain' => 'FB Virtual Fly Brain',
+
+	};
+
+	unless (@_ == 1) {
+
+		die "Wrong number of parameters passed to the convert_curator_names_bulk subroutine\n";
+	}
+
+
+	my ($data) =  @_;
+
+	foreach my $element (@{$data}) {
+
+		my @fields_to_convert = ('created_by', 'updated_by');
+
+		foreach my $field (@fields_to_convert) {
+
+			if (exists $element->{$field}) {
+
+				if (exists $cur_mapping->{"$element->{$field}"}) {
+
+					my $converted_curator = $cur_mapping->{"$element->{$field}"};
+
+					$element->{$field} = "$converted_curator";
+				}
+			}
+		}
+	}
+
+	return $data;
+}
+
+
+sub convert_curator_names_for_single_element {
+
+
+=head1
+
+	Title:    convert_curator_names_for_single_element
+	Function: Takes a hash and converts curator names in any created_by or updated_by keys in the hash to the corresponding ABC curator name (for the small number of cases where the ABC curator name is not identical to the FB curator name). Designed for use in test mode when submitting single json elements at a time to ABC.
+	Example:  my $data = &convert_curator_names_for_single_element($data);
+	Args   :  none
+
+=cut
+
+
+	my $cur_mapping = {
+
+		'Author Submission' => 'FB Author Submission',
+		'User Submission' => 'FB User Submission',
+		'Virtual Fly Brain' => 'FB Virtual Fly Brain',
+
+	};
+
+	unless (@_ == 1) {
+
+		die "Wrong number of parameters passed to the convert_curator_names_for_single_element subroutine\n";
+	}
+
+
+	my ($data) =  @_;
+
+
+	my @fields_to_convert = ('created_by', 'updated_by');
+
+	foreach my $field (@fields_to_convert) {
+
+		if (exists $data->{$field}) {
+
+			if (exists $cur_mapping->{"$data->{$field}"}) {
+
+				my $converted_curator = $cur_mapping->{"$data->{$field}"};
+
+				$data->{$field} = "$converted_curator";
+			}
+		}
+	}
+
+	return $data;
+}
