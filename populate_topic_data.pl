@@ -556,6 +556,7 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 									push @{$complete_data->{data}}, $data;
 
 								} else {
+									$data = &convert_curator_names_for_single_element($data);
 
 									my $json_data = $json_encoder->encode($data);
 
@@ -765,6 +766,8 @@ foreach my $pub_id (sort keys %{$topic_notes->{'ATP:0000085'}}) {
 		push @{$complete_data->{data}}, $data->{json};
 
 	} else {
+
+		$data->{json} = &convert_curator_names_for_single_element($data->{json});
 		my $json_data = $json_encoder->encode($data->{json});
 
 		my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/$api_endpoint/'  -H 'accept: application/json'  -H 'Authorization: Bearer $access_token' -H 'Content-Type: application/json'  -d '$json_data'";
@@ -787,6 +790,7 @@ foreach my $pub_id (sort keys %{$topic_notes->{'ATP:0000085'}}) {
 
 unless ($ENV_STATE eq "test") {
 
+	$complete_data->{data} = &convert_curator_names_bulk($complete_data->{data});
 	my $json_metadata = &make_abc_json_metadata($db, $api_endpoint);
 	$complete_data->{"metaData"} = $json_metadata;
 	my $complete_json_data = $json_encoder->encode($complete_data);
