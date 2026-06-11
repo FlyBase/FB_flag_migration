@@ -271,7 +271,6 @@ foreach my $textmining_file (@textmining_files) {
 
 				} else {
 
-					#print $data_error_file "ERROR: no mapping in the flag_mapping hash for this flag_type:$flag from $flag_type, line: $_\n";
 					warn "ERROR: no mapping in the flag_mapping hash for this flag_type:$flag from $flag_type, line: $_\n";
 				}
 
