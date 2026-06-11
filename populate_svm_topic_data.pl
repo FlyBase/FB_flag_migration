@@ -214,9 +214,13 @@ foreach my $textmining_file (@textmining_files) {
 
 				my $day = $1;
 				my $month = $2;
-
-				$month = "$month_mapping->{$month}";
 				my $year = $3;
+
+				if ($day =~ m/^[0-9]{1}$/) {
+
+					$day = '0' . "$day";
+				}
+				$month = "$month_mapping->{$month}";
 				$timestamp = "$year-$month-$day";
 
 			}
