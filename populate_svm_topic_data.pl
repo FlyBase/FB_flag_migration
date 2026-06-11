@@ -112,6 +112,20 @@ my $confidence_mapping = {
 
 };
 
+# mapping of confidence levels to scores
+my $score_mapping = {
+
+
+	'HIGH' => 0.9,
+	'MEDIUM' => 0.75,
+	'LOW' => 0.5,
+	'NEG' => 0,
+
+
+
+
+};
+
 
 my $month_mapping = {
 
@@ -328,6 +342,8 @@ foreach my $FBrf (sort keys %{$svm_data}) {
 
 
 					$data_element->{confidence_level} = $svm_data->{$FBrf}->{$flag_type}->{$flag}->{confidence};
+					my $confidence_score = $score_mapping->{"$svm_data->{$FBrf}->{$flag_type}->{$flag}->{confidence}"};
+					$data_element->{confidence_score} = $confidence_score;
 
 
 					unless ($ENV_STATE eq "test") {
