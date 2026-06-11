@@ -288,65 +288,72 @@ foreach my $FBrf (sort keys %{$svm_data}) {
 			if ($svm_data->{$FBrf}->{$flag_type}->{$flag}->{count} == 1) {
 
 
-				# first store variables in a $data_element hash so it is easy to convert to correct json format later (and to add/change json structure if Alliance model changes)
-				my $data_element = {};
-				my $FBrf_with_prefix="FB:$FBrf";
-				$data_element->{reference_curie} = $FBrf_with_prefix;
-
-				if ($svm_data->{$FBrf}->{$flag_type}->{$flag}->{timestamp}) {
-
-					$data_element->{date_created} = $svm_data->{$FBrf}->{$flag_type}->{$flag}->{timestamp};
-					$data_element->{date_updated} = $svm_data->{$FBrf}->{$flag_type}->{$flag}->{timestamp};
-
-				}
-
-				# set other parameters for the flag based on $flag_mapping hash or set the relevant default if the key does not exist in the mapping hash for that flag
-				my $ATP = "$flag_mapping->{$flag_type}->{$flag}->{ATP_topic}";
-				$data_element->{topic} = $ATP;
-				$data_element->{species} = exists $flag_mapping->{$flag_type}->{$flag}->{species} ? $flag_mapping->{$flag_type}->{$flag}->{species} : 'NCBITaxon:7227';
-
-				if ($svm_data->{$FBrf}->{$flag_type}->{$flag}->{confidence} eq 'NEG') {
-
-					$data_element->{negated} = TRUE;
-
-				} else {
-
-					$data_element->{negated} = FALSE;
-				}
+				# do not submit negative results for pipelines that are looking for 'new' data of a particular type (new_al, new_transg)
+				# this is to match current policy for equivalent ABC pipelines. do the test here rather than in first pass that reads FB files
+				# so that any cases with data conflicts can still be excluded
+				unless (exists $flag_mapping->{$flag_type}->{$flag}->{data_novelty} && $svm_data->{$FBrf}->{$flag_type}->{$flag}->{confidence} eq 'NEG') {
 
 
-				$data_element->{data_novelty} = exists $flag_mapping->{$flag_type}->{$flag}->{data_novelty} ? $flag_mapping->{$flag_type}->{$flag}->{data_novelty} : 'ATP:0000335'; # if the mapping hash has no specific data novelty term set, the parent term (ATP:0000335 = 'data novelty') must be added for ABC validation purposes
 
-				$data_element->{topic_entity_tag_source_id} = $svm_source_data->{topic_entity_tag_source_id};
+					# first store variables in a $data_element hash so it is easy to convert to correct json format later (and to add/change json structure if Alliance model changes)
+					my $data_element = {};
+					my $FBrf_with_prefix="FB:$FBrf";
+					$data_element->{reference_curie} = $FBrf_with_prefix;
 
+					if ($svm_data->{$FBrf}->{$flag_type}->{$flag}->{timestamp}) {
 
-				$data_element->{confidence_level} = $svm_data->{$FBrf}->{$flag_type}->{$flag}->{confidence};
+						$data_element->{date_created} = $svm_data->{$FBrf}->{$flag_type}->{$flag}->{timestamp};
+						$data_element->{date_updated} = $svm_data->{$FBrf}->{$flag_type}->{$flag}->{timestamp};
 
+					}
 
-				unless ($ENV_STATE eq "test") {
-					push @{$complete_data->{data}}, $data_element;
+					# set other parameters for the flag based on $flag_mapping hash or set the relevant default if the key does not exist in the mapping hash for that flag
+					my $ATP = "$flag_mapping->{$flag_type}->{$flag}->{ATP_topic}";
+					$data_element->{topic} = $ATP;
+					$data_element->{species} = exists $flag_mapping->{$flag_type}->{$flag}->{species} ? $flag_mapping->{$flag_type}->{$flag}->{species} : 'NCBITaxon:7227';
 
-				} else {
+					if ($svm_data->{$FBrf}->{$flag_type}->{$flag}->{confidence} eq 'NEG') {
 
-					my $json_data = $json_encoder->encode($data_element);
-
-					my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/$api_endpoint/'  -H 'accept: application/json'  -H 'Authorization: Bearer $access_token' -H 'Content-Type: application/json'  -d '$json_data'";
-					my $raw_result = `$cmd`;
-					my $result = $json_encoder->decode($raw_result);
-
-
-					
-					unless (exists $result->{'detail'}) {
-
-						print "json post success\nJSON:\n$json_data\n\n";
+						$data_element->{negated} = TRUE;
 
 					} else {
 
-						print "json post failed\nJSON:\n$json_data\nREASON:\n$raw_result\n#################################\n\n";
+						$data_element->{negated} = FALSE;
+					}
 
+
+					$data_element->{data_novelty} = exists $flag_mapping->{$flag_type}->{$flag}->{data_novelty} ? $flag_mapping->{$flag_type}->{$flag}->{data_novelty} : 'ATP:0000335'; # if the mapping hash has no specific data novelty term set, the parent term (ATP:0000335 = 'data novelty') must be added for ABC validation purposes
+
+					$data_element->{topic_entity_tag_source_id} = $svm_source_data->{topic_entity_tag_source_id};
+
+
+					$data_element->{confidence_level} = $svm_data->{$FBrf}->{$flag_type}->{$flag}->{confidence};
+
+
+					unless ($ENV_STATE eq "test") {
+						push @{$complete_data->{data}}, $data_element;
+
+					} else {
+
+						my $json_data = $json_encoder->encode($data_element);
+
+						my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/$api_endpoint/'  -H 'accept: application/json'  -H 'Authorization: Bearer $access_token' -H 'Content-Type: application/json'  -d '$json_data'";
+						my $raw_result = `$cmd`;
+						my $result = $json_encoder->decode($raw_result);
+
+
+					
+						unless (exists $result->{'detail'}) {
+
+							print "json post success\nJSON:\n$json_data\n\n";
+
+						} else {
+
+							print "json post failed\nJSON:\n$json_data\nREASON:\n$raw_result\n#################################\n\n";
+
+						}
 					}
 				}
-
 
 			}
 
