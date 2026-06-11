@@ -93,9 +93,6 @@ o dev mode
 
   o single FBrf mode: asks user for FBrf number (can also use a regular expression to test multiple FBrfs in this mode).
 
-  o Data is printed to both the json output and 'plain' output files.
-
-  o makes error files (see below) to record any errors.
 
 
 o test mode
@@ -104,28 +101,23 @@ o test mode
 
   o uses curl to try to POST data to the Alliance ABC stage server (so asks user for okta token for Alliance ABC stage server).
 
-  o Data (including a record of successful curl POST events) is printed to the 'plain' output file.
-
-  o makes error files (see below) to record any errors.
 
 
 o production mode
 
   o makes data for all relevant FBrfs in chado.
 
-  o Data is printed to the json output file.
-
-  o makes error files (see below) to record any errors.
 
 
 o Output files
 
+  o The same four files are made in each mode:
 
-  o json output file (FB_workflow_status_data.json) containing a single json structure for all the data (manual_indexing status data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source). Data is printed to this file in all modes except 'test'.
+  o json output file (FB_workflow_status_data.json) containing a single json structure for all the data (manual_indexing status data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source).  In test mode, successfully submitted json elements are printed in this file.
 
- o 'plain' output file (FB_workflow_status_data.txt) to aid in debugging - prints the same data as in the json file, but with a single 'DATA:' tsv row for each FBrf+topic combination. Data is printed to this file in all modes.
+ o 'plain' output file (FB_workflow_status_data.txt) to aid in debugging - prints the same data as in the json file, but with a single 'DATA:' tsv row for each FBrf+topic combination.
 
-  o FB_workflow_status_data_errors.err - errors in mapping FlyBase data to appropriate Alliance json are printed in this file. Data is printed to this file in all modes.
+  o FB_workflow_status_data_errors.err - errors in mapping FlyBase data to appropriate Alliance json are printed in this file.
 
   o FB_workflow_status_process_errors.err - processing errors - if a curl POST fails in test mode, the failed json element and the reason for the failure are printed in this file. Expected to be empty for all other modes.
 
@@ -908,12 +900,11 @@ unless ($ENV_STATE eq "test") {
 
 		my $cmd="curl -X 'POST' 'https://stage-literature-rest.alliancegenome.org/$api_endpoint/'  -H 'accept: application/json'  -H 'Authorization: Bearer $access_token' -H 'Content-Type: application/json'  -d '$json_element'";
 		my $raw_result = `$cmd`;
-
 		
-
+		# endpoint behaviour for success still returns an integer for workflow_tag endpoint
 		if ($raw_result =~ m/^\d+$/) {
 
-			print $plain_output_file "json post success\nJSON:\n$json_element\n\n";
+			print $json_output_file "json post success\nJSON:\n$json_element\n\n";
 
 		} else {
 
