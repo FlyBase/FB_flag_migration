@@ -566,7 +566,7 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 
 
 
-									if (exists $result->{'status'} && $result->{'status'} eq 'success') {
+									unless (exists $result->{'detail'}) {
 
 										print $json_output_file "json post success\nJSON:\n$json_data\n\n";
 
@@ -774,7 +774,7 @@ foreach my $pub_id (sort keys %{$topic_notes->{'ATP:0000085'}}) {
 		my $raw_result = `$cmd`;
 		my $result = $json_encoder->decode($raw_result);
 
-		if (exists $result->{'status'} && $result->{'status'} eq 'success') {
+		unless (exists $result->{'detail'}) {
 
 			print $json_output_file "json post success\nJSON:\n$json_data\n\n";
 

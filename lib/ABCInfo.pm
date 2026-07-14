@@ -63,7 +63,8 @@ o access_token: access token for the relevant Alliance REST API service that was
 
 		'curator' => {
 
-			'evidence' => '0000036',
+			'evidence_prefix' => 'ATP',
+			'evidence_id' => '0000036',
 			'source_method' => 'FlyBase_curation',
 
 		},
@@ -71,16 +72,28 @@ o access_token: access token for the relevant Alliance REST API service that was
 
 		'author' => {
 
-			'evidence' => '0000035',
+			'evidence_prefix' => 'ATP',
+			'evidence_id' => '0000035',
 			'source_method' => 'author_first_pass',
 
 		},
+
+# For SVM results, use: ECO:0008019 = 'support vector machine evidence used in automatic assertion'
+
+		'svm' => {
+
+			'evidence_prefix' => 'ECO',
+			'evidence_id' => '0008019',
+			'source_method' => 'fb_svm_classifier',
+
+		},
+
 
 	};
 
 	unless (exists $curator_type_mapping->{$curator_type}) {
 
-		die "unrecognized value ($curator_type) passed to get_topic_entity_tag_source_data subroutine as curator_type: must be 'curator' or 'author'\n";
+		die "unrecognized value ($curator_type) passed to get_topic_entity_tag_source_data subroutine as curator_type: add details to the curator_type_mapping hash to be able to get this data from the ABC\n";
 
 
 	}
@@ -89,11 +102,11 @@ o access_token: access token for the relevant Alliance REST API service that was
 
 	if ($API_type eq 'stage') {
 
-		$cmd = "curl -X 'GET' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/source/ATP%3A$curator_type_mapping->{$curator_type}->{evidence}/$curator_type_mapping->{$curator_type}->{source_method}/FB/FB' -H 'accept: application/json' -H 'Authorization: Bearer $access_token'";
+		$cmd = "curl -X 'GET' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/source/$curator_type_mapping->{$curator_type}->{evidence_prefix}%3A$curator_type_mapping->{$curator_type}->{evidence_id}/$curator_type_mapping->{$curator_type}->{source_method}/FB/FB' -H 'accept: application/json' -H 'Authorization: Bearer $access_token'";
 
 	} else {
 
-		$cmd = "curl -X 'GET' 'https://literature-rest.alliancegenome.org/topic_entity_tag/source/ATP%3A$curator_type_mapping->{$curator_type}->{evidence}/$curator_type_mapping->{$curator_type}->{source_method}/FB/FB' -H 'accept: application/json' -H 'Authorization: Bearer $access_token'";
+		$cmd = "curl -X 'GET' 'https://literature-rest.alliancegenome.org/topic_entity_tag/source/$curator_type_mapping->{$curator_type}->{evidence_prefix}%3A$curator_type_mapping->{$curator_type}->{evidence_id}/$curator_type_mapping->{$curator_type}->{source_method}/FB/FB' -H 'accept: application/json' -H 'Authorization: Bearer $access_token'";
 
 	}
 
@@ -144,7 +157,7 @@ o Corresponding AGRKB number.
 
 	my ($API_type, $FBrf) = @_;
 
-	unless ($API_type eq 'production' | $API_type eq 'stage') {
+	unless ($API_type eq 'production' || $API_type eq 'stage') {
 
 		die "unrecognized value ($API_type) passed to get_AGRKB_for_FBrf surboutine as API_type: must be 'production' or 'stage'\n";
 
