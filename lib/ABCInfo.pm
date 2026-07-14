@@ -157,7 +157,7 @@ o Corresponding AGRKB number.
 
 	my ($API_type, $FBrf) = @_;
 
-	unless ($API_type eq 'production' | $API_type eq 'stage') {
+	unless ($API_type eq 'production' || $API_type eq 'stage') {
 
 		die "unrecognized value ($API_type) passed to get_AGRKB_for_FBrf surboutine as API_type: must be 'production' or 'stage'\n";
 

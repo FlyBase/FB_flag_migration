@@ -3,7 +3,6 @@
 use strict;
 use warnings;
 
-use DBI;
 use JSON::PP;
 
 use File::Basename;
@@ -20,7 +19,6 @@ use Util;
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
 
-use Encode;
 binmode(STDOUT, ":utf8");
 
 
@@ -31,7 +29,7 @@ use constant TRUE => \1;
 
 =head1 SYNOPSIS
 
-Used to load FlyBase SVM pipeline triage flag information into the Alliance ABC literature database as topic data. Generates an output file containing a single json structure for all the data (topic data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source and intended destination database).
+Used to load FlyBase SVM pipeline triage flag information into the Alliance ABC literature database as topic data. Generates a single json structure (printed to STDOUT) for all the data (topic data is a set of arrays within a 'data' object, plus there is a 'metaData' object to indicate source and intended destination database).
 
 =cut
 
@@ -46,14 +44,14 @@ USAGE: perl populate_svm_topic_data.pl folder_path dev|test|production XXXX
 if (@ARGV != 3) {
     warn "Wrong number of arguments, should be 3!\n";
     warn "\n USAGE: $0 folder_path dev|test|production access_token\n\n";
-    exit;
+    exit 1;
 }
 
 my $folder_path = shift(@ARGV);
 my $ENV_STATE = shift(@ARGV);
 my $access_token = shift(@ARGV);
 
-unless ($ENV_STATE eq 'dev'|| $ENV_STATE eq 'test'|| $ENV_STATE eq 'production') {
+unless ($ENV_STATE eq 'dev' || $ENV_STATE eq 'test'|| $ENV_STATE eq 'production') {
 
 	warn "Unknown state '$ENV_STATE': must be 'dev', 'test' or 'production'\n\n";
 	exit;
@@ -69,7 +67,7 @@ if ($ENV_STATE eq "test") {
 	chomp $continue;
 	if (($continue eq 'y') || ($continue eq 'Y')) {
 		print STDERR "Processing will continue.";
-	} else{
+	} else {
 		die "Processing has been cancelled.";
 	}
 }
@@ -83,13 +81,11 @@ if ($ENV_STATE eq "test") {
 	$test_FBrf = <STDIN>;
 	chomp $test_FBrf;
 
-	if ($ENV_STATE eq "test") {
 
-		unless ($test_FBrf =~ m/^FBrf[0-9]{7}$/) {
+	unless ($test_FBrf =~ m/^FBrf[0-9]{7}$/) {
 
-			die "Only a single FBrf is allowed in test mode."
+		die "Only a single FBrf is allowed in test mode."
 
-		}
 	}
 
 }
@@ -162,6 +158,9 @@ if ($ENV_STATE eq "dev" || $ENV_STATE eq "test") {
 	$svm_source_data = &get_topic_entity_tag_source_data($ENV_STATE, 'svm', $access_token);
 
 }
+
+die "Could not retrieve SVM topic_entity_tag_source_id from ABC — check token / that the source is configured.\n"
+    unless $svm_source_data->{topic_entity_tag_source_id};
 
 #print Dumper ($svm_source_data);
 
