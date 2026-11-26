@@ -102,11 +102,11 @@ o access_token: access token for the relevant Alliance REST API service that was
 
 	if ($API_type eq 'stage') {
 
-		$cmd = "curl -X 'GET' 'https://stage-literature-rest.alliancegenome.org/topic_entity_tag/source/$curator_type_mapping->{$curator_type}->{evidence_prefix}%3A$curator_type_mapping->{$curator_type}->{evidence_id}/$curator_type_mapping->{$curator_type}->{source_method}/FB/FB' -H 'accept: application/json' -H 'Authorization: Bearer $access_token'";
+		$cmd = "curl -X 'GET' 'https://stage-literature-rest.alliancegenome.org/tag_source/$curator_type_mapping->{$curator_type}->{evidence_prefix}%3A$curator_type_mapping->{$curator_type}->{evidence_id}/$curator_type_mapping->{$curator_type}->{source_method}/FB/FB' -H 'accept: application/json' -H 'Authorization: Bearer $access_token'";
 
 	} else {
 
-		$cmd = "curl -X 'GET' 'https://literature-rest.alliancegenome.org/topic_entity_tag/source/$curator_type_mapping->{$curator_type}->{evidence_prefix}%3A$curator_type_mapping->{$curator_type}->{evidence_id}/$curator_type_mapping->{$curator_type}->{source_method}/FB/FB' -H 'accept: application/json' -H 'Authorization: Bearer $access_token'";
+		$cmd = "curl -X 'GET' 'https://literature-rest.alliancegenome.org/tag_source/$curator_type_mapping->{$curator_type}->{evidence_prefix}%3A$curator_type_mapping->{$curator_type}->{evidence_id}/$curator_type_mapping->{$curator_type}->{source_method}/FB/FB' -H 'accept: application/json' -H 'Authorization: Bearer $access_token'";
 
 	}
 
