@@ -528,11 +528,11 @@ foreach my $pub_id (sort keys %{$flag_info}) {
 
 								$data->{data_novelty} = exists $flag_mapping->{$flag_type}->{$flag}->{data_novelty} ? $flag_mapping->{$flag_type}->{$flag}->{data_novelty} : 'ATP:0000335'; # if the mapping hash has no specific data novelty term set, the parent term (ATP:0000335 = 'data novelty') must be added for ABC validation purposes
 
-								#choose different topic_entity_tag_source_id based on ENV_STATE and 'created_by' value
+								#choose different tag_source_id based on ENV_STATE and 'created_by' value
 								if ($curator eq "Author Submission" || $curator eq "User Submission"){
-									$data->{topic_entity_tag_source_id} = $author_source_data->{topic_entity_tag_source_id};
+									$data->{tag_source_id} = $author_source_data->{tag_source_id};
 								} else {
-									$data->{topic_entity_tag_source_id} = $curator_source_data->{topic_entity_tag_source_id};
+									$data->{tag_source_id} = $curator_source_data->{tag_source_id};
 								}
 
 								# add internal note if appropriate. don't worry about timestamp as want to add the internal note in all cases
@@ -751,9 +751,9 @@ foreach my $pub_id (sort keys %{$topic_notes->{'ATP:0000085'}}) {
 
 	# add source information based on final value of created_by
 	if ($data->{json}->{created_by} eq "Author Submission" || $data->{json}->{created_by} eq "User Submission"){
-		$data->{json}->{topic_entity_tag_source_id} = $author_source_data->{topic_entity_tag_source_id};
+		$data->{json}->{tag_source_id} = $author_source_data->{tag_source_id};
 	} else {
-		$data->{json}->{topic_entity_tag_source_id} = $curator_source_data->{topic_entity_tag_source_id};
+		$data->{json}->{tag_source_id} = $curator_source_data->{tag_source_id};
 	}
 
 	# plain text output useful for testing

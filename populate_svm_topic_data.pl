@@ -159,8 +159,8 @@ if ($ENV_STATE eq "dev" || $ENV_STATE eq "test") {
 
 }
 
-die "Could not retrieve SVM topic_entity_tag_source_id from ABC — check token / that the source is configured.\n"
-    unless $svm_source_data->{topic_entity_tag_source_id};
+die "Could not retrieve SVM tag_source_id from ABC — check token / that the source is configured.\n"
+    unless $svm_source_data->{tag_source_id};
 
 #print Dumper ($svm_source_data);
 
@@ -340,7 +340,7 @@ foreach my $FBrf (sort keys %{$svm_data}) {
 
 					$data_element->{data_novelty} = exists $flag_mapping->{$flag_type}->{$flag}->{data_novelty} ? $flag_mapping->{$flag_type}->{$flag}->{data_novelty} : 'ATP:0000335'; # if the mapping hash has no specific data novelty term set, the parent term (ATP:0000335 = 'data novelty') must be added for ABC validation purposes
 
-					$data_element->{topic_entity_tag_source_id} = $svm_source_data->{topic_entity_tag_source_id};
+					$data_element->{tag_source_id} = $svm_source_data->{tag_source_id};
 
 
 					$data_element->{confidence_level} = $svm_data->{$FBrf}->{$flag_type}->{$flag}->{confidence};
