@@ -8,7 +8,7 @@ Scripts to handle export of FlyBase triage flag and curation status data into th
 1. `populate_topic_data.pl`  
 
    Generates json for loading FlyBase triage flag information into the Topic Entity Tag tables in the Alliance ABC literature database.  
-  Requires an access token (6th argument when run script) to query for correct topic_entity_tag_source_id
+  Requires an access token (6th argument when run script) to query for correct tag_source_id
 
 2. `populate_topic_curation_status.pl`  
 
